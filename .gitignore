@@ -1,2 +1,4 @@
 .last-deployed.gs
 .autopush.log
+.DS_Store
+**/.DS_Store

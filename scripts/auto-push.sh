@@ -15,6 +15,9 @@ rm -f .git/index.lock .git/HEAD.lock 2>/dev/null
 find .git -name "tmp_obj_*" -delete 2>/dev/null
 find .git -name "*.lock" -not -path "*/refs/*" -delete 2>/dev/null
 
+# sacar .DS_Store del tracking (una vez; luego es no-op) — Finder los modifica sin parar
+git rm -r --cached --ignore-unmatch .DS_Store "*/.DS_Store" >/dev/null 2>&1
+
 # ── 1. GitHub → Netlify ──
 CAMBIOS=$(git status --porcelain | wc -l | tr -d ' ')
 echo "cambios pendientes: $CAMBIOS"
