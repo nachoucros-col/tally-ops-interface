@@ -241,6 +241,37 @@ function handle(body) {
       sh.getRange(row, 21).setValue(now);
       return { ok: true, draft_asunto: draftAsunto, draft_cuerpo: draft };
     }
+    case 'generate_new': {
+      // Redacción libre con IA para CORREOS NUEVOS: Juan da objetivo+contexto,
+      // Claude redacta asunto y cuerpo personalizados por cliente.
+      const key = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
+      if (!key) return { ok: false, error: 'SIN_API_KEY: configura ANTHROPIC_API_KEY en Propiedades del script.' };
+      const cfg = ss.getSheetByName('Config');
+      const firmaRow = findRow(cfg, 1, 'firma_juan');
+      const firma = firmaRow ? cfg.getRange(firmaRow, 2).getValue() : 'Best regards,\nJuan Vélez\nTally';
+      const modelRow = findRow(cfg, 1, 'modelo_redaccion');
+      const model = modelRow ? String(cfg.getRange(modelRow, 2).getValue()) : 'claude-sonnet-5';
+
+      const system = 'Eres el asistente de redacción de Juan Vélez, Director de Estrategia de Tally (contabilidad para empresas extranjeras en México). Redactas un CORREO NUEVO a un cliente siguiendo el objetivo y contexto que da Juan.\n\nReglas: idioma = el que Juan indique en su instrucción; si no indica ninguno, inglés (los clientes son empresas extranjeras). Tono profesional, cálido y directo. NO inventes datos, montos, fechas ni compromisos que Juan no haya dado. Sin corchetes ni placeholders. Cierra con la firma tal cual se te da.\n\nFORMATO DE SALIDA OBLIGATORIO: primera línea exactamente "ASUNTO: <asunto del correo>", luego una línea en blanco, luego el cuerpo completo. Nada más.';
+      const user = 'CLIENTE DESTINATARIO: ' + (body.cliente || '') + (body.company_id ? ' (' + body.company_id + ')' : '') +
+        '\nNOMBRE DEL CONTACTO: ' + (body.contact_name || 'no disponible — usa un saludo genérico profesional') +
+        '\n\nOBJETIVO Y CONTEXTO DEL CORREO (instrucción de Juan):\n' + (body.prompt || '') +
+        '\n\nFIRMA A USAR AL FINAL:\n' + firma;
+
+      const resp = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+        method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        payload: JSON.stringify({ model: model, max_tokens: 1200, system: system, messages: [{ role: 'user', content: user }] })
+      });
+      const code = resp.getResponseCode();
+      if (code !== 200) return { ok: false, error: 'Claude API ' + code + ': ' + resp.getContentText().slice(0, 200) };
+      const blocks = (JSON.parse(resp.getContentText()).content) || [];
+      const tb = blocks.filter(function(b){ return b && b.type === 'text' && b.text; })[0];
+      if (!tb) return { ok: false, error: 'respuesta sin bloque de texto' };
+      const mt2 = String(tb.text).trim().match(/^ASUNTO:\s*(.+)\n+([\s\S]+)$/);
+      if (!mt2) return { ok: false, error: 'formato inesperado del modelo: ' + String(tb.text).slice(0, 120) };
+      return { ok: true, subject: mt2[1].trim(), body_text: mt2[2].trim() };
+    }
     case 'send_reply': {
       // Envío inmediato de la respuesta aprobada, desde juan@.
       // REGLAS DURAS: (1) si el hilo existe en el buzón de juan@, responder DENTRO del hilo;

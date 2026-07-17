@@ -482,9 +482,10 @@ function toggleNewPrompt(){ const w=document.getElementById('newPromptWrap'); w.
 /* ═══════════════ REDACTAR DESDE CERO ═══════════════ */
 function openCompose(){
   composeMode=true; selId=null; selOut=null;
-  cmp={clients:[],cat:'',tpl:'',previews:[]};
+  cmp={clients:[],cat:'',tpl:'',previews:[],mode:'tpl',iaPrompt:''};
   renderCompose();
 }
+function cancelCompose(){ composeMode=false; document.getElementById('mailDetail').innerHTML='<div class="empty">Selecciona un correo.</div>'; }
 function renderCompose(){
   const el=document.getElementById('mailDetail');
   const tpls=PLANTILLAS.filter(p=>!cmp.cat||p.categoria===cmp.cat);
@@ -499,13 +500,28 @@ function renderCompose(){
     </div>
     <div class="sel-clients" id="selClients">${cmp.clients.map(c=>`<span class="chip">${esc(c.cliente)} <b onclick="removeClient('${esc(c.company_id)}')">✕</b></span>`).join('')}</div>
 
-    <label>2 · Categoría</label>
+    <label>2 · ¿Cómo lo redactamos?</label>
+    <div class="chips" style="margin-bottom:6px">
+      <button class="chip ${cmp.mode!=='ia'?'on':''}" onclick="cmp.mode='tpl';renderCompose()">📄 Con plantilla</button>
+      <button class="chip ${cmp.mode==='ia'?'on':''}" onclick="cmp.mode='ia';renderCompose()">✨ Redacción libre con IA</button>
+    </div>
+    ${cmp.mode==='ia'?`
+    <label>3 · Objetivo y contexto del correo</label>
+    <textarea id="iaPrompt" rows="5" placeholder="Ej: Avísale que su declaración de junio ya fue presentada, comparte que detectamos ventas crecientes y proponle una sesión de 30 min la próxima semana para revisar su estrategia fiscal.">${esc(cmp.iaPrompt||'')}</textarea>
+    <div class="notice info" style="margin-top:8px">🤖 La IA redacta asunto y cuerpo personalizados por cliente. Idioma: inglés por default (o el que pidas en tu instrucción). Revisas, editas y envías — nada sale sin tu aprobación.</div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="iaGenBtn" onclick="genIA()">⚡ Generar con IA (${cmp.clients.length} cliente${cmp.clients.length===1?'':'s'})</button>
+      <button class="btn btn-ghost" onclick="cancelCompose()">Cancelar</button>
+    </div>
+    <div id="iaStatus"></div>
+    `:`
+    <label>3 · Categoría</label>
     <select id="catSel" onchange="cmp.cat=this.value; cmp.tpl=''; renderCompose()">
       <option value="">— selecciona —</option>
       ${[...new Set(PLANTILLAS.map(p=>p.categoria).filter(Boolean))].concat(COMPOSE_CATS).filter((c,i,a)=>a.indexOf(c)===i).map(c=>`<option ${cmp.cat===c?'selected':''}>${c}</option>`).join('')}
     </select>
 
-    <label>3 · Plantilla</label>
+    <label>4 · Plantilla</label>
     <select id="tplSel" onchange="cmp.tpl=this.value; renderCompose()" ${!cmp.cat?'disabled':''}>
       <option value="">${cmp.cat?(tpls.length?'— selecciona —':'sin plantillas para esta categoría (agrégala en el Notion de plantillas)'):'primero elige categoría'}</option>
       ${tpls.map(p=>`<option value="${esc(p.plantilla_id)}" ${cmp.tpl===p.plantilla_id?'selected':''}>${esc(p.nombre)}</option>`).join('')}
@@ -514,8 +530,9 @@ function renderCompose(){
 
     <div class="btn-row">
       <button class="btn btn-primary" onclick="genPreviews()">Generar correos (${cmp.clients.length} cliente${cmp.clients.length===1?'':'s'})</button>
-      <button class="btn btn-ghost" onclick="composeMode=false; document.getElementById('mailDetail').innerHTML='<div class=empty>Selecciona un correo.</div>'">Cancelar</button>
+      <button class="btn btn-ghost" onclick="cancelCompose()">Cancelar</button>
     </div>
+    `}
     <div id="previews"></div>`;
 }
 const VAR_LABELS = {
@@ -570,6 +587,31 @@ function fillTemplate(str,c){
     .replaceAll('{{firma}}',CONFIG.firma_juan||'Best regards,\nJuan Vélez\nTally');
 }
 
+async function genIA(){
+  cmp.iaPrompt=document.getElementById('iaPrompt').value.trim();
+  if(!cmp.clients.length){ toast('Selecciona al menos un cliente'); return; }
+  if(!cmp.iaPrompt){ toast('Describe el objetivo y contexto del correo'); return; }
+  cmp.cat='Redacción libre'; cmp.tpl='IA';
+  document.getElementById('iaGenBtn').disabled=true;
+  const st=document.getElementById('iaStatus');
+  cmp.previews=[];
+  for(let i=0;i<cmp.clients.length;i++){
+    const c=cmp.clients[i];
+    st.innerHTML=`<div class="notice info">⚡ Redactando ${i+1}/${cmp.clients.length}: <b>${esc(c.cliente)}</b>…</div>`;
+    const r=await api('generate_new',{prompt:cmp.iaPrompt,cliente:c.cliente,company_id:c.company_id,contact_name:c.contacto_nombre||''});
+    if(r.ok){
+      cmp.previews.push({company_id:c.company_id,cliente:c.cliente,to:c.contacto_email||'',cc:c.cc_email||'',
+        subject:r.subject,body:r.body_text,status:'',sent:false});
+    }else{
+      st.innerHTML=`<div class="notice warn">❌ ${esc(c.cliente)}: ${esc(r.error||'error')}</div>`;
+      document.getElementById('iaGenBtn').disabled=false; return;
+    }
+  }
+  st.innerHTML='';
+  document.getElementById('iaGenBtn').disabled=false;
+  renderPreviews();
+  toast('✅ '+cmp.previews.length+' correo(s) redactado(s) — revisa, edita y envía');
+}
 function genPreviews(){
   if(!cmp.clients.length){ toast('Selecciona al menos un cliente'); return; }
   if(!cmp.cat){ toast('Selecciona la categoría'); return; }
