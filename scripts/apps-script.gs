@@ -110,8 +110,8 @@ function handle(body) {
       if (!body.to || !body.subject || !body.body_text) return { ok: false, error: 'faltan campos (to/subject/body_text)' };
       // REGLA DURA: SIEMPRE en copia customersuccess@, accounting@ y el OWNER del cliente
       const ownEm = ownerEmail(ss, body.company_id);
-      const ccDirect = mergeCc(String(body.cc || '') + (ownEm ? ',' + ownEm : ''), String(body.to));
       const senderD = resolveSender(ss, body, body.categoria);
+      const ccDirect = mergeCc(String(body.cc || '') + (ownEm ? ',' + ownEm : ''), String(body.to), senderD);
       if (senderD === 'juan@tally.legal') {
         GmailApp.sendEmail(String(body.to), String(body.subject), String(body.body_text), { cc: ccDirect, name: SENDER_NAME });
       } else {
@@ -367,11 +367,11 @@ function handle(body) {
       const asunto = String(v[14] || ((asuntoOrig.toLowerCase().indexOf('re:') === 0 ? '' : 'Re: ') + asuntoOrig));
       const cuerpo = String(body.draft_final || v[16] || v[15]);
       if (to.indexOf('@') < 0) return { ok: false, error: 'la fila no tiene remitente_email válido' };
-      const cc = mergeCc(String(v[21] || ''), to);
       const categoria = String(v[10] || '');
       const cuentaOrigen = String(v[2] || '').toLowerCase();      // cuenta que recibió el correo
       const threadOrigen = String(v[1] || '');                     // thread_id en ESA cuenta
       const sender = resolveSender(ss, body, categoria);
+      const cc = mergeCc(String(v[21] || ''), to, sender);
 
       let enHilo = false, resultado = null;
 
@@ -651,10 +651,11 @@ function setEmailFields(ss, emailId, fields, now) {
 }
 
 /** REGLA DURA DE COPIAS: conserva los CC originales y agrega SIEMPRE
- *  customersuccess@ y accounting@ si no están. Excluye al destinatario y a juan@. */
-function mergeCc(ccOriginal, to) {
+ *  customersuccess@ y accounting@ si no están. Excluye al destinatario y a la CUENTA REMITENTE
+ *  (para que el correo no llegue a la bandeja de entrada de quien lo envía). */
+function mergeCc(ccOriginal, to, sender) {
   const OBLIGATORIOS = ['customersuccess@tally.legal', 'accounting@tally.legal'];
-  const EXCLUIR = [String(to || '').toLowerCase(), 'juan@tally.legal'];
+  const EXCLUIR = [String(to || '').toLowerCase(), String(sender || 'juan@tally.legal').toLowerCase()];
   const set = [];
   const found = String(ccOriginal || '').match(/[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/g) || [];
   found.concat(OBLIGATORIOS).forEach(function(e) {
