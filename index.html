@@ -121,7 +121,9 @@ tr:hover td{background:#fdfcf7}
 .tip:hover .tiptext{visibility:visible;opacity:1}
 .toast.show{opacity:1;transform:none}
 /* Compose */
-.compose-btn{background:var(--violet-500);color:#fff;padding:10px 16px;border-radius:10px;font-weight:500;font-size:14px;margin-left:auto}
+.page-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:6px}
+.head-actions{display:flex;gap:10px;flex-shrink:0;align-items:center;padding-top:6px}
+.compose-btn{background:var(--violet-500);color:#fff;padding:10px 16px;border-radius:10px;font-weight:500;font-size:14px}
 .compose-btn:hover{background:#4c37d8}
 .cli-pick{position:relative}
 .cli-results{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--gray-300);border-radius:10px;max-height:220px;overflow-y:auto;z-index:20;box-shadow:0 8px 24px rgba(33,33,33,.12)}
@@ -155,8 +157,16 @@ tr:hover td{background:#fdfcf7}
 
     <!-- ══ BANDEJA ══ -->
     <section class="view active" id="view-bandeja">
-      <h1>Bandeja</h1>
-      <p class="lead">Correos que requieren tu respuesta (clientes + equipo), filtrados por el agente. Desde aquí también redactas correos nuevos con plantillas y los envías al instante desde juan@.</p>
+      <div class="page-head">
+        <div>
+          <h1>Bandeja</h1>
+          <p class="lead">Correos que requieren tu respuesta (clientes + equipo), filtrados por el agente. Desde aquí también respondes y redactas correos nuevos con envío inmediato.</p>
+        </div>
+        <div class="head-actions">
+          <button class="chip" onclick="requestRun()" title="El agente arranca en menos de 5 minutos">🔄 Actualizar correos</button>
+          <button class="compose-btn" onclick="openCompose()">✍️ Redactar correo</button>
+        </div>
+      </div>
       <div class="chips" id="catChips">
         <button class="chip on" data-cat="*">Todos</button>
         <button class="chip" data-cat="Documentación">Documentación</button>
@@ -333,9 +343,7 @@ function renderCatChips(){
     + cats.map(c=>`<button class="chip" data-cat="${esc(c)}">${esc(c)}</button>`).join('')
     + `<button class="chip" data-cat="__pend">⏳ Pendientes de mí</button>
        <button class="chip" data-cat="__out">📤 Enviados por mí</button>
-       <button class="chip" data-cat="__hist">Respondidos</button>
-       <button class="chip" onclick="requestRun()" title="El agente arranca en menos de 5 minutos">🔄 Actualizar correos</button>
-       <button class="compose-btn" onclick="openCompose()">✍️ Redactar correo</button>`;
+       <button class="chip" data-cat="__hist">Respondidos</button>`;
   el.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on', c.dataset.cat===catFilter));
 }
 async function saveCfg(key, elId, okMsg){
