@@ -146,7 +146,7 @@ tr:hover td{background:#fdfcf7}
     <div class="sub">Interfaz Contable</div>
     <a href="#bandeja" class="active" data-view="bandeja">📥 Bandeja</a>
     <a href="#sc" data-view="sc">📦 Seller Central</a>
-    <a href="#log" data-view="log">🕐 Actividad</a>
+    <a href="#log" data-view="log" style="display:none">🕐 Actividad</a>
     <a href="#clientes" data-view="clientes" id="navClientes" style="display:none">👥 Clientes</a>
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
     <div class="push"></div>
@@ -195,13 +195,19 @@ tr:hover td{background:#fdfcf7}
           <button class="compose-btn" id="scBatchBtn" onclick="scBatch()">📦 Enviar en Batch</button>
         </div>
       </div>
-      <div class="chips" id="scChips">
+      <div class="chips" id="scChips" style="align-items:center">
+        <input type="text" id="scBuscar" placeholder="🔎 Buscar cliente o AZ…" oninput="renderSC()" style="max-width:230px;width:230px">
         <button class="chip on" data-b="*">Todos</button>
-        <button class="chip" data-b="A">Bloque A — enviar</button>
-        <span class="tip">ℹ️<span class="tiptext"><b>Bloque A — listos para envío:</b> clientes que CUMPLEN las 4 reglas del SOP (sin suspensión activa, First Shipment finalizado, sin acceso total ya otorgado, con tarea activa del agente). Al aprobarlos, el agente ejecuta el envío del escenario que corresponda. <b>Regla del día 17:</b> del 17 en adelante el envío ya no solicita documentos — notifica la estrategia de declaración en ceros con complementaria (Esc.3).</span></span>
-        <button class="chip" data-b="B">Bloque B — discrepancias</button>
-        <span class="tip">ℹ️<span class="tiptext"><b>Bloque B — discrepancias:</b> clientes EXCLUIDOS del envío automático por alguna regla del SOP: suspensión activa, First Shipment sin finalizar, acceso total ya otorgado, conversación activa en curso o datos inconsistentes entre sistemas. Requieren tu decisión o una acción interna antes de contactarlos. La columna "Estado" muestra el motivo específico.</span></span>
+        <button class="chip" data-b="__espera">En espera</button>
+        <button class="chip" data-b="__env">📤 Enviados</button>
+        <button class="chip" data-b="__cerrado">✅ Cerrados</button>
         <button class="chip" data-b="__resp">Respondieron</button>
+        <select id="scEsc" onchange="renderSC()" style="width:auto;padding:6px 10px;font-size:13px">
+          <option value="">Escenario: todos</option>
+          <option value="Esc.1">Solicitud inicial (Esc.1)</option>
+          <option value="Esc.2">Recordatorio (Esc.2)</option>
+          <option value="Esc.3">Ceros + complementaria (Esc.3)</option>
+        </select>
         <a class="chip" href="https://app.notion.com/p/34a325ede0a3808b9404e013f3249dec" target="_blank" style="margin-left:auto;text-decoration:none;display:inline-flex;align-items:center;gap:6px">📖 Glosario de los escenarios ↗</a>
       </div>
       <div id="scRegla17"></div>
@@ -220,11 +226,9 @@ tr:hover td{background:#fdfcf7}
       <div class="page-head">
         <div>
           <h1>Clientes</h1>
-          <p class="lead">Directorio de contactos del sistema. Edita nombre y correo(s) directamente en la tabla — los cambios se aplican al pulsar Guardar y el sistema los usa en todos los envíos.</p>
+          <p class="lead">Directorio de contactos del sistema. Despliega cada cliente para ver sus correos, quitar o agregar contactos — los cambios se guardan al instante y el sistema los usa en todos los envíos.</p>
         </div>
-        <div class="head-actions">
-          <button class="compose-btn" id="cliSaveBtn" onclick="saveClientes()" disabled>💾 Guardar cambios</button>
-        </div>
+        
       </div>
       <input type="text" id="cliFilter" placeholder="🔎 Filtrar por nombre, ID o correo…" oninput="renderClientes()" style="max-width:420px;margin-bottom:16px">
       <div id="clientesTable">Cargando…</div>
@@ -331,7 +335,7 @@ async function loadAll(){
     document.getElementById('lastSync').textContent = new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
     document.getElementById('cfgReadStatus').textContent = '✅ conectado';
     renderCatChips();
-    if(AUTH && AUTH.admin && !CLI_DIRTY.size) renderClientes();
+    if(AUTH && AUTH.admin) renderClientes();
     if(document.activeElement.id!=='cfgCats') document.getElementById('cfgCats').value = CONFIG.categorias_triage || 'Documentación, Proceso, Queja y reclamo, Alerta';
     if(document.activeElement.id!=='cfgCuentas') document.getElementById('cfgCuentas').value = CONFIG.cuentas_monitoreadas || '';
     if(!composeMode){ renderMailList(); if(selId) renderDetail(selId); }
@@ -417,6 +421,8 @@ function renderMailList(){
         <span class="tag ${ST_CLASS[e.estado]||'st-Nuevo'}">${e.estado==='Enviado'?'✓ Respondido':esc(e.estado)}</span>
         <span class="tag acct">${esc(e.cuenta)}@</span>
         ${e.cliente&&e.cliente!=='INTERNO'?`<span class="tag acct">${esc(e.cliente)}</span>`:''}
+        ${e.company_id?`<span class="tag acct">${esc(e.company_id)}</span>`:''}
+        ${e.company_id&&ownerDe(e.company_id)?`<span class="tag acct">👤 ${esc(ownerDe(e.company_id))}</span>`:''}
         ${e.cliente==='INTERNO'?`<span class="tag acct">equipo interno</span>`:''}
       </div>
     </div>`).join('');
@@ -662,7 +668,9 @@ function renderCompose(){
       <option value="">${cmp.cat?(tpls.length?'— selecciona —':'sin plantillas para esta categoría (agrégala en el Notion de plantillas)'):'primero elige categoría'}</option>
       ${tpls.map(p=>`<option value="${esc(p.plantilla_id)}" ${cmp.tpl===p.plantilla_id?'selected':''}>${esc(p.nombre)}</option>`).join('')}
     </select>
+    <div style="text-align:right;margin-top:4px"><a href="#" onclick="abrirWizardPlantilla();return false" style="font-size:12.5px;color:var(--violet-500);font-weight:500">➕ Crear plantilla nueva</a></div>
     ${tplInstructivo()}
+    ${camposFormHtml(PLANTILLAS.find(p=>p.plantilla_id===cmp.tpl),'cmp')}
 
     <div class="btn-row">
       <button class="btn btn-primary" onclick="genPreviews()">Generar correos (${cmp.clients.length} cliente${cmp.clients.length===1?'':'s'})</button>
@@ -671,6 +679,147 @@ function renderCompose(){
     `}
     <div id="previews"></div>`;
 }
+/* ═══ Idioma por cliente (IN→español, AZ→inglés, cambiable) ═══ */
+function idiomaDefault(companyId){ return String(companyId||'').toUpperCase().startsWith('IN')?'es':'en'; }
+async function traducirPreview(i, idioma, prefix){
+  const p=cmp.previews[i]; if(!p||p.idioma===idioma) return;
+  const st=document.getElementById(prefix||'iaStatus');
+  if(st) st.innerHTML=`<div class="notice info">🌐 Traduciendo ${esc(p.cliente)} al ${idioma==='es'?'español':'inglés'}…</div>`;
+  const r=await api('translate_text',{subject:p.subject,body_text:p.body,idioma});
+  if(r.ok){ p.subject=r.subject; p.body=r.body_text; p.idioma=idioma; }
+  else toast('❌ traducción: '+(r.error||'error'));
+  if(st) st.innerHTML='';
+}
+async function aplicarIdiomasAuto(statusElId){
+  // plantillas base en inglés → traducir automáticamente los clientes IN* a español
+  for(let i=0;i<cmp.previews.length;i++){
+    const p=cmp.previews[i];
+    p.idioma=p.idioma||'en';
+    if(idiomaDefault(p.company_id)==='es' && p.idioma!=='es'){
+      await traducirPreview(i,'es',statusElId);
+    }
+  }
+}
+/* ═══ Campos manuales [X] de la plantilla (formulario al elegirla) ═══ */
+function camposDePlantilla(tpl){
+  if(!tpl) return [];
+  return [...new Set(bracketsIn(String(tpl.asunto)+'\n'+String(tpl.cuerpo)))].filter(c=>!c.startsWith('[DOC:'));
+}
+function camposFormHtml(tpl, ctxId){
+  const campos=camposDePlantilla(tpl);
+  const docs=docsDePlantilla(tpl);
+  let h='';
+  if(campos.length){
+    h+=`<label>Completa la información requerida por esta plantilla</label>
+    <div class="notice info" style="margin-bottom:8px">Estos datos no viven en el sistema — se aplican a TODOS los correos del envío.</div>`;
+    h+=campos.map((c,ix)=>`<input type="text" id="${ctxId}-campo-${ix}" placeholder="${esc(c)}" value="${esc((cmp.camposVals||{})[c]||'')}" style="margin-bottom:8px" oninput="cmp.camposVals=cmp.camposVals||{};cmp.camposVals['${esc(c)}']=this.value">`).join('');
+  }
+  if(docs.length){
+    h+=`<div class="notice info" style="margin-top:4px">📎 Esta plantilla adjunta automáticamente por cliente: <b>${docs.map(d=>esc(d.tabla+' → '+d.columna)).join(' · ')}</b> (documento más reciente en su expediente). Si algún cliente no lo tiene, su envío se bloquea y te aviso.</div>`;
+  }
+  return h;
+}
+function docsDePlantilla(tpl){
+  if(!tpl) return [];
+  const m=String(tpl.asunto+'\n'+tpl.cuerpo).match(/\[DOC:([\w_]+)\.([\w_ÁÉÍÓÚáéíóúñÑ]+)\]/g)||[];
+  return m.map(t=>{const mm=t.match(/\[DOC:([\w_]+)\.(.+)\]/);return {tabla:mm[1],columna:mm[2]};});
+}
+function aplicarCamposYDocs(texto){
+  let t=String(texto);
+  Object.entries(cmp.camposVals||{}).forEach(([c,v])=>{ if(v) t=t.split(c).join(v); });
+  t=t.replace(/\[DOC:[^\]]+\]/g,'').replace(/\n{3,}/g,'\n\n');
+  return t;
+}
+/* ═══ Creador de plantillas con IA ═══ */
+const TABLAS_APPSHEET={
+ 'Clients_Load':['ClientName','Owner','RFC','FIEL_Vencimiento','SubscriptionType','Suspension'],
+ 'Clientes_por_periodo':['VentasList','IVA_pagar','ISR_pagar','PeriodoRetencion','MesPeriodo','AñoPeríodo','DeclaracionTipo','Notas_Declaracion'],
+ 'Accesos_SellerCentral':['EstadoAcceso','Acceso_Retenciones','Acceso_Ventas','Acceso_Inventario','Acceso_Payoneer','Acceso_EstadosBanco'],
+ 'WeeklyPlan':['status','notes','due_date','Category'],
+ 'Estados_cuenta':['IngresoTotal','MesPeriodo','FechaRecepción'],
+ 'Reportes_de_venta':['Ingresos','MesPeriodo']
+};
+const TABLAS_DOCS={'declaracion_periodo':'Documento','Reportes_de_venta':'Archivo','Retenciones_por_periodo':'URLRetencion','Estados_cuenta':'UrlVentas','Inventario_por_periodo':'URLInventario','diot_periodo':'Documento'};
+let WIZ={};
+function abrirWizardPlantilla(){
+  WIZ={nombre:'',categoria:cmp.cat||'Seguimiento proceso',asunto:'',cuerpo:'',analisis:null};
+  renderWizard(); openDrawer();
+}
+function renderWizard(){
+  const el=document.getElementById('mailDetail');
+  const cats=[...new Set(PLANTILLAS.map(p=>p.categoria).filter(Boolean))].concat(COMPOSE_CATS).filter((c,i,a)=>a.indexOf(c)===i);
+  el.innerHTML=`
+  <h3>🧩 Nueva plantilla</h3>
+  <div class="meta">1) Asunto → 2) Texto → 3) Variables entre [corchetes] → la IA interpreta y tú apruebas.</div>
+  <label>Nombre y categoría</label>
+  <input type="text" id="wz-nombre" placeholder="Nombre de la plantilla" value="${esc(WIZ.nombre)}" style="margin-bottom:8px">
+  <select id="wz-cat">${cats.map(c=>`<option ${WIZ.categoria===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
+  <label>1 · Asunto</label>
+  <input type="text" id="wz-asunto" placeholder="Ej: {{company_name}} | [tema del correo]" value="${esc(WIZ.asunto)}">
+  <label>2 · Texto general</label>
+  <textarea id="wz-cuerpo" rows="10" placeholder="Escribe el cuerpo. Variables del sistema: {{contact_name}} {{company_name}} {{period}} {{owner_name}} {{firma}}. Variables tuyas entre corchetes: [nombre cliente], [accesos seller central], [ventas cliente]…">${esc(WIZ.cuerpo)}</textarea>
+  <div class="btn-row">
+    <button class="btn btn-primary" id="wz-analizar" onclick="wizardAnalizar()">🤖 Analizar variables con IA</button>
+    <button class="btn btn-ghost" onclick="cancelCompose()">Cancelar</button>
+  </div>
+  <div id="wz-resultado">${WIZ.analisis?wizardResultadoHtml():''}</div>`;
+}
+function wizardResultadoHtml(){
+  return `<label style="margin-top:16px">3 · Interpretación de la IA — aprueba o corrige cada variable</label>`+
+  WIZ.analisis.map((a,ix)=>`
+  <div class="ctx-card" style="background:#fff;border:1px solid var(--gray-300)">
+    <div style="font-weight:700;font-size:13px">${esc(a.var)}</div>
+    <div style="font-size:12px;color:var(--gray-500);margin:2px 0 6px">${esc(a.razon||'')}</div>
+    <select id="wz-tipo-${ix}" onchange="WIZ.analisis[${ix}].tipo=this.value;renderWizard()" style="margin-bottom:6px">
+      <option value="sistema" ${a.tipo==='sistema'?'selected':''}>✅ Variable del sistema${a.tipo==='sistema'&&a.match?': '+esc(a.match):''}</option>
+      <option value="manual" ${a.tipo==='manual'?'selected':''}>✍️ Se llena a mano al enviar</option>
+      <option value="appsheet" ${a.tipo==='appsheet'?'selected':''}>📊 Dato de AppSheet</option>
+      <option value="documento" ${a.tipo==='documento'?'selected':''}>📎 Documento adjunto (Drive)</option>
+    </select>
+    ${a.tipo==='sistema'?`<select id="wz-match-${ix}" onchange="WIZ.analisis[${ix}].match=this.value">${Object.keys(VAR_LABELS).map(v=>`<option ${a.match===v?'selected':''}>${v}</option>`).join('')}</select>`:''}
+    ${a.tipo==='appsheet'?wizardTablaSel(ix,TABLAS_APPSHEET,a):''}
+    ${a.tipo==='documento'?wizardTablaSel(ix,Object.fromEntries(Object.entries(TABLAS_DOCS).map(([t,c])=>[t,[c]])),a):''}
+  </div>`).join('')+
+  `<div class="btn-row"><button class="btn btn-approve" onclick="wizardGuardar()">💾 Aprobar y guardar plantilla</button></div>`;
+}
+function wizardTablaSel(ix,tablas,a){
+  const [tSel,cSel]=(a.match||'').split('.');
+  return `<div style="display:flex;gap:8px">
+    <select id="wz-tabla-${ix}" onchange="WIZ.analisis[${ix}].match=this.value+'.'+(document.getElementById('wz-col-${ix}')?.value||'');renderWizard()" style="flex:1"><option value="">— tabla —</option>${Object.keys(tablas).map(t=>`<option ${tSel===t?'selected':''}>${t}</option>`).join('')}</select>
+    <select id="wz-col-${ix}" onchange="WIZ.analisis[${ix}].match=(document.getElementById('wz-tabla-${ix}')?.value||'')+'.'+this.value" style="flex:1"><option value="">— columna —</option>${(tablas[tSel]||[]).map(c=>`<option ${cSel===c?'selected':''}>${c}</option>`).join('')}</select>
+  </div>`;
+}
+async function wizardAnalizar(){
+  WIZ.nombre=document.getElementById('wz-nombre').value.trim();
+  WIZ.categoria=document.getElementById('wz-cat').value;
+  WIZ.asunto=document.getElementById('wz-asunto').value.trim();
+  WIZ.cuerpo=document.getElementById('wz-cuerpo').value;
+  if(!WIZ.nombre||!WIZ.asunto||!WIZ.cuerpo){ toast('Completa nombre, asunto y texto'); return; }
+  const vars=bracketsIn(WIZ.asunto+'\n'+WIZ.cuerpo);
+  if(!vars.length){ WIZ.analisis=[]; wizardGuardar(); return; }
+  document.getElementById('wz-analizar').disabled=true;
+  document.getElementById('wz-resultado').innerHTML='<div class="notice info">🤖 Interpretando variables…</div>';
+  const r=await api('analizar_plantilla',{subject:WIZ.asunto,body_text:WIZ.cuerpo});
+  document.getElementById('wz-analizar').disabled=false;
+  if(r.ok){ WIZ.analisis=r.analisis; renderWizard(); }
+  else document.getElementById('wz-resultado').innerHTML=`<div class="notice warn">❌ ${esc(r.error||'error')}</div>`;
+}
+async function wizardGuardar(){
+  let asunto=WIZ.asunto, cuerpo=WIZ.cuerpo;
+  (WIZ.analisis||[]).forEach(a=>{
+    if(a.tipo==='sistema'&&a.match&&a.match.startsWith('{{')){ asunto=asunto.split(a.var).join(a.match); cuerpo=cuerpo.split(a.var).join(a.match); }
+    if(a.tipo==='documento'&&a.match&&a.match.includes('.')){ const tok='[DOC:'+a.match+']'; asunto=asunto.split(a.var).join(''); cuerpo=cuerpo.split(a.var).join(tok); }
+    /* manual y appsheet: quedan como [var] → se capturan a mano al enviar (appsheet automático: siguiente iteración) */
+  });
+  const pid='TPL-CUSTOM-'+Date.now().toString(36).toUpperCase();
+  const r=await api('upsert_plantilla',{plantilla_id:pid,categoria:WIZ.categoria,nombre:WIZ.nombre,asunto,cuerpo});
+  if(r.ok){
+    PLANTILLAS.push({plantilla_id:pid,categoria:WIZ.categoria,nombre:WIZ.nombre,asunto,cuerpo});
+    toast('✅ Plantilla "'+WIZ.nombre+'" creada — disponible en el selector (el agente la subirá también a Notion)');
+    cancelCompose();
+  } else toast('❌ '+(r.error||'error'));
+}
+
 const VAR_LABELS = {
   '{{contact_name}}':'nombre del contacto (pestaña Clientes)',
   '{{company_name}}':'nombre de la empresa',
@@ -864,10 +1013,12 @@ function renderBatch(){
     <div class="sel-clients">${cmp.clients.map(c=>`<span class="chip">${esc(c.cliente)}${c.contacto_email?'':' ⚠️'} <b onclick="removeClient('${esc(c.company_id)}')">✕</b></span>`).join('')||'<span style="color:var(--gray-500);font-size:13px">sin clientes aún</span>'}</div>
 
     <label>2 · Tipo de escenario a enviar</label>
-    <select id="batchTpl" onchange="cmp.tpl=this.value">
+    <select id="batchTpl" onchange="cmp.tpl=this.value;renderBatch()">
       <option value="">${tpls.length?'— selecciona el escenario —':'sin plantillas SC (revisa el Notion de plantillas)'}</option>
       ${tpls.map(p=>`<option value="${esc(p.plantilla_id)}" ${cmp.tpl===p.plantilla_id?'selected':''}>${esc(p.nombre)}</option>`).join('')}
     </select>
+    <div style="text-align:right;margin-top:4px"><a href="#" onclick="abrirWizardPlantilla();return false" style="font-size:12.5px;color:var(--violet-500);font-weight:500">➕ Crear plantilla nueva</a></div>
+    ${camposFormHtml(PLANTILLAS.find(p=>p.plantilla_id===cmp.tpl),'batch')}
 
     <div class="btn-row">
       <button class="btn btn-primary" onclick="batchCheck()">🔍 Comprobar y enviar (${cmp.clients.length})</button>
@@ -954,20 +1105,36 @@ async function scScenario(cid, escenario){
     toast('✅ Escenario de '+ (row.cliente||cid) +' → '+escNombre(escenario)); renderSC(); }
   else toast('❌ '+(r.error||'error'));
 }
+function accionPendiente(r){
+  if(r.fecha_ultimo_envio){
+    if(r.escenario_actual==='Esc.3') return 'N/A — ciclo cerrado';
+    if(r.escenario_actual==='Esc.1') return 'Siguiente: Recordatorio (Esc.2)';
+    if(r.escenario_actual==='Esc.2') return 'Siguiente: Ceros + complementaria (Esc.3)';
+    return 'Siguiente escenario del ciclo';
+  }
+  return r.accion_pendiente||'';
+}
+function cicloCerrado(r){ return !!r.fecha_ultimo_envio && r.escenario_actual==='Esc.3'; }
 function renderSC(){
   const dia=new Date().getDate();
   document.getElementById('scRegla17').innerHTML = dia>=17
-    ? `<div class="notice warn" style="margin-bottom:16px">📅 <b>Hoy es día ${dia} — regla del 17 activa:</b> los envíos que apruebes en Bloque A ya NO solicitan documentos adicionales; notifican la <b>estrategia de declaración en ceros con complementaria</b> (Esc.3, plantilla del SOP). El agente aplica el cambio automáticamente.</div>`
-    : `<div class="notice info" style="margin-bottom:16px">📅 Antes del día 17: los envíos de Bloque A solicitan documentos/accesos. A partir del 17, cambian automáticamente a estrategia de ceros con complementaria (Esc.3).</div>`;
+    ? `<div class="notice warn" style="margin-bottom:16px">📅 <b>Hoy es día ${dia} — regla del 17 activa:</b> los envíos que apruebes ya NO solicitan documentos adicionales; notifican la <b>estrategia de declaración en ceros con complementaria</b> (Esc.3, plantilla del SOP). El agente aplica el cambio automáticamente.</div>`
+    : `<div class="notice info" style="margin-bottom:16px">📅 Antes del día 17: los envíos aprobados solicitan documentos/accesos. A partir del 17, cambian automáticamente a estrategia de ceros con complementaria (Esc.3).</div>`;
   let rows=SC;
-  if(scFilter==='A'||scFilter==='B') rows=rows.filter(r=>r.bloque===scFilter);
+  const q=(document.getElementById('scBuscar')?.value||'').trim().toLowerCase();
+  if(q) rows=rows.filter(r=>(r.cliente||'').toLowerCase().includes(q)||(r.company_id||'').toLowerCase().includes(q));
+  const escF=document.getElementById('scEsc')?.value||'';
+  if(escF) rows=rows.filter(r=>r.escenario_actual===escF);
+  if(scFilter==='__espera') rows=rows.filter(r=>!r.fecha_ultimo_envio&&r.estado_sop!=='Respondió');
+  if(scFilter==='__env') rows=rows.filter(r=>r.fecha_ultimo_envio&&!cicloCerrado(r));
+  if(scFilter==='__cerrado') rows=rows.filter(r=>cicloCerrado(r));
   if(scFilter==='__resp') rows=rows.filter(r=>r.estado_sop==='Respondió');
   const el=document.getElementById('scTable');
   if(!rows.length){ el.innerHTML='<p style="color:var(--gray-500)">Sin registros. El agente sincroniza la cola desde AppSheet en cada corrida.</p>'; return; }
-  el.innerHTML=`<table><thead><tr><th>Cliente</th><th>Owner</th><th>Período</th><th>Escenario de envío <span class="tip">ℹ️<span class="tiptext">Es el correo que saldrá al aprobar. Puedes cambiarlo por cliente con el selector. <b>Regla del 17:</b> del día 17 en adelante, el agente fuerza "Estrategia declaración en ceros" aunque el selector diga otra cosa.</span></span></th><th>Estado</th><th>Días</th><th>Bloque <span class="tip">ℹ️<span class="tiptext"><b>A</b> = cumple el SOP, listo para envío con tu aprobación.<br><b>B</b> = excluido por discrepancia (suspensión, FS sin finalizar, acceso total, conversación activa) — requiere decisión.</span></span></th><th>Acción pendiente</th><th>Aprobación</th><th></th></tr></thead><tbody>${rows.map(r=>`
+  el.innerHTML=`<table><thead><tr><th>Cliente</th><th>Owner</th><th>Período</th><th>Escenario de envío <span class="tip">ℹ️<span class="tiptext">Es el correo que saldrá al aprobar. Puedes cambiarlo por cliente con el selector. <b>Regla del 17:</b> del día 17 en adelante, el agente fuerza "Estrategia declaración en ceros" aunque el selector diga otra cosa.</span></span></th><th>Estado</th><th>Días</th><th>Acción pendiente</th><th>Aprobación</th><th></th></tr></thead><tbody>${rows.map(r=>`
     <tr>
       <td><b>${esc(r.cliente)}</b><br><span style="color:var(--gray-500);font-size:11px">${esc(r.company_id)}</span></td>
-      <td>${esc(r.owner)}</td><td>${esc(r.periodo)}</td>
+      <td>${esc(ownerDe(r.company_id)||r.owner)}</td><td>${esc(r.periodo)}</td>
       <td>${r.aprobacion==='Aprobado'
         ? esc(escNombre(r.escenario_actual))
         : `<select onchange="scScenario('${esc(r.company_id)}',this.value)" style="min-width:180px;font-size:12px;padding:6px 8px">
@@ -980,10 +1147,9 @@ function renderSC(){
               + `<br><span style="color:var(--gray-500);font-size:11px">${esc(String(r.fecha_ultimo_envio).substring(0,10))}</span>`
             : esc(r.estado_sop)}${r.motivo_exclusion?`<br><span style="color:var(--gray-500);font-size:11px">${esc(r.motivo_exclusion)}</span>`:''}</td>
       <td>${esc(r.dias_desde_contacto)}</td>
-      <td><span class="pill ${esc(r.bloque)}">${esc(r.bloque)}</span></td>
-      <td>${esc(r.accion_pendiente)}</td>
-      <td><span class="pill ${esc(r.aprobacion||'Pendiente')}">${esc(r.aprobacion||'Pendiente')}</span></td>
-      <td>${r.bloque==='A'&&r.aprobacion!=='Aprobado'?`
+      <td>${esc(accionPendiente(r))}</td>
+      <td>${cicloCerrado(r)?'—':`<span class="pill ${esc(r.aprobacion||'Pendiente')}">${esc(r.aprobacion||'Pendiente')}</span>`}</td>
+      <td>${!cicloCerrado(r)&&r.bloque==='A'&&r.aprobacion!=='Aprobado'?`
         <button class="mini btn-approve" onclick="scDecide('${esc(r.company_id)}','Aprobado')">Aprobar envío</button>
         <button class="mini btn-ghost" onclick="scDecide('${esc(r.company_id)}','Rechazado')" style="margin-top:4px">Rechazar</button>`:''}</td>
     </tr>`).join('')}</tbody></table>`;
@@ -1028,16 +1194,6 @@ document.getElementById('scChips').addEventListener('click',ev=>{
 });
 
 /* ═══════════════ CLIENTES (directorio editable, solo admin) ═══════════════ */
-let CLI_DIRTY = new Set();
-function markCliDirty(cid){
-  CLI_DIRTY.add(cid);
-  const b=document.getElementById('cliSaveBtn');
-  if(b){ b.disabled=false; b.textContent=`💾 Guardar cambios (${CLI_DIRTY.size})`; }
-}
-function toggleAcc(cid){
-  const a=document.getElementById('acc-'+cid);
-  if(a) a.style.display = a.style.display==='none' ? 'block' : 'none';
-}
 function renderClientes(){
   const el=document.getElementById('clientesTable');
   if(!el) return;
@@ -1045,43 +1201,51 @@ function renderClientes(){
   let rows=[...CLIENTES].sort((a,b)=>String(a.cliente).localeCompare(String(b.cliente)));
   if(q) rows=rows.filter(c=>(c.cliente||'').toLowerCase().includes(q)||(c.company_id||'').toLowerCase().includes(q)||(c.contacto_email||'').toLowerCase().includes(q));
   if(!rows.length){ el.innerHTML='<p style="color:var(--gray-500)">Sin clientes que coincidan con el filtro.</p>'; return; }
-  el.innerHTML=`<table><thead><tr><th style="width:110px">ID</th><th>Cliente</th><th style="width:200px">Nombre de contacto</th><th>Correo(s)</th></tr></thead><tbody>
+  el.innerHTML=`<table><thead><tr><th style="width:110px">ID</th><th>Cliente</th><th style="width:220px">Correos</th></tr></thead><tbody>
   ${rows.map(c=>{
-    const dirty=CLI_DIRTY.has(c.company_id);
     const correos=String(c.contacto_email||'').match(/[\w.+-]+@[\w.-]+/g)||[];
-    return `<tr ${dirty?'style="background:#fbfaff"':''}>
-      <td style="font-size:12px;color:var(--gray-500)">${esc(c.company_id)}${dirty?' ✏️':''}</td>
+    const abierto=CLI_OPEN.has(c.company_id);
+    return `<tr>
+      <td style="font-size:12px;color:var(--gray-500)">${esc(c.company_id)}</td>
       <td><b>${esc(c.cliente)}</b><br><span style="font-size:11px;color:var(--gray-500)">owner: ${esc(c.owner||'—')}</span></td>
-      <td><input type="text" id="cn-${esc(c.company_id)}" value="${esc(c.contacto_nombre||'')}" placeholder="nombre" oninput="markCliDirty('${esc(c.company_id)}')"></td>
-      <td>
-        <input type="text" id="ce-${esc(c.company_id)}" value="${esc(c.contacto_email||'')}" placeholder="correo@ — varios separados por coma" oninput="markCliDirty('${esc(c.company_id)}')">
-        ${correos.length>1?`<button class="mini btn-ghost" style="margin-top:4px" onclick="toggleAcc('${esc(c.company_id)}')">▸ ${correos.length} correos asignados</button>
-        <div id="acc-${esc(c.company_id)}" style="display:none;margin-top:6px">${correos.map(e=>`<div style="font-size:12px;padding:3px 8px;background:var(--gray-100);border-radius:6px;margin-bottom:3px">📧 ${esc(e)}</div>`).join('')}</div>`:''}
-      </td>
-    </tr>`;
+      <td><button class="mini btn-ghost" onclick="cliToggle('${esc(c.company_id)}')">${correos.length?`📧 ${correos.length} correo${correos.length===1?'':'s'}`:'⚠️ sin correos'} ${abierto?'▾':'▸'}</button></td>
+    </tr>
+    ${abierto?`<tr><td></td><td colspan="2" style="background:#fbfaff">
+      ${c.contacto_nombre?`<div style="font-size:12px;margin-bottom:6px">👤 Contacto: <b>${esc(c.contacto_nombre)}</b></div>`:''}
+      ${correos.map(e=>`<div style="display:inline-block;font-size:12.5px;padding:5px 10px;background:#fff;border:1px solid var(--gray-300);border-radius:8px;margin:0 6px 6px 0">📧 ${esc(e)} <b style="cursor:pointer;color:#b34a17" onclick="cliQuitar('${esc(c.company_id)}','${esc(e)}')">✕</b></div>`).join('')||'<div style="color:var(--gray-500);font-size:12px;margin-bottom:6px">sin correos registrados</div>'}
+      <div style="display:flex;gap:8px;margin-top:8px;max-width:560px">
+        <input type="text" id="nc-nom-${esc(c.company_id)}" placeholder="nombre (opcional)" style="flex:1">
+        <input type="text" id="nc-em-${esc(c.company_id)}" placeholder="correo@nuevo.com" style="flex:1.4">
+        <button class="mini btn-approve" onclick="cliAgregar('${esc(c.company_id)}')">➕ Agregar contacto</button>
+      </div>
+    </td></tr>`:''}`;
   }).join('')}</tbody></table>`;
 }
-async function saveClientes(){
-  if(!CLI_DIRTY.size){ toast('No hay cambios pendientes'); return; }
-  const btn=document.getElementById('cliSaveBtn'); btn.disabled=true;
-  let ok=0, fail=0;
-  for(const cid of [...CLI_DIRTY]){
-    const nombre=document.getElementById('cn-'+cid)?.value.trim();
-    const correos=document.getElementById('ce-'+cid)?.value.trim();
-    btn.textContent=`💾 Guardando… (${ok+fail+1}/${CLI_DIRTY.size})`;
-    const r=await api('update_cliente',{company_id:cid,contacto_nombre:nombre,contacto_email:correos});
-    if(r.ok){
-      const c=CLIENTES.find(x=>x.company_id===cid);
-      if(c){ c.contacto_nombre=nombre; c.contacto_email=correos; }
-      CLI_DIRTY.delete(cid); ok++;
-    } else fail++;
-  }
-  btn.textContent = CLI_DIRTY.size?`💾 Guardar cambios (${CLI_DIRTY.size})`:'💾 Guardar cambios';
-  btn.disabled = !CLI_DIRTY.size;
-  toast(fail?`Guardados ${ok} · ❌ ${fail} con error (reintenta)`:`✅ ${ok} cliente(s) actualizados en el registro`);
-  renderClientes();
+let CLI_OPEN=new Set();
+function cliToggle(cid){ CLI_OPEN.has(cid)?CLI_OPEN.delete(cid):CLI_OPEN.add(cid); renderClientes(); }
+async function cliAgregar(cid){
+  const em=document.getElementById('nc-em-'+cid)?.value.trim();
+  const nom=document.getElementById('nc-nom-'+cid)?.value.trim();
+  if(!em||!em.includes('@')){ toast('Escribe un correo válido'); return; }
+  const c=CLIENTES.find(x=>x.company_id===cid);
+  const actuales=String(c.contacto_email||'').match(/[\w.+-]+@[\w.-]+/g)||[];
+  if(actuales.includes(em.toLowerCase())){ toast('Ese correo ya está asignado'); return; }
+  const nuevos=actuales.concat([em]).join(', ');
+  const payload={company_id:cid,contacto_email:nuevos};
+  if(nom&&!c.contacto_nombre) payload.contacto_nombre=nom;
+  const r=await api('update_cliente',payload);
+  if(r.ok){ c.contacto_email=nuevos; if(payload.contacto_nombre) c.contacto_nombre=nom;
+    toast('✅ Contacto agregado a '+c.cliente); renderClientes(); }
+  else toast('❌ '+(r.error||'error'));
 }
-
+async function cliQuitar(cid,email){
+  const c=CLIENTES.find(x=>x.company_id===cid);
+  if(!confirm('¿Quitar '+email+' de '+c.cliente+'?')) return;
+  const nuevos=(String(c.contacto_email||'').match(/[\w.+-]+@[\w.-]+/g)||[]).filter(e=>e.toLowerCase()!==email.toLowerCase()).join(', ');
+  const r=await api('update_cliente',{company_id:cid,contacto_email:nuevos});
+  if(r.ok){ c.contacto_email=nuevos; toast('Correo eliminado'); renderClientes(); }
+  else toast('❌ '+(r.error||'error'));
+}
 /* ═══════════════ LOGIN / SESIÓN ═══════════════ */
 let AUTH = null;
 try{ AUTH = JSON.parse(sessionStorage.getItem('tallyAuth')||'null'); }catch(e){}
