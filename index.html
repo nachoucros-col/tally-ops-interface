@@ -634,13 +634,24 @@ function renderCompose(){
     <h3>✍️ Redactar correo nuevo</h3>
     <div class="meta">Se envía al instante desde <b>juan@tally.legal</b> al pulsar Enviar.</div>
 
-    <label>1 · Cliente(s) destinatario(s)</label>
+    <label>1 · Destinatario(s)</label>
+    <div class="chips" style="margin-bottom:6px">
+      <button class="chip ${cmp.dest!=='custom'?'on':''}" onclick="keepPrompt();cmp.dest='dir';renderCompose()">👥 Cliente del directorio</button>
+      <button class="chip ${cmp.dest==='custom'?'on':''}" onclick="keepPrompt();cmp.dest='custom';renderCompose()">✉️ Correo personalizado</button>
+    </div>
+    ${cmp.dest==='custom'?`
+    <div style="font-size:12px;color:var(--gray-500);margin-bottom:6px">Para destinatarios <b>fuera del directorio</b> (proveedores, autoridades, contactos nuevos). Sin datos ni adjuntos de AppSheet — esos son por cliente.</div>
+    <div style="display:flex;gap:8px;margin-bottom:6px">
+      <input type="text" id="custNombre" placeholder="Nombre (opcional)" style="flex:1">
+      <input type="text" id="custCorreo" placeholder="correo@ — varios separados por coma" style="flex:1.4">
+      <button class="mini btn-ghost" onclick="addCustom()">➕</button>
+    </div>`:`
     <div style="font-size:12px;color:var(--gray-500);margin-bottom:6px">Busca y agrega <b>cualquier cliente del directorio completo</b> — esté o no en la cola de Seller Central (ej. clientes con acceso completo a los que solo les falta el estado de cuenta bancario).</div>
     <div class="cli-pick">
       <input type="text" id="cliSearch" placeholder="Busca por nombre o AZ… (mínimo 2 letras)" oninput="cliSearch(this.value)" autocomplete="off">
       <div class="cli-results" id="cliResults" style="display:none"></div>
-    </div>
-    <div class="sel-clients" id="selClients">${cmp.clients.map(c=>`<span class="chip">${esc(c.cliente)} <b onclick="removeClient('${esc(c.company_id)}')">✕</b></span>`).join('')}</div>
+    </div>`}
+    <div class="sel-clients" id="selClients">${cmp.clients.map(c=>`<span class="chip">${c.custom?'✉️ ':''}${esc(c.cliente)} <b onclick="removeClient('${esc(c.company_id)}')">✕</b></span>`).join('')}</div>
 
     <label>2 · ¿Cómo lo redactamos?</label>
     <div class="chips" style="margin-bottom:6px">
@@ -654,7 +665,7 @@ function renderCompose(){
 
     <label>Datos del cliente a incluir (opcional)</label>
     <div style="display:flex;gap:8px;margin-bottom:6px">
-      <select id="iaDatoTabla" onchange="document.getElementById('iaDatoCol').innerHTML='<option value=\'\'>— columna —</option>'+(TABLAS_APPSHEET[this.value]||[]).map(c=>'<option>'+c+'</option>').join('')" style="flex:1"><option value="">— tabla —</option>${Object.keys(TABLAS_APPSHEET).map(t=>`<option>${t}</option>`).join('')}</select>
+      <select id="iaDatoTabla" onchange="datoTablaChange(this.value)" style="flex:1"><option value="">— tabla —</option>${Object.keys(TABLAS_APPSHEET).map(t=>`<option>${t}</option>`).join('')}</select>
       <select id="iaDatoCol" style="flex:1"><option value="">— columna —</option></select>
       <button class="mini btn-ghost" onclick="iaAddDato()">➕</button>
     </div>
@@ -695,7 +706,7 @@ function renderCompose(){
     <div id="previews"></div>`;
 }
 /* ═══ Idioma por cliente (IN→español, AZ→inglés, cambiable) ═══ */
-function idiomaDefault(companyId){ return String(companyId||'').toUpperCase().startsWith('IN')?'es':'en'; }
+function idiomaDefault(companyId){ const id=String(companyId||'').toUpperCase(); return (id.startsWith('IN')||id.startsWith('CUSTOM'))?'es':'en'; }
 async function traducirPreview(i, idioma, prefix){
   const p=cmp.previews[i]; if(!p||p.idioma===idioma) return;
   const st=document.getElementById(prefix||'iaStatus');
@@ -890,6 +901,18 @@ function fillTemplate(str,c){
     .replaceAll('{{firma}}',CONFIG.firma_juan||'Best regards,\nJuan Vélez\nTally');
 }
 
+function datoTablaChange(v){
+  document.getElementById('iaDatoCol').innerHTML='<option value="">— columna —</option>'+(TABLAS_APPSHEET[v]||[]).map(c=>'<option>'+c+'</option>').join('');
+}
+function keepPrompt(){ const el=document.getElementById('iaPrompt'); if(el) cmp.iaPrompt=el.value; }
+function addCustom(){
+  keepPrompt();
+  const n=(document.getElementById('custNombre').value||'').trim();
+  const e=(document.getElementById('custCorreo').value||'').trim();
+  if(!e.includes('@')){ toast('Escribe al menos un correo válido'); return; }
+  cmp.clients.push({company_id:'CUSTOM-'+Date.now(), cliente:n||e, contacto_nombre:n, contacto_email:e, owner:'', cc_email:'', custom:true});
+  renderCompose();
+}
 function iaAddDato(){
   const t=document.getElementById('iaDatoTabla').value, c=document.getElementById('iaDatoCol').value;
   if(!t||!c){ toast('Elige tabla y columna'); return; }
@@ -915,10 +938,10 @@ async function genIA(){
     st.innerHTML=`<div class="notice info">⚡ Redactando ${i+1}/${cmp.clients.length}: <b>${esc(c.cliente)}</b>…</div>`;
     const idiomaC=idiomaDefault(c.company_id);
     const promptC=cmp.iaPrompt+(idiomaC==='es'?'\n\n(Redacta este correo en ESPAÑOL.)':'');
-    const r=await api('generate_new',{prompt:promptC,cliente:c.cliente,company_id:c.company_id,contact_name:c.contacto_nombre||'',datos:cmp.iaDatos||[]});
+    const r=await api('generate_new',{prompt:promptC,cliente:c.cliente,company_id:c.custom?'':c.company_id,contact_name:c.contacto_nombre||'',datos:c.custom?[]:(cmp.iaDatos||[])});
     if(r.ok){
       cmp.previews.push({company_id:c.company_id,cliente:c.cliente,to:c.contacto_email||'',cc:c.cc_email||'',
-        subject:r.subject,body:r.body_text,adjuntos:cmp.iaDocs||[],idioma:idiomaC,status:'',sent:false});
+        subject:r.subject,body:r.body_text,adjuntos:c.custom?[]:(cmp.iaDocs||[]),idioma:idiomaC,status:'',sent:false});
     }else{
       st.innerHTML=`<div class="notice warn">❌ ${esc(c.cliente)}: ${esc(r.error||'error')}</div>`;
       document.getElementById('iaGenBtn').disabled=false; return;
@@ -941,7 +964,7 @@ async function genPreviews(){
     to:c.contacto_email||'', cc:c.cc_email||'',
     subject:aplicarCamposYDocs(fillTemplate(tpl.asunto,c)),
     body:aplicarCamposYDocs(fillTemplate(tpl.cuerpo,c)),
-    adjuntos:docs, idioma:'en', status:'', sent:false
+    adjuntos:c.custom?[]:docs, idioma:'en', status:'', sent:false
   }));
   renderPreviews();
   await aplicarIdiomasAuto(null);
@@ -958,7 +981,7 @@ function renderPreviews(){
   <div class="notice info" style="margin-top:8px">📎 <b>CC automático en cada envío:</b> customersuccess@ · accounting@ · el owner asignado del cliente. No necesitas agregarlos.</div>`+
   cmp.previews.map((p,i)=>`
     <div class="preview-card">
-      <div class="pc-head"><span class="pc-title">${esc(p.cliente)} <span style="color:var(--gray-500);font-weight:400">· ${esc(p.company_id)}${ownerDe(p.company_id)?` · owner: ${esc(ownerDe(p.company_id))}`:''}</span></span>
+      <div class="pc-head"><span class="pc-title">${esc(p.cliente)} <span style="color:var(--gray-500);font-weight:400">· ${String(p.company_id||'').startsWith('CUSTOM')?'✉️ personalizado':esc(p.company_id)}${ownerDe(p.company_id)?` · owner: ${esc(ownerDe(p.company_id))}`:''}</span></span>
         <span class="pc-status" id="st-${i}">${p.sent?'✅ Enviado':''}</span></div>
       ${!p.to?`<div class="notice warn" style="margin:0 0 8px">⚠️ <b>Este cliente no tiene correo en el registro.</b> Escríbelo abajo (varios separados por coma) y guárdalo en su ficha para que el sistema lo recuerde.</div>`:''}
       <input type="text" id="to-${i}" value="${esc(p.to)}" placeholder="destinatario@ — varios separados por coma (obligatorio)">
