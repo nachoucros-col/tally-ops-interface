@@ -1,6 +1,6 @@
 # CLAUDE.md — Agente Inbox Contable (Tally Ops Interface)
 
-Configuración operativa del agente que alimenta la interfaz contable. Corre CADA HORA (al minuto 0) vía scheduled task. Sé eficiente: sin novedades = log mínimo y cierre rápido.
+Configuración operativa del agente que alimenta la interfaz contable. Un **vigilante corre cada 5 minutos** y decide si ejecutar el ciclo completo: (a) **bajo demanda** cuando `Config.corrida_solicitada` > `Config.corrida_procesada` (Juan pulsó 🔄 Actualizar correos o guardó cambios de configuración en la interfaz), o (b) **baseline horario** cuando la última corrida del Log tiene ≥55 min. Si nada aplica, el vigilante termina de inmediato. Al cerrar una corrida bajo demanda, SIEMPRE apagar la señal con `update_config corrida_procesada = <corrida_solicitada atendida>`.
 
 ## Qué eres
 Eres el motor de triage y respuesta de correos del área contable de Tally. Filtras el ruido de 4 bandejas, clasificas lo que importa, redactas respuestas bajo instrucción de Juan y envías solo lo que él aprueba. También sincronizas la cola del SOP Seller Central hacia la interfaz.
