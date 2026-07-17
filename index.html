@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Tally Ops — Interfaz Contable</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --violet-500:#6047ff; --violet-100:#dcdcff;
+  --orange-500:#ff8248; --orange-100:#fcddd6;
+  --cyan-500:#5ed7ff;   --cyan-100:#dcf8ff;
+  --green-500:#49d475;  --green-100:#c8e8ce;
+  --ink:#212121; --cream:#fefcf8;
+  --gray-100:#f1efe9; --gray-300:#d8d5cc; --gray-500:#8a877e;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);font-size:15px;line-height:1.55}
+button{font-family:inherit;cursor:pointer;border:none}
+input,select,textarea{font-family:inherit;font-size:14px}
+.app{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+.nav{background:var(--ink);color:var(--cream);padding:28px 0;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.nav .logo{font-weight:700;font-size:22px;padding:0 24px 4px;letter-spacing:-0.015em}
+.nav .logo span{font-weight:300}
+.nav .sub{font-size:11px;color:var(--gray-500);padding:0 24px 28px;text-transform:uppercase;letter-spacing:.08em}
+.nav a{display:flex;align-items:center;gap:10px;padding:12px 24px;color:var(--cream);text-decoration:none;font-weight:400;font-size:14px;border-left:3px solid transparent;opacity:.75}
+.nav a:hover{opacity:1}
+.nav a.active{border-left-color:var(--violet-500);opacity:1;font-weight:500;background:rgba(96,71,255,.12)}
+.nav .push{margin-top:auto}
+.nav .status{padding:14px 24px;font-size:12px;color:var(--gray-500);border-top:1px solid rgba(255,255,255,.08)}
+.nav .status b{color:var(--cream);font-weight:500}
+.main{padding:32px 36px;max-width:1500px}
+h1{font-size:28px;font-weight:700;letter-spacing:-0.015em;margin-bottom:4px}
+.lead{color:var(--gray-500);margin-bottom:20px;font-size:14px}
+.view{display:none}.view.active{display:block}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;align-items:center}
+.chip{padding:6px 14px;border-radius:999px;background:var(--gray-100);font-size:13px;font-weight:500;border:1px solid transparent;color:var(--ink)}
+.chip:hover{border-color:var(--gray-300)}
+.chip.on{background:var(--ink);color:var(--cream)}
+.split{display:grid;grid-template-columns:minmax(340px,1fr) minmax(430px,1.15fr);gap:24px;align-items:start}
+.mail-list{display:flex;flex-direction:column;gap:10px}
+.mail-card{background:#fff;border:1px solid var(--gray-100);border-radius:12px;padding:14px 16px;cursor:pointer;transition:border-color .15s}
+.mail-card:hover{border-color:var(--gray-300)}
+.mail-card.sel{border-color:var(--violet-500);box-shadow:0 0 0 1px var(--violet-500)}
+.mail-card .row1{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.mail-card .from{font-weight:700;font-size:14px}
+.mail-card .date{font-size:12px;color:var(--gray-500);white-space:nowrap}
+.mail-card .subj{font-weight:500;font-size:14px;margin:2px 0}
+.mail-card .sum{font-size:13px;color:var(--gray-500);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mail-card .tags{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.tag{font-size:11px;font-weight:500;padding:3px 9px;border-radius:999px}
+.tag.cat-Documentación{background:var(--violet-100);color:#3a2bb3}
+.tag.cat-Proceso{background:var(--cyan-100);color:#0a6d8f}
+.tag.cat-Queja{background:var(--orange-100);color:#b34a17}
+.tag.cat-Alerta{background:var(--orange-500);color:#fff}
+.tag.cat-out{background:var(--gray-100);color:var(--ink);border:1px solid var(--gray-300)}
+.tag.st-Nuevo{background:var(--gray-100);color:var(--ink)}
+.tag.st-Prompt{background:var(--cyan-100);color:#0a6d8f}
+.tag.st-Draft{background:var(--violet-100);color:#3a2bb3}
+.tag.st-Aprobado{background:var(--green-100);color:#1d7a3f}
+.tag.st-Enviado{background:var(--green-500);color:#fff}
+.tag.acct{background:transparent;border:1px solid var(--gray-300);color:var(--gray-500)}
+.detail{background:#fff;border:1px solid var(--gray-100);border-radius:16px;padding:24px;position:sticky;top:24px;max-height:calc(100vh - 48px);overflow-y:auto}
+.detail .empty{color:var(--gray-500);text-align:center;padding:60px 20px;font-size:14px}
+.detail h3{font-size:18px;font-weight:700;margin-bottom:2px}
+.detail .meta{font-size:13px;color:var(--gray-500);margin-bottom:14px}
+.detail .resumen{background:var(--gray-100);border-radius:10px;padding:12px 14px;font-size:14px;margin-bottom:16px;white-space:pre-wrap}
+.detail label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px;color:var(--ink)}
+textarea{width:100%;border:1px solid var(--gray-300);border-radius:10px;padding:10px 12px;resize:vertical;background:var(--cream)}
+textarea:focus,input:focus,select:focus{outline:2px solid var(--violet-500);border-color:transparent}
+input[type=text],select{width:100%;border:1px solid var(--gray-300);border-radius:10px;padding:9px 12px;background:var(--cream)}
+.btn{padding:10px 18px;border-radius:10px;font-weight:500;font-size:14px}
+.btn-primary{background:var(--violet-500);color:#fff}
+.btn-primary:hover{background:#4c37d8}
+.btn-ghost{background:var(--gray-100);color:var(--ink)}
+.btn-ghost:hover{background:var(--gray-300)}
+.btn-approve{background:var(--green-500);color:#fff}
+.btn-approve:hover{background:#3ab562}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+.draft-box{border:1px solid var(--violet-100);background:#fbfaff;border-radius:10px;padding:14px;margin-top:8px}
+.draft-box .dsubj{font-weight:700;margin-bottom:8px;font-size:14px}
+.notice{font-size:13px;border-radius:10px;padding:10px 14px;margin-top:12px}
+.notice.info{background:var(--cyan-100)}
+.notice.ok{background:var(--green-100)}
+.notice.warn{background:var(--orange-100)}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;font-size:13px}
+th{background:var(--ink);color:var(--cream);text-align:left;padding:10px 12px;font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+td{padding:10px 12px;border-bottom:1px solid var(--gray-100);vertical-align:top}
+tr:hover td{background:#fdfcf7}
+.pill{font-size:11px;font-weight:500;padding:3px 9px;border-radius:999px;display:inline-block}
+.pill.A{background:var(--green-100);color:#1d7a3f}
+.pill.B{background:var(--orange-100);color:#b34a17}
+.pill.Pendiente{background:var(--gray-100)}
+.pill.Aprobado{background:var(--green-500);color:#fff}
+.pill.Rechazado{background:var(--ink);color:var(--cream)}
+.mini{padding:5px 12px;border-radius:8px;font-size:12px;font-weight:500}
+.cfg-card{background:#fff;border:1px solid var(--gray-100);border-radius:12px;padding:20px;max-width:720px;margin-bottom:16px}
+.cfg-card h3{font-size:16px;margin-bottom:8px}
+.cfg-card code{background:var(--gray-100);padding:2px 6px;border-radius:5px;font-size:12px;word-break:break-all}
+.toast{position:fixed;bottom:24px;right:24px;background:var(--ink);color:var(--cream);padding:12px 20px;border-radius:10px;font-size:14px;opacity:0;transform:translateY(8px);transition:all .25s;pointer-events:none;z-index:99;max-width:420px}
+.toast.show{opacity:1;transform:none}
+/* Compose */
+.compose-btn{background:var(--violet-500);color:#fff;padding:10px 16px;border-radius:10px;font-weight:500;font-size:14px;margin-left:auto}
+.compose-btn:hover{background:#4c37d8}
+.cli-pick{position:relative}
+.cli-results{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--gray-300);border-radius:10px;max-height:220px;overflow-y:auto;z-index:20;box-shadow:0 8px 24px rgba(33,33,33,.12)}
+.cli-results div{padding:8px 12px;cursor:pointer;font-size:13px}
+.cli-results div:hover{background:var(--violet-100)}
+.sel-clients{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.sel-clients .chip{background:var(--violet-100);color:#3a2bb3}
+.sel-clients .chip b{cursor:pointer;margin-left:6px}
+.preview-card{border:1px solid var(--gray-300);border-radius:12px;padding:14px;margin-top:12px;background:#fff}
+.preview-card .pc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px}
+.preview-card .pc-title{font-weight:700;font-size:14px}
+.preview-card input[type=text]{margin-bottom:8px}
+.pc-status{font-size:12px;font-weight:500}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="nav">
+    <div class="logo">Tally <span>Ops</span></div>
+    <div class="sub">Interfaz Contable</div>
+    <a href="#bandeja" class="active" data-view="bandeja">📥 Bandeja</a>
+    <a href="#sc" data-view="sc">📦 Seller Central</a>
+    <a href="#log" data-view="log">🕐 Actividad</a>
+    <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
+    <div class="push"></div>
+    <div class="status" id="userBox" style="border-top:none"></div>
+    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>09:00 / 16:00 L-V</b></div>
+  </nav>
+
+  <main class="main">
+
+    <!-- ══ BANDEJA ══ -->
+    <section class="view active" id="view-bandeja">
+      <h1>Bandeja</h1>
+      <p class="lead">Correos que requieren tu respuesta (clientes + equipo), filtrados por el agente. Desde aquí también redactas correos nuevos con plantillas y los envías al instante desde juan@.</p>
+      <div class="chips" id="catChips">
+        <button class="chip on" data-cat="*">Todos</button>
+        <button class="chip" data-cat="Documentación">Documentación</button>
+        <button class="chip" data-cat="Proceso">Proceso</button>
+        <button class="chip" data-cat="Queja y reclamo">Queja y reclamo</button>
+        <button class="chip" data-cat="Alerta">Alerta</button>
+        <button class="chip" data-cat="__pend">⏳ Pendientes de mí</button>
+        <button class="chip" data-cat="__out">📤 Enviados por mí</button>
+        <button class="chip" data-cat="__hist">Respondidos</button>
+        <button class="compose-btn" onclick="openCompose()">✍️ Redactar correo</button>
+      </div>
+      <div class="split">
+        <div class="mail-list" id="mailList"><div class="detail"><div class="empty">Cargando…</div></div></div>
+        <aside class="detail" id="mailDetail">
+          <div class="empty">Selecciona un correo, o pulsa <b>✍️ Redactar correo</b> para escribir uno nuevo desde cero.</div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ══ SELLER CENTRAL ══ -->
+    <section class="view" id="view-sc">
+      <h1>Seller Central — Seguimiento SOP</h1>
+      <p class="lead">Cola de recopilación documental. Bloque A = listos para envío de escenario; Bloque B = discrepancias. Al aprobar, el agente envía desde accounting@ CC customersuccess@ y actualiza AppSheet.</p>
+      <div class="chips" id="scChips">
+        <button class="chip on" data-b="*">Todos</button>
+        <button class="chip" data-b="A">Bloque A — enviar</button>
+        <button class="chip" data-b="B">Bloque B — discrepancias</button>
+        <button class="chip" data-b="__resp">Respondieron</button>
+      </div>
+      <div id="scTable">Cargando…</div>
+    </section>
+
+    <!-- ══ LOG ══ -->
+    <section class="view" id="view-log">
+      <h1>Actividad del agente</h1>
+      <p class="lead">Bitácora de corridas AM/PM.</p>
+      <div id="logTable">Cargando…</div>
+    </section>
+
+    <!-- ══ CONFIG ══ -->
+    <section class="view" id="view-config">
+      <h1>Configuración</h1>
+      <div class="cfg-card"><h3>Base de datos</h3>
+        <p>Google Sheet: <code id="cfgSheet"></code><br>Lectura: <b id="cfgReadStatus">probando…</b></p></div>
+      <div class="cfg-card"><h3>Endpoint de escritura y envío (Apps Script)</h3>
+        <p><code id="cfgScript"></code><br>Estado: <b id="cfgScriptStatus">probando…</b></p></div>
+      <div class="cfg-card"><h3>Cuentas y remitentes</h3>
+        <p>Monitoreadas: <code>contabilidad@</code> <code>accounting@</code> <code>elizabeth@</code> <code>juan@</code> (pendiente en Gmail MCP)</p>
+        <p style="margin-top:8px">Respuestas y correos nuevos → <b>juan@tally.legal</b> (envío directo vía Apps Script). Escenarios SOP SC → <b>accounting@</b> CC <b>customersuccess@</b> (vía agente).</p></div>
+      <div class="cfg-card"><h3>Categorías de triage — editable</h3>
+        <p style="font-size:13px;color:var(--gray-500);margin-bottom:8px">Separadas por coma. Al guardar, los filtros de la Bandeja se actualizan al instante y el agente aplica la nueva clasificación en su siguiente corrida (09:00 / 16:00).</p>
+        <textarea id="cfgCats" rows="2"></textarea>
+        <div class="btn-row"><button class="btn btn-primary" onclick="saveCfg('categorias_triage','cfgCats','✅ Categorías guardadas — el agente las aplicará en su próxima corrida')">Guardar categorías</button></div></div>
+      <div class="cfg-card"><h3>Cuentas de correo conectadas — editable</h3>
+        <p style="font-size:13px;color:var(--gray-500);margin-bottom:8px">Separadas por coma. La cuenta debe estar autorizada en el Gmail MCP de Talia (si no lo está, el agente lo reporta como bloqueo en su siguiente corrida en lugar de leerla).</p>
+        <textarea id="cfgCuentas" rows="2"></textarea>
+        <div class="btn-row"><button class="btn btn-primary" onclick="saveCfg('cuentas_monitoreadas','cfgCuentas','✅ Cuentas guardadas — el agente las tomará en su próxima corrida')">Guardar cuentas</button></div></div>
+      <div class="cfg-card"><h3>👥 Usuarios de la interfaz — solo administrador</h3>
+        <p style="font-size:13px;color:var(--gray-500);margin-bottom:10px">Alta y gestión de accesos. Las credenciales viven en un Google Sheet privado (nunca en la base pública). Comparte usuario y contraseña con la persona por un canal seguro.</p>
+        <div id="usersList" style="margin-bottom:14px">Cargando usuarios…</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <input type="text" id="nuEmail" placeholder="correo@tally.legal">
+          <input type="text" id="nuNombre" placeholder="Nombre">
+          <input type="text" id="nuPass" placeholder="Contraseña">
+          <select id="nuRol"><option value="usuario">usuario</option><option value="admin">admin</option></select>
+        </div>
+        <div class="btn-row"><button class="btn btn-primary" onclick="addUser()">➕ Agregar / actualizar usuario</button></div></div>
+      <div class="cfg-card"><h3>Categorías de redacción y plantillas</h3>
+        <p>Fuente de verdad: <a href="https://app.notion.com/p/34a325ede0a3808b9404e013f3249dec" target="_blank" style="color:var(--violet-500);font-weight:500">📝 Plantillas de correos (Notion)</a>.</p>
+        <p style="margin-top:8px;font-size:13px;color:var(--gray-500)">Agrega o modifica plantillas directamente ahí (respetando la estructura de las existentes: Objetivo, Características de detección, Asunto, Cuerpo). En cada corrida el agente sincroniza Notion → sistema y verifica los cambios antes de que cualquier plantilla se use en un envío. La pestaña Plantillas del Sheet es solo el caché que lee esta interfaz.</p></div>
+    </section>
+
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- ══ LOGIN ══ -->
+<div id="loginVeil" style="position:fixed;inset:0;background:var(--ink);z-index:200;display:flex;align-items:center;justify-content:center">
+  <div style="background:var(--cream);border-radius:20px;padding:40px;width:360px;max-width:90vw">
+    <div style="font-weight:700;font-size:26px;letter-spacing:-0.015em">Tally <span style="font-weight:300">Ops</span></div>
+    <div style="font-size:12px;color:var(--gray-500);text-transform:uppercase;letter-spacing:.08em;margin-bottom:24px">Interfaz Contable</div>
+    <label style="display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Correo</label>
+    <input type="text" id="loginEmail" placeholder="tu@tally.legal" autocomplete="username" style="margin-bottom:14px">
+    <label style="display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Contraseña</label>
+    <input type="password" id="loginPass" autocomplete="current-password" style="margin-bottom:18px" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="btn btn-primary" style="width:100%" id="loginBtn" onclick="doLogin()">Entrar</button>
+    <div id="loginMsg" style="font-size:13px;color:#b34a17;margin-top:10px;min-height:18px"></div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════ CONFIG ═══════════════ */
+const SHEET_ID = '1A5TSql1ksUHQ8DBYwfTDrj_V3J1HGAs8cgCF9mijmnQ';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbylh4xs3Ch09rUd05CnfxOE-wgERMCZIW38V-lGIU13DLIaojdynfZlQm8xqV_KLoRY/exec';
+const API_TOKEN = 'tly-ops-2026-Jm9xQ4vKp7Rd3TzN8wHs';
+const COMPOSE_CATS = ['Seguimiento proceso','Seguimiento Seller Central','Cambio de plan','Profundización con cliente','Sesión de asesoría','Aviso de suspensión de actividades'];
+
+/* ═══════════════ ESTADO ═══════════════ */
+let EMAILS=[], SC=[], LOGS=[], CLIENTES=[], PLANTILLAS=[], SALIENTES=[], CONFIG={};
+let selId=null, selOut=null, catFilter='*', scFilter='*', composeMode=false;
+let cmp={clients:[], cat:'', tpl:'', previews:[]};
+
+/* ═══════════════ LECTURA GVIZ (JSONP — funciona incluso abriendo el archivo en local) ═══════════════ */
+let gvN = 0;
+function gviz(tab){
+  return new Promise((resolve, reject)=>{
+    const cb = '__gv' + (++gvN);
+    const timer = setTimeout(()=>{ cleanup(); reject(new Error('timeout gviz '+tab)); }, 20000);
+    function cleanup(){ clearTimeout(timer); delete window[cb]; s.remove(); }
+    window[cb] = (json)=>{
+      cleanup();
+      try{
+        const cols = json.table.cols.map(c=>c.label||c.id);
+        resolve(json.table.rows.map(row=>{ const o={}; row.c.forEach((cell,i)=>{ o[cols[i]] = cell ? (cell.f ?? cell.v ?? '') : ''; }); return o; }));
+      }catch(e){ reject(e); }
+    };
+    const s = document.createElement('script');
+    s.src = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json;responseHandler:${cb}&headers=1&sheet=${encodeURIComponent(tab)}`;
+    s.onerror = ()=>{ cleanup(); reject(new Error('no se pudo leer '+tab)); };
+    document.body.appendChild(s);
+  });
+}
+async function safeGviz(tab){ try{ return await gviz(tab); }catch(e){ console.warn('gviz', tab, e); return []; } }
+
+async function loadAll(){
+  try{
+    const [em,sc,lg,cl,pl,sa,cf] = await Promise.all(['Emails','SC_Seguimiento','Log','Clientes','Plantillas','Salientes','Config'].map(safeGviz));
+    EMAILS=em.filter(r=>r.email_id); SC=sc.filter(r=>r.company_id); LOGS=lg.filter(r=>r.timestamp);
+    CLIENTES=cl.filter(r=>r.company_id); PLANTILLAS=pl.filter(r=>r.plantilla_id); SALIENTES=sa.filter(r=>r.saliente_id);
+    CONFIG={}; cf.forEach(r=>{ if(r.key) CONFIG[r.key]=r.value; });
+    document.getElementById('lastSync').textContent = new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+    document.getElementById('cfgReadStatus').textContent = '✅ conectado';
+    renderCatChips();
+    if(document.activeElement.id!=='cfgCats') document.getElementById('cfgCats').value = CONFIG.categorias_triage || 'Documentación, Proceso, Queja y reclamo, Alerta';
+    if(document.activeElement.id!=='cfgCuentas') document.getElementById('cfgCuentas').value = CONFIG.cuentas_monitoreadas || '';
+    if(!composeMode){ renderMailList(); if(selId) renderDetail(selId); }
+    renderSC(); renderLog();
+  }catch(e){
+    document.getElementById('cfgReadStatus').textContent = '❌ sin acceso — verifica permisos del Sheet ("cualquiera con link puede ver")';
+  }
+}
+
+/* ═══════════════ API (JSONP → respuesta legible del Apps Script) ═══════════════ */
+let jsonpN = 0;
+function api(action, payload){
+  return new Promise((resolve)=>{
+    const cb = '__tallyCb' + (++jsonpN);
+    const timer = setTimeout(()=>{ cleanup(); resolve({ok:false,error:'timeout — sin respuesta del Apps Script'}); }, 30000);
+    function cleanup(){ clearTimeout(timer); delete window[cb]; script.remove(); }
+    window[cb] = (data)=>{ cleanup(); resolve(data); };
+    const url = APPS_SCRIPT_URL + '?action=' + encodeURIComponent(action)
+      + '&token=' + encodeURIComponent(API_TOKEN)
+      + '&payload=' + encodeURIComponent(JSON.stringify(payload||{}))
+      + '&callback=' + cb;
+    const script = document.createElement('script');
+    script.src = url;
+    script.onerror = ()=>{ cleanup(); resolve({ok:false,error:'no se pudo contactar el Apps Script'}); };
+    document.body.appendChild(script);
+  });
+}
+
+/* ═══════════════ CONFIG EDITABLE ═══════════════ */
+function renderCatChips(){
+  const cats = (CONFIG.categorias_triage || 'Documentación, Proceso, Queja y reclamo, Alerta').split(',').map(s=>s.trim()).filter(Boolean);
+  const el = document.getElementById('catChips');
+  el.innerHTML = `<button class="chip" data-cat="*">Todos</button>`
+    + cats.map(c=>`<button class="chip" data-cat="${esc(c)}">${esc(c)}</button>`).join('')
+    + `<button class="chip" data-cat="__pend">⏳ Pendientes de mí</button>
+       <button class="chip" data-cat="__out">📤 Enviados por mí</button>
+       <button class="chip" data-cat="__hist">Respondidos</button>
+       <button class="compose-btn" onclick="openCompose()">✍️ Redactar correo</button>`;
+  el.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on', c.dataset.cat===catFilter));
+}
+async function saveCfg(key, elId, okMsg){
+  const v = document.getElementById(elId).value.trim();
+  if(!v){ toast('El valor no puede quedar vacío'); return; }
+  const r = await api('update_config', {key, value: v});
+  if(r.ok){ CONFIG[key]=v; if(key==='categorias_triage') renderCatChips(); toast(okMsg); }
+  else toast('❌ '+(r.error||'error al guardar'));
+}
+
+/* ═══════════════ BANDEJA ═══════════════ */
+const CAT_CLASS={'Documentación':'cat-Documentación','Proceso':'cat-Proceso','Queja y reclamo':'cat-Queja','Alerta':'cat-Alerta'};
+const ST_CLASS={'Nuevo':'st-Nuevo','Prompt recibido':'st-Prompt','Draft listo':'st-Draft','Aprobado':'st-Aprobado','Enviado':'st-Enviado','Descartado':'st-Nuevo'};
+
+function visibleEmails(){
+  return EMAILS.filter(e=>{
+    if(catFilter==='__hist') return e.estado==='Enviado';
+    if(e.estado==='Enviado'||e.estado==='Descartado') return false;
+    if(catFilter==='__pend') return e.estado==='Nuevo'||e.estado==='Draft listo';
+    if(catFilter!=='*' && e.categoria!==catFilter) return false;
+    return true;
+  }).sort((a,b)=>(b.fecha_recibido||'').localeCompare(a.fecha_recibido||''));
+}
+
+function renderMailList(){
+  const el = document.getElementById('mailList');
+  if(catFilter==='__out'){ renderSalientesList(el); return; }
+  const list = visibleEmails();
+  if(!list.length){ el.innerHTML=`<div class="detail"><div class="empty">Sin correos en esta vista. 🎉</div></div>`; return; }
+  el.innerHTML = list.map(e=>`
+    <div class="mail-card ${e.email_id===selId?'sel':''}" onclick="select('${e.email_id}')">
+      <div class="row1"><span class="from">${esc(e.remitente_nombre||e.remitente_email)}</span><span class="date">${esc(e.fecha_recibido)}</span></div>
+      <div class="subj">${esc(e.asunto)}</div>
+      <div class="sum">${esc(e.resumen)}</div>
+      <div class="tags">
+        <span class="tag ${CAT_CLASS[e.categoria]||'st-Nuevo'}">${esc(e.categoria)}</span>
+        <span class="tag ${ST_CLASS[e.estado]||'st-Nuevo'}">${esc(e.estado)}</span>
+        <span class="tag acct">${esc(e.cuenta)}@</span>
+        ${e.cliente&&e.cliente!=='INTERNO'?`<span class="tag acct">${esc(e.cliente)}</span>`:''}
+        ${e.cliente==='INTERNO'?`<span class="tag acct">equipo interno</span>`:''}
+      </div>
+    </div>`).join('');
+}
+
+function renderSalientesList(el){
+  const list=[...SALIENTES].sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
+  if(!list.length){ el.innerHTML=`<div class="detail"><div class="empty">Aún no has enviado correos desde la interfaz.</div></div>`; return; }
+  el.innerHTML = list.map(s=>`
+    <div class="mail-card ${s.saliente_id===selOut?'sel':''}" onclick="selectOut('${s.saliente_id}')">
+      <div class="row1"><span class="from">→ ${esc(s.cliente||s.destinatarios)}</span><span class="date">${esc(String(s.fecha).substring(0,16).replace('T',' '))}</span></div>
+      <div class="subj">${esc(s.asunto)}</div>
+      <div class="tags">
+        <span class="tag cat-out">${esc(s.categoria)}</span>
+        <span class="tag st-Enviado">${esc(s.estado)}</span>
+        ${s.plantilla?`<span class="tag acct">${esc(s.plantilla)}</span>`:''}
+      </div>
+    </div>`).join('');
+}
+
+function select(id){ composeMode=false; selId=id; selOut=null; renderMailList(); renderDetail(id); }
+function selectOut(id){ composeMode=false; selOut=id; selId=null; renderMailList(); renderOutDetail(id); }
+
+function renderOutDetail(id){
+  const s = SALIENTES.find(x=>x.saliente_id===id);
+  const el = document.getElementById('mailDetail');
+  if(!s){ el.innerHTML='<div class="empty">No encontrado.</div>'; return; }
+  el.innerHTML = `
+    <h3>${esc(s.asunto)}</h3>
+    <div class="meta">Para: ${esc(s.destinatarios)} · ${esc(String(s.fecha).substring(0,16).replace('T',' '))} · ${esc(s.categoria)} · desde juan@tally.legal</div>
+    <div class="draft-box"><div style="white-space:pre-wrap;font-size:14px">${esc(s.cuerpo)}</div></div>
+    <div class="notice ok">📤 ${esc(s.estado)} — registrado en Salientes.</div>`;
+}
+
+function renderDetail(id){
+  const e = EMAILS.find(x=>x.email_id===id);
+  const el = document.getElementById('mailDetail');
+  if(!e){ el.innerHTML='<div class="empty">Correo no encontrado.</div>'; return; }
+  let html = `
+    <h3>${esc(e.asunto)}</h3>
+    <div class="meta">${esc(e.remitente_nombre)} &lt;${esc(e.remitente_email)}&gt; · ${esc(e.fecha_recibido)} · vía ${esc(e.cuenta)}@tally.legal${e.company_id?` · <b>${esc(e.company_id)}</b>`:''}</div>
+    <div class="resumen"><b>Resumen:</b> ${esc(e.resumen)}${e.notas_agente?`\n\n${esc(e.notas_agente)}`:''}</div>`;
+  if(e.estado==='Nuevo'||e.estado==='Prompt recibido'){
+    html += `
+    <label>Tu instrucción para la respuesta</label>
+    <textarea id="promptBox" rows="5" placeholder="Ej: Dile que recibimos sus documentos y que su declaración de junio queda presentada esta semana.">${esc(e.prompt_juan||'')}</textarea>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="genBtn" onclick="generateNow('${e.email_id}')">⚡ Generar respuesta AHORA</button>
+      <button class="btn btn-ghost" onclick="discard('${e.email_id}')">Descartar</button>
+    </div>
+    <div id="genStatus"></div>
+    ${e.estado==='Prompt recibido'?`<div class="notice info">⏳ Hay una instrucción guardada sin draft. Pulsa <b>⚡ Generar respuesta AHORA</b> (o el agente la redactará en su corrida de 09:00/16:00).</div>`:''}`;
+  }
+  if(e.estado==='Draft listo'){
+    html += `
+    <label>Draft — edítalo directamente si lo necesitas</label>
+    <div class="draft-box">
+      <div class="dsubj">Asunto: ${esc(e.draft_asunto)}</div>
+      <textarea id="draftBox" rows="12">${esc(e.draft_final||e.draft_cuerpo)}</textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-approve" id="sendBtn" onclick="approveAndSend('${e.email_id}')">✅ Aprobar y ENVIAR AHORA desde juan@</button>
+      <button class="btn btn-ghost" onclick="toggleNewPrompt()">↻ Modificar con nueva instrucción</button>
+      <button class="btn btn-ghost" onclick="discard('${e.email_id}')">Descartar</button>
+    </div>
+    <div id="newPromptWrap" style="display:none">
+      <label>¿Qué cambio necesitas en la redacción?</label>
+      <textarea id="newPromptBox" rows="3" placeholder="Ej: más corto, menciona la fecha límite del 17 y quita el segundo párrafo."></textarea>
+      <div class="btn-row"><button class="btn btn-primary" id="regenBtn" onclick="regenerateNow('${e.email_id}')">⚡ Regenerar AHORA</button></div>
+    </div>
+    <div id="genStatus"></div>
+    <div class="notice info">✏️ Tus ediciones directas en el texto se respetan tal cual al enviar. Al aprobar, el correo sale <b>al instante desde juan@tally.legal</b>.</div>`;
+  }
+  if(e.estado==='Aprobado'){
+    html += `<div class="notice ok">✅ Aprobado (pendiente de envío por el agente en su próxima corrida).</div>
+    <div class="btn-row"><button class="btn btn-approve" onclick="approveAndSend('${e.email_id}')">📤 Enviarlo AHORA desde juan@</button></div>
+    <div class="draft-box"><div class="dsubj">Asunto: ${esc(e.draft_asunto)}</div><div style="white-space:pre-wrap;font-size:14px">${esc(e.draft_final||e.draft_cuerpo)}</div></div>`;
+  }
+  if(e.estado==='Enviado'){
+    html += `<div class="notice ok">📤 Enviado el ${esc(e.fecha_envio)} desde juan@tally.legal.</div>
+    <div class="draft-box"><div class="dsubj">Asunto: ${esc(e.draft_asunto)}</div><div style="white-space:pre-wrap;font-size:14px">${esc(e.draft_final||e.draft_cuerpo)}</div></div>`;
+  }
+  el.innerHTML = html;
+}
+
+async function generateNow(id){
+  const v=document.getElementById('promptBox').value.trim();
+  if(!v){ toast('Escribe una instrucción primero'); return; }
+  const e=EMAILS.find(x=>x.email_id===id);
+  document.getElementById('genBtn').disabled=true;
+  document.getElementById('genStatus').innerHTML='<div class="notice info">⚡ Redactando en tiempo real…</div>';
+  const r=await api('generate_draft',{email_id:id,prompt:v});
+  if(r.ok){
+    e.prompt_juan=v; e.draft_asunto=r.draft_asunto; e.draft_cuerpo=r.draft_cuerpo; e.draft_final=''; e.estado='Draft listo';
+    toast('✅ Draft listo — revísalo y aprueba'); renderMailList(); renderDetail(id);
+  } else if(String(r.error||'').startsWith('SIN_API_KEY')){
+    const r2=await api('save_prompt',{email_id:id,prompt:v});
+    if(r2.ok){ e.prompt_juan=v; e.estado='Prompt recibido'; renderMailList(); renderDetail(id); }
+    toast('⚠️ Falta la API key en el Apps Script — instrucción guardada para la corrida del agente');
+  } else { document.getElementById('genBtn').disabled=false; document.getElementById('genStatus').innerHTML=''; toast('❌ '+(r.error||'error')); }
+}
+async function regenerateNow(id){
+  const v=document.getElementById('newPromptBox').value.trim();
+  if(!v){ toast('Describe el ajuste que necesitas'); return; }
+  const e=EMAILS.find(x=>x.email_id===id);
+  document.getElementById('regenBtn').disabled=true;
+  document.getElementById('genStatus').innerHTML='<div class="notice info">⚡ Regenerando con tu ajuste…</div>';
+  const r=await api('generate_draft',{email_id:id,prompt:(e.prompt_juan?e.prompt_juan+' | AJUSTE: ':'')+v});
+  if(r.ok){ e.prompt_juan=(e.prompt_juan?e.prompt_juan+' | AJUSTE: ':'')+v; e.draft_asunto=r.draft_asunto; e.draft_cuerpo=r.draft_cuerpo; e.draft_final=''; toast('✅ Nueva versión lista'); renderDetail(id); }
+  else { document.getElementById('regenBtn').disabled=false; document.getElementById('genStatus').innerHTML=''; toast('❌ '+(r.error||'error')); }
+}
+async function approveAndSend(id){
+  const e=EMAILS.find(x=>x.email_id===id);
+  const box=document.getElementById('draftBox');
+  const cuerpo=box?box.value.trim():(e.draft_final||e.draft_cuerpo);
+  if(!confirm('Enviar AHORA esta respuesta a '+(e.remitente_nombre||e.remitente_email)+' desde juan@tally.legal?')) return;
+  const btn=document.getElementById('sendBtn'); if(btn) btn.disabled=true;
+  const r=await api('send_reply',{email_id:id,draft_final:cuerpo});
+  if(r.ok){ e.draft_final=cuerpo; e.estado='Enviado'; e.fecha_envio=new Date().toISOString().slice(0,16).replace('T',' ');
+    toast('📤 Enviado a '+(r.enviado_a||e.remitente_email)+' desde juan@'); renderMailList(); renderDetail(id); }
+  else{ if(btn) btn.disabled=false; toast('❌ '+(r.error||'error al enviar')); }
+}
+async function discard(id){
+  const r=await api('discard',{email_id:id});
+  if(r.ok){ const e=EMAILS.find(x=>x.email_id===id); e.estado='Descartado'; selId=null; toast('Descartado'); renderMailList();
+    document.getElementById('mailDetail').innerHTML='<div class="empty">Selecciona un correo.</div>'; }
+  else toast('❌ '+(r.error||'error'));
+}
+function toggleNewPrompt(){ const w=document.getElementById('newPromptWrap'); w.style.display=w.style.display==='none'?'block':'none'; }
+
+/* ═══════════════ REDACTAR DESDE CERO ═══════════════ */
+function openCompose(){
+  composeMode=true; selId=null; selOut=null;
+  cmp={clients:[],cat:'',tpl:'',previews:[]};
+  renderCompose();
+}
+function renderCompose(){
+  const el=document.getElementById('mailDetail');
+  const tpls=PLANTILLAS.filter(p=>!cmp.cat||p.categoria===cmp.cat);
+  el.innerHTML=`
+    <h3>✍️ Redactar correo nuevo</h3>
+    <div class="meta">Se envía al instante desde <b>juan@tally.legal</b> al pulsar Enviar.</div>
+
+    <label>1 · Cliente(s) destinatario(s)</label>
+    <div class="cli-pick">
+      <input type="text" id="cliSearch" placeholder="Busca por nombre o AZ… (mínimo 2 letras)" oninput="cliSearch(this.value)" autocomplete="off">
+      <div class="cli-results" id="cliResults" style="display:none"></div>
+    </div>
+    <div class="sel-clients" id="selClients">${cmp.clients.map(c=>`<span class="chip">${esc(c.cliente)} <b onclick="removeClient('${esc(c.company_id)}')">✕</b></span>`).join('')}</div>
+
+    <label>2 · Categoría</label>
+    <select id="catSel" onchange="cmp.cat=this.value; cmp.tpl=''; renderCompose()">
+      <option value="">— selecciona —</option>
+      ${[...new Set(PLANTILLAS.map(p=>p.categoria).filter(Boolean))].concat(COMPOSE_CATS).filter((c,i,a)=>a.indexOf(c)===i).map(c=>`<option ${cmp.cat===c?'selected':''}>${c}</option>`).join('')}
+    </select>
+
+    <label>3 · Plantilla</label>
+    <select id="tplSel" onchange="cmp.tpl=this.value; renderCompose()" ${!cmp.cat?'disabled':''}>
+      <option value="">${cmp.cat?(tpls.length?'— selecciona —':'sin plantillas para esta categoría (agrégala en el Notion de plantillas)'):'primero elige categoría'}</option>
+      ${tpls.map(p=>`<option value="${esc(p.plantilla_id)}" ${cmp.tpl===p.plantilla_id?'selected':''}>${esc(p.nombre)}</option>`).join('')}
+    </select>
+    ${tplInstructivo()}
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="genPreviews()">Generar correos (${cmp.clients.length} cliente${cmp.clients.length===1?'':'s'})</button>
+      <button class="btn btn-ghost" onclick="composeMode=false; document.getElementById('mailDetail').innerHTML='<div class=empty>Selecciona un correo.</div>'">Cancelar</button>
+    </div>
+    <div id="previews"></div>`;
+}
+const VAR_LABELS = {
+  '{{contact_name}}':'nombre del contacto (pestaña Clientes)',
+  '{{company_name}}':'nombre de la empresa',
+  '{{period}}':'período (mes anterior, en inglés)',
+  '{{owner_name}}':'owner del cliente',
+  '{{firma}}':'tu firma (Config)'
+};
+function bracketsIn(text){ return [...new Set((String(text).match(/\[[^\]\n]{2,60}\]/g)||[]))]; }
+function tplInstructivo(){
+  if(!cmp.tpl) return '';
+  const tpl = PLANTILLAS.find(p=>p.plantilla_id===cmp.tpl);
+  if(!tpl) return '';
+  const full = String(tpl.asunto)+'\n'+String(tpl.cuerpo);
+  const vars = Object.keys(VAR_LABELS).filter(v=>full.includes(v));
+  const manual = bracketsIn(full);
+  const sinEmail = cmp.clients.filter(c=>!(c.contacto_email||'').includes('@'));
+  return `<div class="notice info" style="margin-top:10px">
+    <b>📋 Para que este correo salga correcto necesitas:</b><br>
+    ${manual.length?`✍️ <b>Completar a mano ${manual.length} campo${manual.length===1?'':'s'} en el paso 4:</b> ${manual.map(esc).join(' · ')}<br>`:''}
+    ${vars.length?`🤖 Se llenan solos por cliente: ${vars.map(v=>esc(VAR_LABELS[v])).join(', ')}.<br>`:''}
+    📧 Cada cliente necesita email de contacto válido${sinEmail.length?` — <b style="color:#b34a17">⚠️ falta en: ${sinEmail.map(c=>esc(c.cliente)).join(', ')}</b> (escríbelo en el preview o corrígelo en la pestaña Clientes)`:' ✓'}.<br>
+    🔒 El botón Enviar se bloquea si queda algún campo [PENDIENTE] sin reemplazar.
+  </div>`;
+}
+function cliSearch(q){
+  const box=document.getElementById('cliResults');
+  q=q.trim().toLowerCase();
+  if(q.length<2){ box.style.display='none'; return; }
+  const hits=CLIENTES.filter(c=>!cmp.clients.some(s=>s.company_id===c.company_id) &&
+    ((c.cliente||'').toLowerCase().includes(q)||(c.company_id||'').toLowerCase().includes(q))).slice(0,12);
+  box.innerHTML=hits.length?hits.map(c=>`<div onclick='addClient(${JSON.stringify(c.company_id)})'>${esc(c.cliente)} <span style="color:var(--gray-500)">· ${esc(c.company_id)} · ${esc(c.owner)}${c.contacto_email?' · '+esc(c.contacto_email):' · ⚠️ sin email'}</span></div>`).join(''):'<div style="color:var(--gray-500)">sin resultados</div>';
+  box.style.display='block';
+}
+function addClient(id){
+  const c=CLIENTES.find(x=>x.company_id===id);
+  if(c) cmp.clients.push(c);
+  renderCompose();
+}
+function removeClient(id){ cmp.clients=cmp.clients.filter(c=>c.company_id!==id); renderCompose(); }
+
+function fillTemplate(str,c){
+  const now=new Date(); const prev=new Date(now.getFullYear(),now.getMonth()-1,1);
+  const period=prev.toLocaleString('en-US',{month:'long'})+' '+prev.getFullYear();
+  const contact=(c.contacto_nombre||'').trim() || 'team';
+  return String(str)
+    .replaceAll('{{contact_name}}',contact)
+    .replaceAll('{{company_name}}',c.cliente||'')
+    .replaceAll('{{period}}',period)
+    .replaceAll('{{owner_name}}',c.owner||'')
+    .replaceAll('{{firma}}',CONFIG.firma_juan||'Best regards,\nJuan Vélez\nTally');
+}
+
+function genPreviews(){
+  if(!cmp.clients.length){ toast('Selecciona al menos un cliente'); return; }
+  if(!cmp.cat){ toast('Selecciona la categoría'); return; }
+  const tplSel=document.getElementById('tplSel'); cmp.tpl=tplSel.value;
+  const tpl=PLANTILLAS.find(p=>p.plantilla_id===cmp.tpl);
+  if(!tpl){ toast('Selecciona la plantilla'); return; }
+  cmp.previews=cmp.clients.map(c=>({
+    company_id:c.company_id, cliente:c.cliente,
+    to:c.contacto_email||'', cc:c.cc_email||'',
+    subject:fillTemplate(tpl.asunto,c), body:fillTemplate(tpl.cuerpo,c),
+    status:'', sent:false
+  }));
+  renderPreviews();
+}
+function renderPreviews(){
+  const el=document.getElementById('previews');
+  el.innerHTML=`<label style="margin-top:20px">4 · Revisa, edita y envía</label>`+
+  cmp.previews.map((p,i)=>`
+    <div class="preview-card">
+      <div class="pc-head"><span class="pc-title">${esc(p.cliente)} <span style="color:var(--gray-500);font-weight:400">· ${esc(p.company_id)}</span></span>
+        <span class="pc-status" id="st-${i}">${p.sent?'✅ Enviado':''}</span></div>
+      <input type="text" id="to-${i}" value="${esc(p.to)}" placeholder="destinatario@ (obligatorio)">
+      <input type="text" id="cc-${i}" value="${esc(p.cc)}" placeholder="cc (opcional)">
+      <input type="text" id="sub-${i}" value="${esc(p.subject)}">
+      <textarea id="body-${i}" rows="10">${esc(p.body)}</textarea>
+      <div class="btn-row"><button class="btn btn-approve" id="send-${i}" ${p.sent?'disabled':''} onclick="sendOne(${i})">🚀 Enviar ahora desde juan@</button></div>
+    </div>`).join('')+
+  (cmp.previews.length>1?`<div class="btn-row"><button class="btn btn-primary" id="sendAll" onclick="sendAll()">🚀 Enviar TODOS (${cmp.previews.length})</button></div>`:'');
+}
+async function sendOne(i){
+  const p=cmp.previews[i];
+  p.to=document.getElementById('to-'+i).value.trim();
+  p.cc=document.getElementById('cc-'+i).value.trim();
+  p.subject=document.getElementById('sub-'+i).value.trim();
+  p.body=document.getElementById('body-'+i).value;
+  if(!p.to||!p.to.includes('@')){ toast('⚠️ '+p.cliente+': falta destinatario válido'); return; }
+  const pend=bracketsIn(p.subject+'\n'+p.body);
+  if(pend.length){ toast('🔒 '+p.cliente+': completa antes de enviar → '+pend.join(' · ')); document.getElementById('st-'+i).textContent='🔒 campos pendientes'; return; }
+  if(!confirm('Enviar a '+p.cliente+' <'+p.to+'> desde juan@tally.legal?')) return;
+  document.getElementById('st-'+i).textContent='⏳ enviando…';
+  document.getElementById('send-'+i).disabled=true;
+  const r=await api('send_direct',{to:p.to,cc:p.cc,subject:p.subject,body_text:p.body,company_id:p.company_id,cliente:p.cliente,categoria:cmp.cat,plantilla:cmp.tpl});
+  if(r.ok){ p.sent=true; document.getElementById('st-'+i).textContent='✅ Enviado'; toast('📤 Enviado a '+p.cliente); }
+  else{ document.getElementById('st-'+i).textContent='❌ '+(r.error||'error'); document.getElementById('send-'+i).disabled=false; toast('❌ '+p.cliente+': '+(r.error||'error')); }
+}
+async function sendAll(){
+  if(!confirm('Enviar los '+cmp.previews.length+' correos desde juan@tally.legal?')) return;
+  for(let i=0;i<cmp.previews.length;i++){
+    if(!cmp.previews[i].sent){
+      const p=cmp.previews[i];
+      p.to=document.getElementById('to-'+i).value.trim();
+      p.cc=document.getElementById('cc-'+i).value.trim();
+      p.subject=document.getElementById('sub-'+i).value.trim();
+      p.body=document.getElementById('body-'+i).value;
+      if(!p.to||!p.to.includes('@')){ document.getElementById('st-'+i).textContent='⚠️ sin destinatario'; continue; }
+      const pend=bracketsIn(p.subject+'\n'+p.body);
+      if(pend.length){ document.getElementById('st-'+i).textContent='🔒 campos pendientes: '+pend.join(', '); continue; }
+      document.getElementById('st-'+i).textContent='⏳ enviando…';
+      const r=await api('send_direct',{to:p.to,cc:p.cc,subject:p.subject,body_text:p.body,company_id:p.company_id,cliente:p.cliente,categoria:cmp.cat,plantilla:cmp.tpl});
+      if(r.ok){ p.sent=true; document.getElementById('st-'+i).textContent='✅ Enviado'; document.getElementById('send-'+i).disabled=true; }
+      else document.getElementById('st-'+i).textContent='❌ '+(r.error||'error');
+    }
+  }
+  toast('Envío masivo terminado');
+}
+
+/* ═══════════════ SELLER CENTRAL ═══════════════ */
+function renderSC(){
+  let rows=SC;
+  if(scFilter==='A'||scFilter==='B') rows=rows.filter(r=>r.bloque===scFilter);
+  if(scFilter==='__resp') rows=rows.filter(r=>r.estado_sop==='Respondió');
+  const el=document.getElementById('scTable');
+  if(!rows.length){ el.innerHTML='<p style="color:var(--gray-500)">Sin registros. El agente sincroniza la cola desde AppSheet en cada corrida.</p>'; return; }
+  el.innerHTML=`<table><thead><tr><th>Cliente</th><th>Owner</th><th>Período</th><th>Esc.</th><th>Estado</th><th>Días</th><th>Bloque</th><th>Acción pendiente</th><th>Aprobación</th><th></th></tr></thead><tbody>${rows.map(r=>`
+    <tr>
+      <td><b>${esc(r.cliente)}</b><br><span style="color:var(--gray-500);font-size:11px">${esc(r.company_id)}</span></td>
+      <td>${esc(r.owner)}</td><td>${esc(r.periodo)}</td><td>${esc(r.escenario_actual)}</td>
+      <td>${esc(r.estado_sop)}${r.motivo_exclusion?`<br><span style="color:var(--gray-500);font-size:11px">${esc(r.motivo_exclusion)}</span>`:''}</td>
+      <td>${esc(r.dias_desde_contacto)}</td>
+      <td><span class="pill ${esc(r.bloque)}">${esc(r.bloque)}</span></td>
+      <td>${esc(r.accion_pendiente)}</td>
+      <td><span class="pill ${esc(r.aprobacion||'Pendiente')}">${esc(r.aprobacion||'Pendiente')}</span></td>
+      <td>${r.bloque==='A'&&r.aprobacion!=='Aprobado'?`
+        <button class="mini btn-approve" onclick="scDecide('${esc(r.company_id)}','Aprobado')">Aprobar envío</button>
+        <button class="mini btn-ghost" onclick="scDecide('${esc(r.company_id)}','Rechazado')" style="margin-top:4px">Rechazar</button>`:''}</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+async function scDecide(cid,decision){
+  const r=await api('sc_decision',{company_id:cid,decision});
+  if(r.ok){ const row=SC.find(x=>x.company_id===cid); row.aprobacion=decision;
+    toast(decision==='Aprobado'?'✅ El agente enviará el escenario desde accounting@ en su próxima corrida':'Rechazado'); renderSC(); }
+  else toast('❌ '+(r.error||'error'));
+}
+
+/* ═══════════════ LOG ═══════════════ */
+function renderLog(){
+  const el=document.getElementById('logTable');
+  const rows=[...LOGS].reverse().slice(0,60);
+  if(!rows.length){ el.innerHTML='<p style="color:var(--gray-500)">Sin corridas registradas aún.</p>'; return; }
+  el.innerHTML=`<table><thead><tr><th>Fecha</th><th>Corrida</th><th>Revisados</th><th>Filtrados</th><th>Nuevos</th><th>Drafts</th><th>Enviados</th><th>SC</th><th>Errores</th><th>Notas</th></tr></thead>
+  <tbody>${rows.map(r=>`<tr><td>${esc(r.timestamp)}</td><td>${esc(r.corrida)}</td><td>${esc(r.correos_revisados)}</td><td>${esc(r.correos_filtrados_fuera)}</td><td>${esc(r.nuevos_triaged)}</td><td>${esc(r.drafts_generados)}</td><td>${esc(r.enviados)}</td><td>${esc(r.sc_actualizados)}</td><td>${esc(r.errores)}</td><td>${esc(r.notas)}</td></tr>`).join('')}</tbody></table>`;
+}
+
+/* ═══════════════ UTILIDADES / NAV ═══════════════ */
+function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3500); }
+
+document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',ev=>{
+  ev.preventDefault();
+  document.querySelectorAll('.nav a').forEach(x=>x.classList.remove('active')); a.classList.add('active');
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+a.dataset.view).classList.add('active');
+}));
+document.getElementById('catChips').addEventListener('click',ev=>{
+  if(!ev.target.dataset.cat) return;
+  catFilter=ev.target.dataset.cat; composeMode=false;
+  document.querySelectorAll('#catChips .chip').forEach(c=>c.classList.toggle('on',c===ev.target));
+  renderMailList();
+});
+document.getElementById('scChips').addEventListener('click',ev=>{
+  if(!ev.target.dataset.b) return;
+  scFilter=ev.target.dataset.b;
+  document.querySelectorAll('#scChips .chip').forEach(c=>c.classList.toggle('on',c===ev.target));
+  renderSC();
+});
+
+/* ═══════════════ LOGIN / SESIÓN ═══════════════ */
+let AUTH = null;
+try{ AUTH = JSON.parse(sessionStorage.getItem('tallyAuth')||'null'); }catch(e){}
+function applyAuth(){
+  if(!AUTH){ document.getElementById('loginVeil').style.display='flex'; return; }
+  document.getElementById('loginVeil').style.display='none';
+  document.getElementById('navConfig').style.display = AUTH.admin ? 'flex' : 'none';
+  document.getElementById('userBox').innerHTML = `👤 <b>${esc(AUTH.nombre||AUTH.email)}</b>${AUTH.admin?' · admin':''}<br><a href="#" onclick="logout();return false" style="color:var(--gray-500)">Cerrar sesión</a>`;
+  if(AUTH.admin) renderUsers();
+}
+async function doLogin(){
+  const email=document.getElementById('loginEmail').value.trim();
+  const pass=document.getElementById('loginPass').value;
+  if(!email||!pass){ document.getElementById('loginMsg').textContent='Escribe correo y contraseña'; return; }
+  document.getElementById('loginBtn').disabled=true;
+  document.getElementById('loginMsg').textContent='Verificando…';
+  const r=await api('login',{email,password:pass});
+  document.getElementById('loginBtn').disabled=false;
+  if(r.ok){ AUTH={email:r.email,nombre:r.nombre,admin:!!r.admin,password:pass};
+    sessionStorage.setItem('tallyAuth',JSON.stringify(AUTH));
+    document.getElementById('loginMsg').textContent=''; applyAuth(); loadAll(); }
+  else document.getElementById('loginMsg').textContent=r.error||'Error de acceso';
+}
+function logout(){ sessionStorage.removeItem('tallyAuth'); AUTH=null; location.reload(); }
+
+/* ═══════════════ GESTIÓN DE USUARIOS (solo admin) ═══════════════ */
+async function renderUsers(){
+  const el=document.getElementById('usersList');
+  const r=await api('user_list',{auth:{email:AUTH.email,password:AUTH.password}});
+  if(!r.ok){ el.textContent='⚠️ '+(r.error||'no disponible'); return; }
+  el.innerHTML=`<table><thead><tr><th>Correo</th><th>Nombre</th><th>Rol</th><th>Activo</th><th>Último acceso</th><th></th></tr></thead><tbody>${r.usuarios.map(u=>`
+    <tr><td>${esc(u.email)}</td><td>${esc(u.nombre)}</td><td>${esc(u.rol)}</td><td>${esc(u.activo)}</td>
+    <td style="font-size:11px;color:var(--gray-500)">${esc(String(u.ultimo_acceso).substring(0,16).replace('T',' '))}</td>
+    <td>${u.email!==AUTH.email?`<button class="mini btn-ghost" onclick="toggleUser('${esc(u.email)}','${String(u.activo).toLowerCase()==='no'?'si':'no'}')">${String(u.activo).toLowerCase()==='no'?'Activar':'Desactivar'}</button>`:''}</td></tr>`).join('')}</tbody></table>`;
+}
+async function addUser(){
+  const u={email:document.getElementById('nuEmail').value.trim(),
+           nombre:document.getElementById('nuNombre').value.trim(),
+           password:document.getElementById('nuPass').value,
+           rol:document.getElementById('nuRol').value, activo:'si'};
+  if(!u.email.includes('@')){ toast('Email inválido'); return; }
+  const r=await api('user_upsert',{auth:{email:AUTH.email,password:AUTH.password},user:u});
+  if(r.ok){ toast('✅ Usuario '+(r.inserted?'creado':'actualizado')+': '+u.email+' — comparte sus credenciales por canal seguro');
+    ['nuEmail','nuNombre','nuPass'].forEach(i=>document.getElementById(i).value=''); renderUsers(); }
+  else toast('❌ '+(r.error||'error'));
+}
+async function toggleUser(email,activo){
+  const r=await api('user_upsert',{auth:{email:AUTH.email,password:AUTH.password},user:{email,activo}});
+  if(r.ok){ toast(activo==='no'?'Usuario desactivado':'Usuario activado'); renderUsers(); }
+  else toast('❌ '+(r.error||'error'));
+}
+
+document.getElementById('cfgSheet').textContent=SHEET_ID;
+document.getElementById('cfgScript').textContent=APPS_SCRIPT_URL;
+applyAuth();
+api('__health',{}).then(()=>{});
+(async()=>{ // health check legible
+  const r=await new Promise(res=>{ const cb='__hc'; window[cb]=d=>res(d);
+    const s=document.createElement('script'); s.src=APPS_SCRIPT_URL+'?callback='+cb; s.onerror=()=>res({ok:false});
+    document.body.appendChild(s); setTimeout(()=>res({ok:false}),15000); });
+  document.getElementById('cfgScriptStatus').textContent = r&&r.ok ? ('✅ conectado (v'+(r.version||'?')+')') : '❌ sin respuesta — verifica deploy del Apps Script';
+})();
+
+loadAll();
+setInterval(loadAll,120000);
+</script>
+</body>
+</html>
