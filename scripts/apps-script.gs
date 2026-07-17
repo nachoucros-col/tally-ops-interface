@@ -200,6 +200,47 @@ function handle(body) {
       sh.getRange(row, 9).setValue((notas ? notas + ' | ' : '') + 'Correo actualizado desde la interfaz ' + now.slice(0, 10));
       return { ok: true, company_id: body.company_id };
     }
+    case 'sync_clientes': {
+      // Sincroniza correos de la pestaña Clientes desde Clients_Load (Accounting_DataModel):
+      // extrae SOLO correos (regex), rellena vacíos, depura ruido (estados de stripe, contexto).
+      // NUNCA pisa un correo válido ya registrado.
+      const cl = ss.getSheetByName('Clientes');
+      const dm = SpreadsheetApp.openById(DATAMODEL_ID).getSheetByName('Clients_Load');
+      const dmData = dm.getDataRange().getValues();
+      const emailRe = /[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/g;
+      const mapa = {};
+      for (let i = 1; i < dmData.length; i++) {
+        const cid = String(dmData[i][0] || '').trim();
+        if (!cid) continue;
+        let ems = [];
+        for (let j = 1; j < dmData[i].length; j++) {
+          const cell = String(dmData[i][j] || '');
+          if (cell.length > 120) continue; // campos largos de contexto = ruido
+          const f = cell.match(emailRe);
+          if (f) ems = ems.concat(f);
+        }
+        ems = ems.map(function(e){ return e.toLowerCase(); })
+                 .filter(function(e, ix, a){ return a.indexOf(e) === ix; }).slice(0, 3);
+        if (ems.length) mapa[cid] = ems.join(', ');
+      }
+      const data = cl.getDataRange().getValues();
+      let rellenados = 0, depurados = 0;
+      for (let i = 1; i < data.length; i++) {
+        const cid = String(data[i][0] || '').trim();
+        if (!cid) continue;
+        const actual = String(data[i][6] || '').trim();
+        const ext = (actual.match(emailRe) || []).filter(function(e, ix, a){ return a.indexOf(e) === ix; });
+        const limpio = ext.join(', ');
+        if (ext.length) {
+          if (limpio !== actual) { cl.getRange(i + 1, 7).setValue(limpio); depurados++; } // quitar ruido, conservar correos
+        } else if (mapa[cid]) {
+          cl.getRange(i + 1, 7).setValue(mapa[cid]); rellenados++;                        // rellenar vacío
+        } else if (actual) {
+          cl.getRange(i + 1, 7).setValue(''); depurados++;                                // pura basura → vaciar
+        }
+      }
+      return { ok: true, rellenados: rellenados, depurados: depurados };
+    }
     case 'request_run': {
       // La interfaz solicita una corrida inmediata del agente (botón 🔄 o al guardar Config).
       // El vigilante del agente revisa esta llave cada 5 minutos.
