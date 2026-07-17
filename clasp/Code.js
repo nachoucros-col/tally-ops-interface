@@ -622,6 +622,12 @@ function cronSync() {
  * "conectarse a un servicio externo" y probar la API de Claude.
  * Resultado esperado en el log: "✅ Claude respondió: OK"
  */
+// Prueba directa del scope de Drive (adjuntos de plantillas). Correr desde el editor.
+function probarDrive() {
+  const raiz = DriveApp.getRootFolder().getName();
+  console.log('✅ Drive OK — carpeta raíz visible: ' + raiz);
+}
+
 function probarConexionClaude() {
   const key = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
   if (!key) { console.log('❌ Falta ANTHROPIC_API_KEY en Propiedades del script'); return; }
