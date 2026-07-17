@@ -69,8 +69,14 @@ h1{font-size:28px;font-weight:700;letter-spacing:-0.015em;margin-bottom:4px}
 .detail.open{transform:none}
 .drawer-x{position:absolute;top:16px;right:20px;background:var(--gray-100);border-radius:999px;width:34px;height:34px;font-size:15px;font-weight:700;z-index:5}
 .drawer-x:hover{background:var(--gray-300)}
-.msg-original{border:1px solid var(--gray-300);border-left:4px solid var(--violet-500);background:#fff;border-radius:10px;padding:12px 14px;font-size:13.5px;white-space:pre-wrap;margin-bottom:14px;max-height:260px;overflow-y:auto;color:var(--ink)}
+.msg-original{border:1px solid var(--gray-300);border-left:4px solid var(--violet-500);background:#fff;border-radius:10px;padding:12px 14px;font-size:13.5px;white-space:pre-wrap;margin-bottom:14px;max-height:240px;overflow-y:auto;color:var(--ink)}
 .msg-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin:0 0 6px;color:var(--gray-500)}
+/* Tarjetas de contexto por sección */
+.ctx-card{background:var(--gray-100);border-radius:10px;padding:10px 14px;margin-bottom:8px;font-size:13.5px;white-space:pre-wrap;line-height:1.5}
+.ctx-card .ctx-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-500);margin-bottom:4px;white-space:normal}
+.ctx-card.ctx-decision{background:var(--violet-100)}
+.ctx-card.ctx-riesgo{background:var(--orange-100)}
+.ctx-card.ctx-sugerencia{background:var(--cyan-100)}
 .detail .empty{color:var(--gray-500);text-align:center;padding:60px 20px;font-size:14px}
 .detail h3{font-size:18px;font-weight:700;margin-bottom:2px}
 .detail .meta{font-size:13px;color:var(--gray-500);margin-bottom:14px}
@@ -406,6 +412,40 @@ function renderOutDetail(id){
     <div class="notice ok">📤 ${esc(s.estado)} — registrado en Salientes.</div>`;
 }
 
+/* Divide resumen + notas_agente en tarjetas por sección (marcadores 📌🕓📊⚠️💡🌐) */
+const CTX_SECCIONES = [
+  ['📌','Qué pide el cliente',''],
+  ['🕓','Historia del hilo',''],
+  ['📊','Estado en nuestros sistemas',''],
+  ['⚠️','Riesgo','ctx-riesgo'],
+  ['💡','Sugerencia de respuesta','ctx-sugerencia'],
+  ['🌐','Idioma del cliente','']
+];
+function renderContexto(e){
+  let html = `<div class="ctx-card ctx-decision"><div class="ctx-title">🎯 Decisión requerida</div>${esc(e.resumen||'')}</div>`;
+  const notas = String(e.notas_agente||'');
+  if(!notas) return html;
+  // trocear por marcadores al inicio de línea
+  const partes = [];
+  let actual = {titulo:'Contexto adicional', clase:'', texto:''};
+  notas.split('\n').forEach(linea=>{
+    const t = linea.trim();
+    const sec = CTX_SECCIONES.find(s=>t.startsWith(s[0]));
+    if(sec){
+      if(actual.texto.trim()) partes.push(actual);
+      actual = {titulo: sec[0]+' '+sec[1], clase: sec[2], texto: t.slice(sec[0].length).replace(/^[:\s]+/,'')};
+    } else {
+      actual.texto += (actual.texto?'\n':'') + linea;
+    }
+  });
+  if(actual.texto.trim()) partes.push(actual);
+  if(!partes.length) return html + `<div class="ctx-card"><div class="ctx-title">🧭 Contexto</div>${esc(notas)}</div>`;
+  partes.forEach(p=>{
+    html += `<div class="ctx-card ${p.clase}"><div class="ctx-title">${esc(p.titulo)}</div>${esc(p.texto.trim())}</div>`;
+  });
+  return html;
+}
+
 function renderDetail(id){
   const e = EMAILS.find(x=>x.email_id===id);
   const el = document.getElementById('mailDetail');
@@ -414,7 +454,7 @@ function renderDetail(id){
     <h3>${esc(e.asunto)}</h3>
     <div class="meta">${esc(e.remitente_nombre)} &lt;${esc(e.remitente_email)}&gt; · ${esc(e.fecha_recibido)} · vía ${esc(e.cuenta)}@tally.legal${e.company_id?` · <b>${esc(e.company_id)}</b>`:''}</div>
     ${e.mensaje_original?`<div class="msg-label">💬 Mensaje del cliente (texto original)</div><div class="msg-original">${esc(e.mensaje_original)}</div>`:''}
-    <div class="resumen"><b>🧭 Contexto del hilo:</b> ${esc(e.resumen)}${e.notas_agente?`\n\n${esc(e.notas_agente)}`:''}</div>`;
+    ${renderContexto(e)}`;
   if(e.estado==='Nuevo'||e.estado==='Prompt recibido'){
     html += `
     <label>Tu instrucción para la respuesta</label>
