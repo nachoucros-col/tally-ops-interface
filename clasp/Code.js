@@ -825,6 +825,24 @@ function buscarDocumento(companyId, tabla, columna) {
   } catch (e) { return null; }
 }
 
+/** Busca el DATO (texto) más reciente de un cliente en una tabla de AppSheet. */
+function buscarDato(companyId, tabla, columna) {
+  try {
+    const dm = SpreadsheetApp.openById(DATAMODEL_ID).getSheetByName(tabla);
+    if (!dm) return null;
+    const data = dm.getDataRange().getValues();
+    const colIdx = data[0].map(String).indexOf(columna);
+    if (colIdx < 0) return null;
+    for (let i = data.length - 1; i >= 1; i--) {
+      if (data[i].join('|').indexOf(companyId) >= 0) {
+        const val = String(data[i][colIdx] || '').trim();
+        if (val) return val;
+      }
+    }
+    return null;
+  } catch (e) { return null; }
+}
+
 /** Email del owner asignado a un cliente (mapa editable en Config.owners_emails). */
 function ownerEmail(ss, companyId) {
   try {

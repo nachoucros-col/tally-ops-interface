@@ -650,7 +650,22 @@ function renderCompose(){
     ${cmp.mode==='ia'?`
     <label>3 · Objetivo y contexto del correo</label>
     <textarea id="iaPrompt" rows="5" placeholder="Ej: Avísale que su declaración de junio ya fue presentada, comparte que detectamos ventas crecientes y proponle una sesión de 30 min la próxima semana para revisar su estrategia fiscal.">${esc(cmp.iaPrompt||'')}</textarea>
-    <div class="notice info" style="margin-top:8px">🤖 La IA redacta asunto y cuerpo personalizados por cliente. Idioma: inglés por default (o el que pidas en tu instrucción). Revisas, editas y envías — nada sale sin tu aprobación.</div>
+    <div class="notice info" style="margin-top:8px">🤖 La IA redacta asunto y cuerpo personalizados por cliente. Idioma: IN→español, AZ→inglés por default (cambiable en cada preview). Revisas, editas y envías — nada sale sin tu aprobación.</div>
+
+    <label>Datos del cliente a incluir (opcional)</label>
+    <div style="display:flex;gap:8px;margin-bottom:6px">
+      <select id="iaDatoTabla" onchange="document.getElementById('iaDatoCol').innerHTML='<option value=\'\'>— columna —</option>'+(TABLAS_APPSHEET[this.value]||[]).map(c=>'<option>'+c+'</option>').join('')" style="flex:1"><option value="">— tabla —</option>${Object.keys(TABLAS_APPSHEET).map(t=>`<option>${t}</option>`).join('')}</select>
+      <select id="iaDatoCol" style="flex:1"><option value="">— columna —</option></select>
+      <button class="mini btn-ghost" onclick="iaAddDato()">➕</button>
+    </div>
+    <div class="sel-clients">${(cmp.iaDatos||[]).map((d,ix)=>`<span class="chip">📊 ${esc(d.tabla)}.${esc(d.columna)} <b onclick="cmp.iaDatos.splice(${ix},1);renderCompose()">✕</b></span>`).join('')}</div>
+
+    <label>Documentos a adjuntar por cliente (opcional)</label>
+    <div style="display:flex;gap:8px;margin-bottom:6px">
+      <select id="iaDocTabla" style="flex:1"><option value="">— documento de tabla —</option>${Object.keys(TABLAS_DOCS).map(t=>`<option value="${t}">${t} (${TABLAS_DOCS[t]})</option>`).join('')}</select>
+      <button class="mini btn-ghost" onclick="iaAddDoc()">➕</button>
+    </div>
+    <div class="sel-clients">${(cmp.iaDocs||[]).map((d,ix)=>`<span class="chip">📎 ${esc(d.tabla)} <b onclick="cmp.iaDocs.splice(${ix},1);renderCompose()">✕</b></span>`).join('')}</div>
     <div class="btn-row">
       <button class="btn btn-primary" id="iaGenBtn" onclick="genIA()">⚡ Generar con IA (${cmp.clients.length} cliente${cmp.clients.length===1?'':'s'})</button>
       <button class="btn btn-ghost" onclick="cancelCompose()">Cancelar</button>
@@ -875,6 +890,18 @@ function fillTemplate(str,c){
     .replaceAll('{{firma}}',CONFIG.firma_juan||'Best regards,\nJuan Vélez\nTally');
 }
 
+function iaAddDato(){
+  const t=document.getElementById('iaDatoTabla').value, c=document.getElementById('iaDatoCol').value;
+  if(!t||!c){ toast('Elige tabla y columna'); return; }
+  cmp.iaDatos=cmp.iaDatos||[]; cmp.iaDatos.push({tabla:t,columna:c});
+  cmp.iaPrompt=document.getElementById('iaPrompt').value; renderCompose();
+}
+function iaAddDoc(){
+  const t=document.getElementById('iaDocTabla').value;
+  if(!t){ toast('Elige la tabla del documento'); return; }
+  cmp.iaDocs=cmp.iaDocs||[]; cmp.iaDocs.push({tabla:t,columna:TABLAS_DOCS[t]});
+  cmp.iaPrompt=document.getElementById('iaPrompt').value; renderCompose();
+}
 async function genIA(){
   cmp.iaPrompt=document.getElementById('iaPrompt').value.trim();
   if(!cmp.clients.length){ toast('Selecciona al menos un cliente'); return; }
@@ -886,10 +913,12 @@ async function genIA(){
   for(let i=0;i<cmp.clients.length;i++){
     const c=cmp.clients[i];
     st.innerHTML=`<div class="notice info">⚡ Redactando ${i+1}/${cmp.clients.length}: <b>${esc(c.cliente)}</b>…</div>`;
-    const r=await api('generate_new',{prompt:cmp.iaPrompt,cliente:c.cliente,company_id:c.company_id,contact_name:c.contacto_nombre||''});
+    const idiomaC=idiomaDefault(c.company_id);
+    const promptC=cmp.iaPrompt+(idiomaC==='es'?'\n\n(Redacta este correo en ESPAÑOL.)':'');
+    const r=await api('generate_new',{prompt:promptC,cliente:c.cliente,company_id:c.company_id,contact_name:c.contacto_nombre||'',datos:cmp.iaDatos||[]});
     if(r.ok){
       cmp.previews.push({company_id:c.company_id,cliente:c.cliente,to:c.contacto_email||'',cc:c.cc_email||'',
-        subject:r.subject,body:r.body_text,status:'',sent:false});
+        subject:r.subject,body:r.body_text,adjuntos:cmp.iaDocs||[],idioma:idiomaC,status:'',sent:false});
     }else{
       st.innerHTML=`<div class="notice warn">❌ ${esc(c.cliente)}: ${esc(r.error||'error')}</div>`;
       document.getElementById('iaGenBtn').disabled=false; return;
@@ -900,18 +929,22 @@ async function genIA(){
   renderPreviews();
   toast('✅ '+cmp.previews.length+' correo(s) redactado(s) — revisa, edita y envía');
 }
-function genPreviews(){
+async function genPreviews(){
   if(!cmp.clients.length){ toast('Selecciona al menos un cliente'); return; }
   if(!cmp.cat){ toast('Selecciona la categoría'); return; }
   const tplSel=document.getElementById('tplSel'); cmp.tpl=tplSel.value;
   const tpl=PLANTILLAS.find(p=>p.plantilla_id===cmp.tpl);
   if(!tpl){ toast('Selecciona la plantilla'); return; }
+  const docs=docsDePlantilla(tpl);
   cmp.previews=cmp.clients.map(c=>({
     company_id:c.company_id, cliente:c.cliente,
     to:c.contacto_email||'', cc:c.cc_email||'',
-    subject:fillTemplate(tpl.asunto,c), body:fillTemplate(tpl.cuerpo,c),
-    status:'', sent:false
+    subject:aplicarCamposYDocs(fillTemplate(tpl.asunto,c)),
+    body:aplicarCamposYDocs(fillTemplate(tpl.cuerpo,c)),
+    adjuntos:docs, idioma:'en', status:'', sent:false
   }));
+  renderPreviews();
+  await aplicarIdiomasAuto(null);
   renderPreviews();
 }
 function ownerDe(companyId){
@@ -931,6 +964,14 @@ function renderPreviews(){
       <input type="text" id="to-${i}" value="${esc(p.to)}" placeholder="destinatario@ — varios separados por coma (obligatorio)">
       ${!p.to?`<div class="btn-row" style="margin:0 0 8px"><button class="btn btn-ghost" id="save-${i}" onclick="guardarCorreoCliente(${i})">💾 Guardar correo(s) en la ficha del cliente</button></div>`:''}
       <input type="text" id="cc-${i}" value="${esc(p.cc)}" placeholder="cc adicional (opcional — los de regla van solos)">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+        <span style="font-size:12px;color:var(--gray-500)">🌐 Idioma:</span>
+        <select style="width:auto;padding:5px 8px;font-size:12px" onchange="traducirPreview(${i},this.value).then(()=>renderPreviews())">
+          <option value="en" ${p.idioma!=='es'?'selected':''}>Inglés</option>
+          <option value="es" ${p.idioma==='es'?'selected':''}>Español</option>
+        </select>
+        ${(p.adjuntos&&p.adjuntos.length)?`<span style="font-size:12px">📎 adjuntará: ${p.adjuntos.map(a=>esc(a.tabla)).join(', ')}</span>`:''}
+      </div>
       <input type="text" id="sub-${i}" value="${esc(p.subject)}">
       <textarea id="body-${i}" rows="10">${esc(p.body)}</textarea>
       <div class="btn-row"><button class="btn btn-approve" id="send-${i}" ${p.sent?'disabled':''} onclick="sendOne(${i})">🚀 Enviar ahora</button></div>
@@ -963,7 +1004,7 @@ async function sendOne(i){
   if(!confirm('Enviar a '+p.cliente+' <'+p.to+'> desde '+fromC+'?')) return;
   document.getElementById('st-'+i).textContent='⏳ enviando…';
   document.getElementById('send-'+i).disabled=true;
-  const r=await api('send_direct',{to:p.to,cc:p.cc,subject:p.subject,body_text:p.body,company_id:p.company_id,cliente:p.cliente,categoria:cmp.cat,plantilla:cmp.tpl,from_account:fromC,auth:{email:AUTH.email,password:AUTH.password}});
+  const r=await api('send_direct',{to:p.to,cc:p.cc,subject:p.subject,body_text:p.body,company_id:p.company_id,cliente:p.cliente,categoria:cmp.cat,plantilla:cmp.tpl,from_account:fromC,adjuntos:p.adjuntos||[],auth:{email:AUTH.email,password:AUTH.password}});
   if(r.ok){ p.sent=true; document.getElementById('st-'+i).textContent='✅ Enviado'; toast('📤 Enviado a '+p.cliente); }
   else{ document.getElementById('st-'+i).textContent='❌ '+(r.error||'error'); document.getElementById('send-'+i).disabled=false; toast('❌ '+p.cliente+': '+(r.error||'error')); }
 }
@@ -981,7 +1022,7 @@ async function sendAll(){
       const pend=bracketsIn(p.subject+'\n'+p.body);
       if(pend.length){ document.getElementById('st-'+i).textContent='🔒 campos pendientes: '+pend.join(', '); continue; }
       document.getElementById('st-'+i).textContent='⏳ enviando…';
-      const r=await api('send_direct',{to:p.to,cc:p.cc,subject:p.subject,body_text:p.body,company_id:p.company_id,cliente:p.cliente,categoria:cmp.cat,plantilla:cmp.tpl,from_account:fromA,auth:{email:AUTH.email,password:AUTH.password}});
+      const r=await api('send_direct',{to:p.to,cc:p.cc,subject:p.subject,body_text:p.body,company_id:p.company_id,cliente:p.cliente,categoria:cmp.cat,plantilla:cmp.tpl,from_account:fromA,adjuntos:p.adjuntos||[],auth:{email:AUTH.email,password:AUTH.password}});
       if(r.ok){ p.sent=true; document.getElementById('st-'+i).textContent='✅ Enviado'; document.getElementById('send-'+i).disabled=true; }
       else document.getElementById('st-'+i).textContent='❌ '+(r.error||'error');
     }
@@ -1039,7 +1080,7 @@ function renderBatch(){
     </div>`:''}
     <label>Previsualización aleatoria — ${esc(p.cliente)} <button class="mini btn-ghost" onclick="cmp.sample=Math.floor(Math.random()*cmp.previews.length);renderBatch()" style="margin-left:8px">🎲 Ver otro</button></label>
     <div class="preview-card">
-      <div style="font-size:13px;margin-bottom:6px"><b>Para:</b> ${esc(p.to||'⚠️ sin correo')} · <b>Owner CC:</b> ${esc(ownerDe(p.company_id)||'—')}</div>
+      <div style="font-size:13px;margin-bottom:6px"><b>Para:</b> ${esc(p.to||'⚠️ sin correo')} · <b>Owner CC:</b> ${esc(ownerDe(p.company_id)||'—')} · <b>🌐</b> ${p.idioma==='es'?'Español':'Inglés'}${(p.adjuntos&&p.adjuntos.length)?` · 📎 ${p.adjuntos.map(a=>esc(a.tabla)).join(', ')}`:''}</div>
       <div style="font-size:13px;margin-bottom:8px"><b>Asunto:</b> ${esc(p.subject)}</div>
       <div style="white-space:pre-wrap;font-size:13.5px;border-top:1px solid var(--gray-100);padding-top:8px">${esc(p.body)}</div>
     </div>
@@ -1058,12 +1099,15 @@ function batchCheck(){
   const tpl=PLANTILLAS.find(t=>t.plantilla_id===cmp.tpl);
   if(!tpl){ toast('Selecciona el tipo de escenario'); return; }
   if(!String(tpl.asunto||'').trim()||!String(tpl.cuerpo||'').trim()){ toast('Esa plantilla no tiene Asunto/Cuerpo en el Notion — elige otra'); return; }
+  const docsB=docsDePlantilla(tpl);
   cmp.previews=cmp.clients.map(c=>({company_id:c.company_id,cliente:c.cliente,to:c.contacto_email||'',cc:c.cc_email||'',
-    subject:fillTemplate(tpl.asunto,c),body:fillTemplate(tpl.cuerpo,c),sent:false}));
+    subject:aplicarCamposYDocs(fillTemplate(tpl.asunto,c)),body:aplicarCamposYDocs(fillTemplate(tpl.cuerpo,c)),
+    adjuntos:docsB,idioma:'en',sent:false}));
   const pend=[...new Set(cmp.previews.flatMap(p=>bracketsIn(p.subject+'\n'+p.body)))];
-  if(pend.length){ toast('🔒 Esta plantilla tiene campos manuales ('+pend.join(', ')+') — para batch usa una plantilla sin [CAMPOS], o envíala por el flujo normal para editarla por cliente'); return; }
+  if(pend.length){ toast('🔒 Faltan campos por completar en el formulario de la plantilla: '+pend.join(' · ')); return; }
   cmp.sample=Math.floor(Math.random()*cmp.previews.length);
   cmp.stage='check'; renderBatch();
+  aplicarIdiomasAuto('batchStatus').then(()=>renderBatch());
 }
 async function guardarCorreoBatch(cid){
   const inp=document.getElementById('fix-'+cid);
@@ -1086,7 +1130,7 @@ async function batchConfirm(){
     const p=cmp.previews[i];
     if(p.sent){ ok++; continue; }
     st.innerHTML=`<div class="notice info">📤 Enviando ${i+1}/${cmp.previews.length}: <b>${esc(p.cliente)}</b>…</div>`;
-    const r=await api('send_direct',{to:p.to,cc:p.cc,subject:p.subject,body_text:p.body,company_id:p.company_id,cliente:p.cliente,categoria:'Seguimiento Seller Central',plantilla:cmp.tpl,auth:{email:AUTH.email,password:AUTH.password}});
+    const r=await api('send_direct',{to:p.to,cc:p.cc,subject:p.subject,body_text:p.body,company_id:p.company_id,cliente:p.cliente,categoria:'Seguimiento Seller Central',plantilla:cmp.tpl,adjuntos:p.adjuntos||[],auth:{email:AUTH.email,password:AUTH.password}});
     if(r.ok){ p.sent=true; ok++; } else fail.push(p.cliente+': '+(r.error||'error'));
   }
   st.innerHTML=`<div class="notice ${fail.length?'warn':'ok'}"><b>Batch terminado:</b> ${ok} enviado(s)${fail.length?` · ❌ ${fail.length} fallido(s):<br>${fail.map(esc).join('<br>')}`:' — todos con éxito ✅'}</div>
