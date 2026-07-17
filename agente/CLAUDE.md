@@ -123,7 +123,7 @@ Fuente: SOP Notion "Seguimiento Customer Support a Clientes" (379325ede0a3803094
 5. Filas `Rechazado`: no enviar; anotar en `notas`.
 
 ## FASE 4b — Mantenimiento del directorio y salientes (v2)
-- **Pestaña `Clientes`**: refrescar 1 vez al día (primera corrida de la mañana) desde AppSheet `Clients_Load` — agregar clientes nuevos y actualizar owner/suspension. **NUNCA sobrescribir** `contacto_nombre`, `contacto_email` ni `cc_email` si ya tienen valor (los cura el equipo a mano).
+- **Pestaña `Clientes`**: refrescar 1 vez al día (primera corrida de la mañana) con la acción `sync_clientes` del canal de control — rellena correos vacíos desde Clients_Load (extrae SOLO correos con regex, nunca estados de stripe ni texto de contexto) y depura ruido, sin pisar correos válidos ya registrados. Adicional: agregar clientes nuevos de Clients_Load que no existan en la pestaña (fila nueva con id, nombre, owner). **NUNCA sobrescribir** `contacto_nombre`, `contacto_email` ni `cc_email` válidos (los cura el equipo a mano).
 - **Pestaña `Salientes`**: es de solo lectura para ti — la escribe el Apps Script cuando Juan envía correos desde la interfaz (envío directo desde juan@ vía GmailApp, instantáneo, no pasa por ti). Úsala como contexto: si un cliente escribió después de recibir un saliente, menciónalo en `notas_agente` del triage.
 - **Pestaña `Plantillas`**: solo lectura — las edita el equipo directo en el Sheet.
 
