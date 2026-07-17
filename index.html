@@ -101,6 +101,10 @@ tr:hover td{background:#fdfcf7}
 .cfg-card h3{font-size:16px;margin-bottom:8px}
 .cfg-card code{background:var(--gray-100);padding:2px 6px;border-radius:5px;font-size:12px;word-break:break-all}
 .toast{position:fixed;bottom:24px;right:24px;background:var(--ink);color:var(--cream);padding:12px 20px;border-radius:10px;font-size:14px;opacity:0;transform:translateY(8px);transition:all .25s;pointer-events:none;z-index:99;max-width:420px}
+/* Tooltips ℹ️ */
+.tip{position:relative;display:inline-block;cursor:help;font-size:13px}
+.tip .tiptext{visibility:hidden;opacity:0;position:absolute;bottom:130%;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--cream);padding:10px 14px;border-radius:10px;font-size:12px;line-height:1.5;width:280px;z-index:60;transition:opacity .15s;text-align:left;font-weight:400;text-transform:none;letter-spacing:0;box-shadow:0 8px 24px rgba(33,33,33,.25)}
+.tip:hover .tiptext{visibility:visible;opacity:1}
 .toast.show{opacity:1;transform:none}
 /* Compose */
 .compose-btn{background:var(--violet-500);color:#fff;padding:10px 16px;border-radius:10px;font-weight:500;font-size:14px;margin-left:auto}
@@ -130,7 +134,7 @@ tr:hover td{background:#fdfcf7}
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
     <div class="push"></div>
     <div class="status" id="userBox" style="border-top:none"></div>
-    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>09:00 / 16:00 L-V</b></div>
+    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b></div>
   </nav>
 
   <main class="main">
@@ -165,9 +169,12 @@ tr:hover td{background:#fdfcf7}
       <div class="chips" id="scChips">
         <button class="chip on" data-b="*">Todos</button>
         <button class="chip" data-b="A">Bloque A — enviar</button>
+        <span class="tip">ℹ️<span class="tiptext"><b>Bloque A — listos para envío:</b> clientes que CUMPLEN las 4 reglas del SOP (sin suspensión activa, First Shipment finalizado, sin acceso total ya otorgado, con tarea activa del agente). Al aprobarlos, el agente ejecuta el envío del escenario que corresponda. <b>Regla del día 17:</b> del 17 en adelante el envío ya no solicita documentos — notifica la estrategia de declaración en ceros con complementaria (Esc.3).</span></span>
         <button class="chip" data-b="B">Bloque B — discrepancias</button>
+        <span class="tip">ℹ️<span class="tiptext"><b>Bloque B — discrepancias:</b> clientes EXCLUIDOS del envío automático por alguna regla del SOP: suspensión activa, First Shipment sin finalizar, acceso total ya otorgado, conversación activa en curso o datos inconsistentes entre sistemas. Requieren tu decisión o una acción interna antes de contactarlos. La columna "Estado" muestra el motivo específico.</span></span>
         <button class="chip" data-b="__resp">Respondieron</button>
       </div>
+      <div id="scRegla17"></div>
       <div id="scTable">Cargando…</div>
     </section>
 
@@ -189,7 +196,7 @@ tr:hover td{background:#fdfcf7}
         <p>Monitoreadas: <code>contabilidad@</code> <code>accounting@</code> <code>elizabeth@</code> <code>juan@</code> (pendiente en Gmail MCP)</p>
         <p style="margin-top:8px">Respuestas y correos nuevos → <b>juan@tally.legal</b> (envío directo vía Apps Script). Escenarios SOP SC → <b>accounting@</b> CC <b>customersuccess@</b> (vía agente).</p></div>
       <div class="cfg-card"><h3>Categorías de triage — editable</h3>
-        <p style="font-size:13px;color:var(--gray-500);margin-bottom:8px">Separadas por coma. Al guardar, los filtros de la Bandeja se actualizan al instante y el agente aplica la nueva clasificación en su siguiente corrida (09:00 / 16:00).</p>
+        <p style="font-size:13px;color:var(--gray-500);margin-bottom:8px">Separadas por coma. Al guardar, los filtros de la Bandeja se actualizan al instante y el agente aplica la nueva clasificación en su siguiente corrida horaria.</p>
         <textarea id="cfgCats" rows="2"></textarea>
         <div class="btn-row"><button class="btn btn-primary" onclick="saveCfg('categorias_triage','cfgCats','✅ Categorías guardadas — el agente las aplicará en su próxima corrida')">Guardar categorías</button></div></div>
       <div class="cfg-card"><h3>Cuentas de correo conectadas — editable</h3>
@@ -400,7 +407,7 @@ function renderDetail(id){
       <button class="btn btn-ghost" onclick="discard('${e.email_id}')">Descartar</button>
     </div>
     <div id="genStatus"></div>
-    ${e.estado==='Prompt recibido'?`<div class="notice info">⏳ Hay una instrucción guardada sin draft. Pulsa <b>⚡ Generar respuesta AHORA</b> (o el agente la redactará en su corrida de 09:00/16:00).</div>`:''}`;
+    ${e.estado==='Prompt recibido'?`<div class="notice info">⏳ Hay una instrucción guardada sin draft. Pulsa <b>⚡ Generar respuesta AHORA</b> (o el agente la redactará en su próxima corrida horaria).</div>`:''}`;
   }
   if(e.estado==='Draft listo'){
     html += `
@@ -679,16 +686,37 @@ async function sendAll(){
 }
 
 /* ═══════════════ SELLER CENTRAL ═══════════════ */
+const ESC_NOMBRES={
+  'Esc.1':'Solicitud inicial de accesos y documentos',
+  'Esc.2':'Recordatorio de documentos pendientes',
+  'Esc.3':'Estrategia declaración en ceros + complementaria'
+};
+function escNombre(code){ return ESC_NOMBRES[code]||code||'—'; }
+async function scScenario(cid, escenario){
+  const r=await api('sc_set_escenario',{company_id:cid,escenario});
+  if(r.ok){ const row=SC.find(x=>x.company_id===cid); row.escenario_actual=escenario;
+    toast('✅ Escenario de '+ (row.cliente||cid) +' → '+escNombre(escenario)); renderSC(); }
+  else toast('❌ '+(r.error||'error'));
+}
 function renderSC(){
+  const dia=new Date().getDate();
+  document.getElementById('scRegla17').innerHTML = dia>=17
+    ? `<div class="notice warn" style="margin-bottom:16px">📅 <b>Hoy es día ${dia} — regla del 17 activa:</b> los envíos que apruebes en Bloque A ya NO solicitan documentos adicionales; notifican la <b>estrategia de declaración en ceros con complementaria</b> (Esc.3, plantilla del SOP). El agente aplica el cambio automáticamente.</div>`
+    : `<div class="notice info" style="margin-bottom:16px">📅 Antes del día 17: los envíos de Bloque A solicitan documentos/accesos. A partir del 17, cambian automáticamente a estrategia de ceros con complementaria (Esc.3).</div>`;
   let rows=SC;
   if(scFilter==='A'||scFilter==='B') rows=rows.filter(r=>r.bloque===scFilter);
   if(scFilter==='__resp') rows=rows.filter(r=>r.estado_sop==='Respondió');
   const el=document.getElementById('scTable');
   if(!rows.length){ el.innerHTML='<p style="color:var(--gray-500)">Sin registros. El agente sincroniza la cola desde AppSheet en cada corrida.</p>'; return; }
-  el.innerHTML=`<table><thead><tr><th>Cliente</th><th>Owner</th><th>Período</th><th>Esc.</th><th>Estado</th><th>Días</th><th>Bloque</th><th>Acción pendiente</th><th>Aprobación</th><th></th></tr></thead><tbody>${rows.map(r=>`
+  el.innerHTML=`<table><thead><tr><th>Cliente</th><th>Owner</th><th>Período</th><th>Escenario de envío <span class="tip">ℹ️<span class="tiptext">Es el correo que saldrá al aprobar. Puedes cambiarlo por cliente con el selector. <b>Regla del 17:</b> del día 17 en adelante, el agente fuerza "Estrategia declaración en ceros" aunque el selector diga otra cosa.</span></span></th><th>Estado</th><th>Días</th><th>Bloque <span class="tip">ℹ️<span class="tiptext"><b>A</b> = cumple el SOP, listo para envío con tu aprobación.<br><b>B</b> = excluido por discrepancia (suspensión, FS sin finalizar, acceso total, conversación activa) — requiere decisión.</span></span></th><th>Acción pendiente</th><th>Aprobación</th><th></th></tr></thead><tbody>${rows.map(r=>`
     <tr>
       <td><b>${esc(r.cliente)}</b><br><span style="color:var(--gray-500);font-size:11px">${esc(r.company_id)}</span></td>
-      <td>${esc(r.owner)}</td><td>${esc(r.periodo)}</td><td>${esc(r.escenario_actual)}</td>
+      <td>${esc(r.owner)}</td><td>${esc(r.periodo)}</td>
+      <td>${r.aprobacion==='Aprobado'
+        ? esc(escNombre(r.escenario_actual))
+        : `<select onchange="scScenario('${esc(r.company_id)}',this.value)" style="min-width:180px;font-size:12px;padding:6px 8px">
+             ${['Esc.1','Esc.2','Esc.3'].map(e=>`<option value="${e}" ${r.escenario_actual===e?'selected':''}>${escNombre(e)}</option>`).join('')}
+           </select>`}</td>
       <td>${esc(r.estado_sop)}${r.motivo_exclusion?`<br><span style="color:var(--gray-500);font-size:11px">${esc(r.motivo_exclusion)}</span>`:''}</td>
       <td>${esc(r.dias_desde_contacto)}</td>
       <td><span class="pill ${esc(r.bloque)}">${esc(r.bloque)}</span></td>

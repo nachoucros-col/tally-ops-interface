@@ -1,0 +1,53 @@
+#!/bin/bash
+# Auto-push de tally-ops-interface → GitHub → Netlify + Apps Script (clasp)
+# Corre cada 5 minutos vía LaunchAgent (com.tally.autopush).
+# Salida detallada → /tmp/tally-autopush.out (vía launchd)
+
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+REPO="/Users/tallylegal/Documents/GitHub/tally-ops-interface"
+DEPLOYMENT_ID="AKfycbylh4xs3Ch09rUd05CnfxOE-wgERMCZIW38V-lGIU13DLIaojdynfZlQm8xqV_KLoRY"
+
+echo "═══ $(date '+%Y-%m-%d %H:%M:%S') corrida auto-push ═══"
+cd "$REPO" || { echo "❌ no pude entrar al repo"; exit 0; }
+
+# limpiar locks y archivos temporales huérfanos del entorno de Talia
+rm -f .git/index.lock .git/HEAD.lock 2>/dev/null
+find .git -name "tmp_obj_*" -delete 2>/dev/null
+find .git -name "*.lock" -not -path "*/refs/*" -delete 2>/dev/null
+
+# ── 1. GitHub → Netlify ──
+CAMBIOS=$(git status --porcelain | wc -l | tr -d ' ')
+echo "cambios pendientes: $CAMBIOS"
+if [ "$CAMBIOS" != "0" ]; then
+  git add -A 2>&1
+  git -c user.name="Tally AutoPush" -c user.email="juan@tally.legal" \
+      commit -m "auto: actualización $(date '+%Y-%m-%d %H:%M')" 2>&1 | tail -1
+fi
+echo "push:"
+git push origin main 2>&1 | tail -2
+
+# ── 2. Apps Script (clasp) ──
+cp scripts/apps-script.gs clasp/Code.js
+cp scripts/appsscript.json clasp/appsscript.json 2>/dev/null
+
+if ! cmp -s clasp/Code.js .last-deployed.gs 2>/dev/null; then
+  if command -v clasp >/dev/null 2>&1 && ! grep -q "PEGAR_AQUI" .clasp.json; then
+    echo "clasp push:"
+    if clasp push -f 2>&1 | tail -1; then
+      echo "clasp deploy:"
+      if clasp deploy -i "$DEPLOYMENT_ID" -d "auto $(date '+%Y-%m-%d %H:%M')" 2>&1 | tail -1; then
+        cp clasp/Code.js .last-deployed.gs
+        echo "$(date): Apps Script redesplegado" >> .autopush.log
+      else
+        echo "$(date): clasp deploy FALLÓ" >> .autopush.log
+      fi
+    else
+      echo "$(date): clasp push FALLÓ (¿login vencido? corre: clasp login)" >> .autopush.log
+    fi
+  else
+    echo "clasp no disponible o .clasp.json sin scriptId"
+  fi
+else
+  echo "apps-script sin cambios — sin redeploy"
+fi
+echo "═══ fin corrida ═══"

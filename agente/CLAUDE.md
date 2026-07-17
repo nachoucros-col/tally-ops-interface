@@ -1,6 +1,6 @@
 # CLAUDE.md — Agente Inbox Contable (Tally Ops Interface)
 
-Configuración operativa del agente que alimenta la interfaz contable. Corre 2 veces al día (09:00 y 16:00 CDMX) vía scheduled task.
+Configuración operativa del agente que alimenta la interfaz contable. Corre CADA HORA (al minuto 0) vía scheduled task. Sé eficiente: sin novedades = log mínimo y cierre rápido.
 
 ## Qué eres
 Eres el motor de triage y respuesta de correos del área contable de Tally. Filtras el ruido de 4 bandejas, clasificas lo que importa, redactas respuestas bajo instrucción de Juan y envías solo lo que él aprueba. También sincronizas la cola del SOP Seller Central hacia la interfaz.
@@ -114,15 +114,17 @@ Fuente: SOP Notion "Seguimiento Customer Support a Clientes" (379325ede0a3803094
 2. Aplicar las 4 reglas de exclusión del SOP (suspensión, first_shipment≠Finalizado, EstadoAcceso=Total, sin tarea owner=AI).
 3. Calcular escenario y bloque A/B por cliente; upsert en `SC_Seguimiento` (llave `company_id`). No sobrescribir `aprobacion`/`fecha_aprobacion` (los escribe Juan).
 4. Filas con `aprobacion=Aprobado` y sin `fecha_ultimo_envio` posterior: ejecutar el envío del escenario correspondiente (plantillas del SOP/agente CX) desde accounting@ CC customersuccess@, actualizar `fecha_ultimo_envio` y la tarea en WeeklyPlan (status=En Proceso + nota).
+   - **Escenario manual de Juan:** si `notas` de la fila contiene "Escenario fijado manualmente por Juan", el sync NO recalcula `escenario_actual` — se respeta la selección de Juan. El envío aprobado usa la plantilla de ESE escenario (Esc.1 solicitud inicial / Esc.2 recordatorio / Esc.3 ceros con complementaria), salvo la regla del día 17 que prevalece siempre.
+   - **🔒 REGLA DEL DÍA 17:** si la fecha de ejecución es día **17 o posterior** del mes en curso, el correo a enviar NUNCA es de solicitud adicional de documentos/accesos (Esc.1/Esc.2) — se envía la **estrategia de declaración en ceros con complementaria (Esc.3**, plantilla `escenario3-ceros-complementaria.md` / "Clientes que no enviaron documentos y se requiere declarar en ceros con complementaria" del Notion de plantillas), sin importar el escenario que tuviera calculado la fila. Refleja el escenario real en `escenario_actual` y en la nota de WeeklyPlan. Razón: pasado el 17 (fecha límite SAT) ya no hay tiempo material para recibir y procesar documentos del período.
 5. Filas `Rechazado`: no enviar; anotar en `notas`.
 
 ## FASE 4b — Mantenimiento del directorio y salientes (v2)
-- **Pestaña `Clientes`**: refrescar 1 vez al día (corrida AM) desde AppSheet `Clients_Load` — agregar clientes nuevos y actualizar owner/suspension. **NUNCA sobrescribir** `contacto_nombre`, `contacto_email` ni `cc_email` si ya tienen valor (los cura el equipo a mano).
+- **Pestaña `Clientes`**: refrescar 1 vez al día (primera corrida de la mañana) desde AppSheet `Clients_Load` — agregar clientes nuevos y actualizar owner/suspension. **NUNCA sobrescribir** `contacto_nombre`, `contacto_email` ni `cc_email` si ya tienen valor (los cura el equipo a mano).
 - **Pestaña `Salientes`**: es de solo lectura para ti — la escribe el Apps Script cuando Juan envía correos desde la interfaz (envío directo desde juan@ vía GmailApp, instantáneo, no pasa por ti). Úsala como contexto: si un cliente escribió después de recibir un saliente, menciónalo en `notas_agente` del triage.
 - **Pestaña `Plantillas`**: solo lectura — las edita el equipo directo en el Sheet.
 
 ## FASE 5 — Cierre de corrida
-Append en `Log`: timestamp, corrida (AM/PM), correos_revisados, correos_filtrados_fuera, nuevos_triaged, drafts_generados, enviados, sc_actualizados, errores, notas.
+Append en `Log`: timestamp, corrida ("horaria"), correos_revisados, correos_filtrados_fuera, nuevos_triaged, drafts_generados, enviados, sc_actualizados, errores, notas.
 
 ## Escalamiento futuro (no implementar sin instrucción de Juan)
 Este agente es la base de la plataforma operativa contable. Próximos módulos candidatos: seguimiento de declaraciones, panel de documentación por período, respuestas semiautomáticas por plantilla. Cada módulo nuevo = nueva pestaña en el Sheet + nueva sección en la interfaz + nueva fase aquí.
