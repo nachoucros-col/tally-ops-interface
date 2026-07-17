@@ -91,6 +91,16 @@ function handle(body) {
       return { ok: true, aprobacion: body.decision };
     }
 
+    case 'sc_mark_sent': {
+      // Sella una fila de SC como enviada con su escenario (lo usa send_direct y backfills)
+      const sh = ss.getSheetByName('SC_Seguimiento');
+      const row = findRow(sh, 1, body.company_id);
+      if (!row) return { ok: true, skipped: 'no está en la cola SC' };
+      if (body.escenario) sh.getRange(row, 5).setValue(String(body.escenario));
+      sh.getRange(row, 13).setValue(now);   // M fecha_ultimo_envio
+      sh.getRange(row, 15).setValue(now);   // O ultima_actualizacion
+      return { ok: true, company_id: body.company_id };
+    }
     case 'sc_set_escenario': {
       // Juan cambia manualmente el escenario de envío de un cliente desde la interfaz
       const sh = ss.getSheetByName('SC_Seguimiento');
@@ -122,6 +132,18 @@ function handle(body) {
       const id = 'SAL-' + Date.now() + '-' + (body.company_id || 'X');
       sal.appendRow([id, now, body.company_id || '', body.cliente || '', String(body.to) + (body.cc ? ' cc:' + body.cc : ''),
                      body.categoria || '', body.plantilla || '', String(body.subject), String(body.body_text), 'Enviado', senderD + ' (interfaz)']);
+      // Si es un envío de Seller Central a un cliente en la cola → sellar la fila con su escenario
+      if (/seller\s*central/i.test(String(body.categoria || '')) && body.company_id) {
+        const MAPA_ESC = { 'TPL-SC-01': 'Esc.1', 'TPL-SC-02': 'Esc.2', 'TPL-SC-03': 'Esc.3', 'TPL-SC-04': 'Esc.1' };
+        const sch = ss.getSheetByName('SC_Seguimiento');
+        const srow = findRow(sch, 1, body.company_id);
+        if (srow) {
+          const escMap = MAPA_ESC[String(body.plantilla || '')];
+          if (escMap) sch.getRange(srow, 5).setValue(escMap);
+          sch.getRange(srow, 13).setValue(now);
+          sch.getRange(srow, 15).setValue(now);
+        }
+      }
       return { ok: true, saliente_id: id, enviado_a: body.to, desde: senderD };
     }
 

@@ -202,6 +202,7 @@ tr:hover td{background:#fdfcf7}
         <button class="chip" data-b="B">Bloque B — discrepancias</button>
         <span class="tip">ℹ️<span class="tiptext"><b>Bloque B — discrepancias:</b> clientes EXCLUIDOS del envío automático por alguna regla del SOP: suspensión activa, First Shipment sin finalizar, acceso total ya otorgado, conversación activa en curso o datos inconsistentes entre sistemas. Requieren tu decisión o una acción interna antes de contactarlos. La columna "Estado" muestra el motivo específico.</span></span>
         <button class="chip" data-b="__resp">Respondieron</button>
+        <a class="chip" href="https://app.notion.com/p/34a325ede0a3808b9404e013f3249dec" target="_blank" style="margin-left:auto;text-decoration:none;display:inline-flex;align-items:center;gap:6px">📖 Glosario de los escenarios ↗</a>
       </div>
       <div id="scRegla17"></div>
       <div id="scTable">Cargando…</div>
@@ -972,7 +973,12 @@ function renderSC(){
         : `<select onchange="scScenario('${esc(r.company_id)}',this.value)" style="min-width:180px;font-size:12px;padding:6px 8px">
              ${['Esc.1','Esc.2','Esc.3'].map(e=>`<option value="${e}" ${r.escenario_actual===e?'selected':''}>${escNombre(e)}</option>`).join('')}
            </select>`}</td>
-      <td>${esc(r.estado_sop)}${r.motivo_exclusion?`<br><span style="color:var(--gray-500);font-size:11px">${esc(r.motivo_exclusion)}</span>`:''}</td>
+      <td>${r.fecha_ultimo_envio
+            ? (r.escenario_actual==='Esc.3'
+                ? `<span class="pill" style="background:var(--green-500);color:#fff">✅ Enviado y cerrado</span>`
+                : `<span class="pill" style="background:var(--green-100);color:#1d7a3f">📤 Enviado ${esc(r.escenario_actual||'')}</span>`)
+              + `<br><span style="color:var(--gray-500);font-size:11px">${esc(String(r.fecha_ultimo_envio).substring(0,10))}</span>`
+            : esc(r.estado_sop)}${r.motivo_exclusion?`<br><span style="color:var(--gray-500);font-size:11px">${esc(r.motivo_exclusion)}</span>`:''}</td>
       <td>${esc(r.dias_desde_contacto)}</td>
       <td><span class="pill ${esc(r.bloque)}">${esc(r.bloque)}</span></td>
       <td>${esc(r.accion_pendiente)}</td>
