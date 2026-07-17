@@ -692,9 +692,9 @@ function cliSearch(q){
 function addClient(id){
   const c=CLIENTES.find(x=>x.company_id===id);
   if(c) cmp.clients.push(c);
-  renderCompose();
+  (cmp.flow==='batch'?renderBatch:renderCompose)();
 }
-function removeClient(id){ cmp.clients=cmp.clients.filter(c=>c.company_id!==id); renderCompose(); }
+function removeClient(id){ cmp.clients=cmp.clients.filter(c=>c.company_id!==id); (cmp.flow==='batch'?renderBatch:renderCompose)(); }
 
 function fillTemplate(str,c){
   const now=new Date(); const prev=new Date(now.getFullYear(),now.getMonth()-1,1);
@@ -822,32 +822,107 @@ async function sendAll(){
   toast('Envío masivo terminado');
 }
 
-/* ═══════════════ SELLER CENTRAL ═══════════════ */
-let scSel = new Set();
-function scToggle(cid, on){ if(on) scSel.add(cid); else scSel.delete(cid); scBtnLabel(); }
-function scToggleAll(on){
-  let rows=SC;
-  if(scFilter==='A'||scFilter==='B') rows=rows.filter(r=>r.bloque===scFilter);
-  if(scFilter==='__resp') rows=rows.filter(r=>r.estado_sop==='Respondió');
-  rows.forEach(r=>{ if(on) scSel.add(r.company_id); else scSel.delete(r.company_id); });
-  renderSC();
-}
-function scBtnLabel(){
-  const b=document.getElementById('scBatchBtn');
-  if(b) b.textContent = scSel.size ? `📦 Enviar en Batch (${scSel.size})` : '📦 Enviar en Batch';
-}
+/* ═══════════════ SELLER CENTRAL — ENVÍO EN BATCH ═══════════════ */
 function scBatch(){
-  if(!scSel.size){ toast('Marca con ☑️ los clientes de la tabla que quieres incluir en el batch'); return; }
-  const clients=[];
-  scSel.forEach(cid=>{
-    const ficha=CLIENTES.find(c=>c.company_id===cid);
-    const fila=SC.find(r=>r.company_id===cid);
-    clients.push(ficha || {company_id:cid, cliente:(fila&&fila.cliente)||cid, owner:(fila&&fila.owner)||'', contacto_nombre:'', contacto_email:'', cc_email:''});
-  });
   composeMode=true; selId=null; selOut=null;
-  cmp={clients:clients, cat:'Seguimiento Seller Central', tpl:'', previews:[], mode:'tpl', iaPrompt:''};
-  renderCompose(); openDrawer();
-  toast('📦 Batch con '+clients.length+' cliente(s) — elige la plantilla y genera');
+  cmp={clients:[], cat:'Seguimiento Seller Central', tpl:'', previews:[], mode:'tpl', iaPrompt:'', flow:'batch', stage:'pick', sample:0};
+  renderBatch(); openDrawer();
+}
+function renderBatch(){
+  const el=document.getElementById('mailDetail');
+  const tpls=PLANTILLAS.filter(p=>/seller\s*central/i.test(p.categoria||''));
+
+  if(cmp.stage==='pick'){
+    el.innerHTML=`
+    <h3>📦 Envío en Batch — Seller Central</h3>
+    <div class="meta">Remitente: <b>accounting@tally.legal</b> (regla SC) · CC automático: customersuccess@, accounting@ y el owner de cada cliente.</div>
+
+    <label>1 · Agrega clientes</label>
+    <div style="font-size:12px;color:var(--gray-500);margin-bottom:6px">Busca en el directorio completo (esté o no en la cola SC) y haz clic para agregarlo como tag. Repite cuantas veces quieras.</div>
+    <div class="cli-pick">
+      <input type="text" id="cliSearch" placeholder="Escribe el nombre del cliente o su AZ…" oninput="cliSearch(this.value)" autocomplete="off">
+      <div class="cli-results" id="cliResults" style="display:none"></div>
+    </div>
+    <div class="sel-clients">${cmp.clients.map(c=>`<span class="chip">${esc(c.cliente)}${c.contacto_email?'':' ⚠️'} <b onclick="removeClient('${esc(c.company_id)}')">✕</b></span>`).join('')||'<span style="color:var(--gray-500);font-size:13px">sin clientes aún</span>'}</div>
+
+    <label>2 · Tipo de escenario a enviar</label>
+    <select id="batchTpl" onchange="cmp.tpl=this.value">
+      <option value="">${tpls.length?'— selecciona el escenario —':'sin plantillas SC (revisa el Notion de plantillas)'}</option>
+      ${tpls.map(p=>`<option value="${esc(p.plantilla_id)}" ${cmp.tpl===p.plantilla_id?'selected':''}>${esc(p.nombre)}</option>`).join('')}
+    </select>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="batchCheck()">🔍 Comprobar y enviar (${cmp.clients.length})</button>
+      <button class="btn btn-ghost" onclick="cancelCompose()">Cancelar</button>
+    </div>`;
+    return;
+  }
+
+  if(cmp.stage==='check'){
+    const sinCorreo=cmp.previews.filter(p=>!p.to);
+    const p=cmp.previews[cmp.sample];
+    const tpl=PLANTILLAS.find(t=>t.plantilla_id===cmp.tpl)||{};
+    el.innerHTML=`
+    <h3>🔍 Comprobación del batch</h3>
+    <div class="ctx-card"><div class="ctx-title">Resumen del envío</div>👥 ${cmp.previews.length} cliente(s) · 📄 ${esc(tpl.nombre||cmp.tpl)} · 📮 desde accounting@tally.legal · 📎 CC: customersuccess@ + accounting@ + owner de cada cliente</div>
+    ${sinCorreo.length?`<div class="notice warn" style="margin-bottom:10px">⚠️ <b>${sinCorreo.length} cliente(s) sin correo en el registro</b> — captúralos aquí para poder enviar:<br><br>
+      ${sinCorreo.map(s=>`<div style="margin-bottom:6px"><b>${esc(s.cliente)}</b><br><input type="text" id="fix-${esc(s.company_id)}" placeholder="correo@ (varios separados por coma)" style="margin:4px 0"><button class="mini btn-ghost" onclick="guardarCorreoBatch('${esc(s.company_id)}')">💾 Guardar</button></div>`).join('')}
+    </div>`:''}
+    <label>Previsualización aleatoria — ${esc(p.cliente)} <button class="mini btn-ghost" onclick="cmp.sample=Math.floor(Math.random()*cmp.previews.length);renderBatch()" style="margin-left:8px">🎲 Ver otro</button></label>
+    <div class="preview-card">
+      <div style="font-size:13px;margin-bottom:6px"><b>Para:</b> ${esc(p.to||'⚠️ sin correo')} · <b>Owner CC:</b> ${esc(ownerDe(p.company_id)||'—')}</div>
+      <div style="font-size:13px;margin-bottom:8px"><b>Asunto:</b> ${esc(p.subject)}</div>
+      <div style="white-space:pre-wrap;font-size:13.5px;border-top:1px solid var(--gray-100);padding-top:8px">${esc(p.body)}</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-approve" id="batchGo" onclick="batchConfirm()" ${sinCorreo.length?'disabled title="captura los correos faltantes primero"':''}>✅ Confirmar y enviar (${cmp.previews.length})</button>
+      <button class="btn btn-ghost" onclick="cmp.stage='pick';renderBatch()">← Volver</button>
+      <button class="btn btn-ghost" onclick="cancelCompose()">Cancelar envío</button>
+    </div>
+    <div id="batchStatus"></div>`;
+    return;
+  }
+}
+function batchCheck(){
+  const sel=document.getElementById('batchTpl'); if(sel) cmp.tpl=sel.value;
+  if(!cmp.clients.length){ toast('Agrega al menos un cliente con el buscador'); return; }
+  const tpl=PLANTILLAS.find(t=>t.plantilla_id===cmp.tpl);
+  if(!tpl){ toast('Selecciona el tipo de escenario'); return; }
+  if(!String(tpl.asunto||'').trim()||!String(tpl.cuerpo||'').trim()){ toast('Esa plantilla no tiene Asunto/Cuerpo en el Notion — elige otra'); return; }
+  cmp.previews=cmp.clients.map(c=>({company_id:c.company_id,cliente:c.cliente,to:c.contacto_email||'',cc:c.cc_email||'',
+    subject:fillTemplate(tpl.asunto,c),body:fillTemplate(tpl.cuerpo,c),sent:false}));
+  const pend=[...new Set(cmp.previews.flatMap(p=>bracketsIn(p.subject+'\n'+p.body)))];
+  if(pend.length){ toast('🔒 Esta plantilla tiene campos manuales ('+pend.join(', ')+') — para batch usa una plantilla sin [CAMPOS], o envíala por el flujo normal para editarla por cliente'); return; }
+  cmp.sample=Math.floor(Math.random()*cmp.previews.length);
+  cmp.stage='check'; renderBatch();
+}
+async function guardarCorreoBatch(cid){
+  const inp=document.getElementById('fix-'+cid);
+  const correos=(inp&&inp.value.trim())||'';
+  if(!correos.includes('@')){ toast('Escribe un correo válido'); return; }
+  const r=await api('update_cliente',{company_id:cid,contacto_email:correos});
+  if(r.ok){
+    const c=CLIENTES.find(x=>x.company_id===cid); if(c) c.contacto_email=correos;
+    const cl=cmp.clients.find(x=>x.company_id===cid); if(cl) cl.contacto_email=correos;
+    const pv=cmp.previews.find(x=>x.company_id===cid); if(pv) pv.to=correos;
+    toast('💾 Guardado en la ficha'); renderBatch();
+  } else toast('❌ '+(r.error||'error'));
+}
+async function batchConfirm(){
+  if(!confirm('Enviar el escenario a los '+cmp.previews.length+' clientes desde accounting@tally.legal?')) return;
+  document.getElementById('batchGo').disabled=true;
+  const st=document.getElementById('batchStatus');
+  let ok=0, fail=[];
+  for(let i=0;i<cmp.previews.length;i++){
+    const p=cmp.previews[i];
+    if(p.sent){ ok++; continue; }
+    st.innerHTML=`<div class="notice info">📤 Enviando ${i+1}/${cmp.previews.length}: <b>${esc(p.cliente)}</b>…</div>`;
+    const r=await api('send_direct',{to:p.to,cc:p.cc,subject:p.subject,body_text:p.body,company_id:p.company_id,cliente:p.cliente,categoria:'Seguimiento Seller Central',plantilla:cmp.tpl,auth:{email:AUTH.email,password:AUTH.password}});
+    if(r.ok){ p.sent=true; ok++; } else fail.push(p.cliente+': '+(r.error||'error'));
+  }
+  st.innerHTML=`<div class="notice ${fail.length?'warn':'ok'}"><b>Batch terminado:</b> ${ok} enviado(s)${fail.length?` · ❌ ${fail.length} fallido(s):<br>${fail.map(esc).join('<br>')}`:' — todos con éxito ✅'}</div>
+  <div class="btn-row"><button class="btn btn-ghost" onclick="cancelCompose()">Cerrar</button></div>`;
+  toast(fail.length?('Batch: '+ok+' ok, '+fail.length+' con error'):('📦 Batch completo: '+ok+' correos enviados'));
 }
 const ESC_NOMBRES={
   'Esc.1':'Solicitud inicial de accesos y documentos',
@@ -871,9 +946,8 @@ function renderSC(){
   if(scFilter==='__resp') rows=rows.filter(r=>r.estado_sop==='Respondió');
   const el=document.getElementById('scTable');
   if(!rows.length){ el.innerHTML='<p style="color:var(--gray-500)">Sin registros. El agente sincroniza la cola desde AppSheet en cada corrida.</p>'; return; }
-  el.innerHTML=`<table><thead><tr><th style="width:34px"><input type="checkbox" onclick="scToggleAll(this.checked)" title="Seleccionar visibles"></th><th>Cliente</th><th>Owner</th><th>Período</th><th>Escenario de envío <span class="tip">ℹ️<span class="tiptext">Es el correo que saldrá al aprobar. Puedes cambiarlo por cliente con el selector. <b>Regla del 17:</b> del día 17 en adelante, el agente fuerza "Estrategia declaración en ceros" aunque el selector diga otra cosa.</span></span></th><th>Estado</th><th>Días</th><th>Bloque <span class="tip">ℹ️<span class="tiptext"><b>A</b> = cumple el SOP, listo para envío con tu aprobación.<br><b>B</b> = excluido por discrepancia (suspensión, FS sin finalizar, acceso total, conversación activa) — requiere decisión.</span></span></th><th>Acción pendiente</th><th>Aprobación</th><th></th></tr></thead><tbody>${rows.map(r=>`
+  el.innerHTML=`<table><thead><tr><th>Cliente</th><th>Owner</th><th>Período</th><th>Escenario de envío <span class="tip">ℹ️<span class="tiptext">Es el correo que saldrá al aprobar. Puedes cambiarlo por cliente con el selector. <b>Regla del 17:</b> del día 17 en adelante, el agente fuerza "Estrategia declaración en ceros" aunque el selector diga otra cosa.</span></span></th><th>Estado</th><th>Días</th><th>Bloque <span class="tip">ℹ️<span class="tiptext"><b>A</b> = cumple el SOP, listo para envío con tu aprobación.<br><b>B</b> = excluido por discrepancia (suspensión, FS sin finalizar, acceso total, conversación activa) — requiere decisión.</span></span></th><th>Acción pendiente</th><th>Aprobación</th><th></th></tr></thead><tbody>${rows.map(r=>`
     <tr>
-      <td><input type="checkbox" ${scSel.has(r.company_id)?'checked':''} onclick="scToggle('${esc(r.company_id)}',this.checked)"></td>
       <td><b>${esc(r.cliente)}</b><br><span style="color:var(--gray-500);font-size:11px">${esc(r.company_id)}</span></td>
       <td>${esc(r.owner)}</td><td>${esc(r.periodo)}</td>
       <td>${r.aprobacion==='Aprobado'
@@ -890,7 +964,6 @@ function renderSC(){
         <button class="mini btn-approve" onclick="scDecide('${esc(r.company_id)}','Aprobado')">Aprobar envío</button>
         <button class="mini btn-ghost" onclick="scDecide('${esc(r.company_id)}','Rechazado')" style="margin-top:4px">Rechazar</button>`:''}</td>
     </tr>`).join('')}</tbody></table>`;
-  scBtnLabel();
 }
 async function scDecide(cid,decision){
   const r=await api('sc_decision',{company_id:cid,decision});
