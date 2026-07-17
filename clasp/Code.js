@@ -184,6 +184,15 @@ function handle(body) {
       sh.appendRow(vals.concat(['Pendiente', '', body.fecha_ultimo_envio||'', body.notas||'', now]));
       return { ok: true, inserted: body.company_id };
     }
+    case 'request_run': {
+      // La interfaz solicita una corrida inmediata del agente (botón 🔄 o al guardar Config).
+      // El vigilante del agente revisa esta llave cada 5 minutos.
+      const sh = ss.getSheetByName('Config');
+      const row = findRow(sh, 1, 'corrida_solicitada');
+      if (row) sh.getRange(row, 2).setValue(now);
+      else sh.appendRow(['corrida_solicitada', now]);
+      return { ok: true, corrida_solicitada: now };
+    }
     case 'update_config': {
       // Upsert de un par llave-valor en Config (lo usan la interfaz y el agente)
       const sh = ss.getSheetByName('Config');

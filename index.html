@@ -334,6 +334,7 @@ function renderCatChips(){
     + `<button class="chip" data-cat="__pend">⏳ Pendientes de mí</button>
        <button class="chip" data-cat="__out">📤 Enviados por mí</button>
        <button class="chip" data-cat="__hist">Respondidos</button>
+       <button class="chip" onclick="requestRun()" title="El agente arranca en menos de 5 minutos">🔄 Actualizar correos</button>
        <button class="compose-btn" onclick="openCompose()">✍️ Redactar correo</button>`;
   el.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on', c.dataset.cat===catFilter));
 }
@@ -341,8 +342,17 @@ async function saveCfg(key, elId, okMsg){
   const v = document.getElementById(elId).value.trim();
   if(!v){ toast('El valor no puede quedar vacío'); return; }
   const r = await api('update_config', {key, value: v});
-  if(r.ok){ CONFIG[key]=v; if(key==='categorias_triage') renderCatChips(); toast(okMsg); }
+  if(r.ok){
+    CONFIG[key]=v; if(key==='categorias_triage') renderCatChips();
+    await api('request_run',{}); // el cambio se aplica en <5 min, sin esperar la corrida horaria
+    toast(okMsg+' · corrida solicitada: aplica en <5 min');
+  }
   else toast('❌ '+(r.error||'error al guardar'));
+}
+async function requestRun(){
+  const r = await api('request_run',{});
+  if(r.ok) toast('🔄 Solicitud registrada — el agente actualizará la bandeja en menos de 5 minutos');
+  else toast('❌ '+(r.error||'error'));
 }
 
 /* ═══════════════ BANDEJA ═══════════════ */
