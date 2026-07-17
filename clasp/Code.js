@@ -131,7 +131,7 @@ function handle(body) {
       sh.appendRow([body.email_id||'', body.thread_id||'', body.cuenta||'', body.fecha_recibido||'', body.remitente_nombre||'',
                     body.remitente_email||'', body.company_id||'', body.cliente||'', body.asunto||'', body.resumen||'',
                     body.categoria||'', body.prioridad||'Media', 'Nuevo', '', '', '', '', '', '', body.notas_agente||'', now,
-                    body.cc_originales||'']);
+                    body.cc_originales||'', body.mensaje_original||'']);
       return { ok: true, inserted: body.email_id };
     }
     case 'update_email': {
@@ -142,7 +142,7 @@ function handle(body) {
       if (!row) return { ok: false, error: 'email_id no encontrado: ' + body.email_id };
       const COLS = { email_id:1, thread_id:2, cuenta:3, fecha_recibido:4, remitente_nombre:5, remitente_email:6,
                      company_id:7, cliente:8, asunto:9, resumen:10, categoria:11, prioridad:12, estado:13,
-                     prompt_juan:14, draft_asunto:15, draft_cuerpo:16, draft_final:17, notas_agente:20, cc_originales:22 };
+                     prompt_juan:14, draft_asunto:15, draft_cuerpo:16, draft_final:17, notas_agente:20, cc_originales:22, mensaje_original:23 };
       ensureCcCol(sh);
       const f = body.fields || {};
       Object.keys(f).forEach(k => { if (COLS[k]) sh.getRange(row, COLS[k]).setValue(f[k]); });
@@ -229,8 +229,10 @@ function handle(body) {
       const model = modelRow ? String(cfg.getRange(modelRow, 2).getValue()) : 'claude-sonnet-5';
 
       const system = 'Eres el asistente de redacción de Juan Vélez, Director de Estrategia de Tally (contabilidad para empresas extranjeras en México). Redactas la RESPUESTA a un correo de cliente siguiendo EXACTAMENTE la instrucción de Juan.\n\n🔒 REGLA DURA DE IDIOMA (prioridad máxima, sin excepciones): el correo de salida se redacta SIEMPRE en el idioma en que el CLIENTE escribió su correo original — NUNCA en el idioma de la instrucción de Juan (que suele venir en español). Detecta el idioma del cliente en este orden: (1) marcador "🌐 Idioma" en el contexto si existe; (2) el asunto original del correo; (3) citas textuales del cliente dentro del contexto; (4) si nada es concluyente, inglés (default de clientes extranjeros). Aunque la instrucción de Juan esté en español, si el cliente escribió en inglés, respondes en inglés.\n\nDemás reglas: tono profesional, cálido y directo; NO inventes compromisos, montos ni fechas que Juan no haya dado; no uses corchetes ni placeholders; cierra con la firma tal cual se te da. Devuelve SOLO el cuerpo del correo, sin asunto ni comentarios.';
+      const msgOriginal = String(sh.getRange(row, 23).getValue() || '');
       const user = 'CORREO A RESPONDER\nDe: ' + remNombre + ' <' + remEmail + '>\nCliente: ' + cliente + (companyId ? ' (' + companyId + ')' : '') + '\nAsunto: ' + asunto +
-        '\nResumen del correo: ' + resumen + '\nContexto del caso:\n' + notas +
+        (msgOriginal ? '\n\nMENSAJE ORIGINAL DEL CLIENTE (texto literal — responde a ESTO):\n' + msgOriginal : '') +
+        '\n\nResumen del correo: ' + resumen + '\nContexto del caso:\n' + notas +
         '\n\nINSTRUCCIÓN DE JUAN PARA LA RESPUESTA:\n' + (body.prompt || promptJuan) +
         '\n\nFIRMA A USAR AL FINAL:\n' + firma;
 
@@ -598,9 +600,10 @@ function checkAdmin(auth) {
   return false;
 }
 
-/** Garantiza la columna V (cc_originales) en Emails. */
+/** Garantiza las columnas extendidas en Emails: V cc_originales, W mensaje_original. */
 function ensureCcCol(sh) {
   if (!String(sh.getRange(1, 22).getValue()).trim()) sh.getRange(1, 22).setValue('cc_originales');
+  if (!String(sh.getRange(1, 23).getValue()).trim()) sh.getRange(1, 23).setValue('mensaje_original');
 }
 
 function findRow(sh, keyCol, keyValue) {

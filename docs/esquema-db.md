@@ -45,6 +45,8 @@ Una fila por correo triaged. El agente inserta; Juan actualiza estado/prompt des
 | S | `msg_id_enviado` | Agente | ID Gmail del correo enviado |
 | T | `notas_agente` | Agente | contexto extra: hilo previo, adjuntos, referencias AppSheet |
 | U | `ultima_actualizacion` | Ambos | ISO |
+| V | `cc_originales` | Agente | CC del correo original (para la regla de copias al responder) |
+| W | `mensaje_original` | Agente | Último mensaje del cliente TAL CUAL (sin citas ni firmas, máx ~1,500 chars) — se muestra en la interfaz y alimenta la redacción IA |
 
 ### Máquina de estados
 

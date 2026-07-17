@@ -39,7 +39,7 @@ h1{font-size:28px;font-weight:700;letter-spacing:-0.015em;margin-bottom:4px}
 .chip{padding:6px 14px;border-radius:999px;background:var(--gray-100);font-size:13px;font-weight:500;border:1px solid transparent;color:var(--ink)}
 .chip:hover{border-color:var(--gray-300)}
 .chip.on{background:var(--ink);color:var(--cream)}
-.split{display:grid;grid-template-columns:minmax(340px,1fr) minmax(430px,1.15fr);gap:24px;align-items:start}
+.split{display:block;max-width:980px}
 .mail-list{display:flex;flex-direction:column;gap:10px}
 .mail-card{background:#fff;border:1px solid var(--gray-100);border-radius:12px;padding:14px 16px;cursor:pointer;transition:border-color .15s}
 .mail-card:hover{border-color:var(--gray-300)}
@@ -62,7 +62,15 @@ h1{font-size:28px;font-weight:700;letter-spacing:-0.015em;margin-bottom:4px}
 .tag.st-Aprobado{background:var(--green-100);color:#1d7a3f}
 .tag.st-Enviado{background:var(--green-500);color:#fff}
 .tag.acct{background:transparent;border:1px solid var(--gray-300);color:var(--gray-500)}
-.detail{background:#fff;border:1px solid var(--gray-100);border-radius:16px;padding:24px;position:sticky;top:24px;max-height:calc(100vh - 48px);overflow-y:auto}
+/* Drawer flotante (detalle de correo / redacción) */
+#drawerBack{position:fixed;inset:0;background:rgba(33,33,33,.42);z-index:140;opacity:0;pointer-events:none;transition:opacity .22s}
+#drawerBack.open{opacity:1;pointer-events:auto}
+.detail{background:#fff;border-radius:20px 0 0 20px;padding:28px;position:fixed;top:0;right:0;height:100vh;width:min(620px,94vw);overflow-y:auto;z-index:150;box-shadow:-16px 0 48px rgba(33,33,33,.22);transform:translateX(105%);transition:transform .25s ease}
+.detail.open{transform:none}
+.drawer-x{position:absolute;top:16px;right:20px;background:var(--gray-100);border-radius:999px;width:34px;height:34px;font-size:15px;font-weight:700;z-index:5}
+.drawer-x:hover{background:var(--gray-300)}
+.msg-original{border:1px solid var(--gray-300);border-left:4px solid var(--violet-500);background:#fff;border-radius:10px;padding:12px 14px;font-size:13.5px;white-space:pre-wrap;margin-bottom:14px;max-height:260px;overflow-y:auto;color:var(--ink)}
+.msg-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin:0 0 6px;color:var(--gray-500)}
 .detail .empty{color:var(--gray-500);text-align:center;padding:60px 20px;font-size:14px}
 .detail h3{font-size:18px;font-weight:700;margin-bottom:2px}
 .detail .meta{font-size:13px;color:var(--gray-500);margin-bottom:14px}
@@ -155,10 +163,7 @@ tr:hover td{background:#fdfcf7}
         <button class="compose-btn" onclick="openCompose()">✍️ Redactar correo</button>
       </div>
       <div class="split">
-        <div class="mail-list" id="mailList"><div class="detail"><div class="empty">Cargando…</div></div></div>
-        <aside class="detail" id="mailDetail">
-          <div class="empty">Selecciona un correo, o pulsa <b>✍️ Redactar correo</b> para escribir uno nuevo desde cero.</div>
-        </aside>
+        <div class="mail-list" id="mailList"><div style="color:var(--gray-500);padding:30px;text-align:center">Cargando…</div></div>
       </div>
     </section>
 
@@ -221,6 +226,13 @@ tr:hover td{background:#fdfcf7}
   </main>
 </div>
 <div class="toast" id="toast"></div>
+
+<!-- ══ DRAWER (detalle / redacción) ══ -->
+<div id="drawerBack" onclick="closeDrawer()"></div>
+<aside class="detail" id="mailDrawer">
+  <button class="drawer-x" onclick="closeDrawer()" title="Cerrar (Esc)">✕</button>
+  <div id="mailDetail"></div>
+</aside>
 
 <!-- ══ LOGIN ══ -->
 <div id="loginVeil" style="position:fixed;inset:0;background:var(--ink);z-index:200;display:flex;align-items:center;justify-content:center">
@@ -345,7 +357,7 @@ function renderMailList(){
   const el = document.getElementById('mailList');
   if(catFilter==='__out'){ renderSalientesList(el); return; }
   const list = visibleEmails();
-  if(!list.length){ el.innerHTML=`<div class="detail"><div class="empty">Sin correos en esta vista. 🎉</div></div>`; return; }
+  if(!list.length){ el.innerHTML=`<div style="color:var(--gray-500);padding:40px;text-align:center;background:#fff;border-radius:12px;border:1px solid var(--gray-100)">Sin correos en esta vista. 🎉</div>`; return; }
   el.innerHTML = list.map(e=>`
     <div class="mail-card ${e.email_id===selId?'sel':''}" onclick="select('${e.email_id}')">
       <div class="row1"><span class="from">${esc(e.remitente_nombre||e.remitente_email)}</span><span class="date">${esc(e.fecha_recibido)}</span></div>
@@ -363,7 +375,7 @@ function renderMailList(){
 
 function renderSalientesList(el){
   const list=[...SALIENTES].sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
-  if(!list.length){ el.innerHTML=`<div class="detail"><div class="empty">Aún no has enviado correos desde la interfaz.</div></div>`; return; }
+  if(!list.length){ el.innerHTML=`<div style="color:var(--gray-500);padding:40px;text-align:center;background:#fff;border-radius:12px;border:1px solid var(--gray-100)">Aún no has enviado correos desde la interfaz.</div>`; return; }
   el.innerHTML = list.map(s=>`
     <div class="mail-card ${s.saliente_id===selOut?'sel':''}" onclick="selectOut('${s.saliente_id}')">
       <div class="row1"><span class="from">→ ${esc(s.cliente||s.destinatarios)}</span><span class="date">${esc(String(s.fecha).substring(0,16).replace('T',' '))}</span></div>
@@ -376,8 +388,12 @@ function renderSalientesList(el){
     </div>`).join('');
 }
 
-function select(id){ composeMode=false; selId=id; selOut=null; renderMailList(); renderDetail(id); }
-function selectOut(id){ composeMode=false; selOut=id; selId=null; renderMailList(); renderOutDetail(id); }
+function openDrawer(){ document.getElementById('mailDrawer').classList.add('open'); document.getElementById('drawerBack').classList.add('open'); }
+function closeDrawer(){ document.getElementById('mailDrawer').classList.remove('open'); document.getElementById('drawerBack').classList.remove('open'); composeMode=false; selId=null; selOut=null; renderMailList(); }
+document.addEventListener('keydown',ev=>{ if(ev.key==='Escape') closeDrawer(); });
+
+function select(id){ composeMode=false; selId=id; selOut=null; renderMailList(); renderDetail(id); openDrawer(); }
+function selectOut(id){ composeMode=false; selOut=id; selId=null; renderMailList(); renderOutDetail(id); openDrawer(); }
 
 function renderOutDetail(id){
   const s = SALIENTES.find(x=>x.saliente_id===id);
@@ -397,7 +413,8 @@ function renderDetail(id){
   let html = `
     <h3>${esc(e.asunto)}</h3>
     <div class="meta">${esc(e.remitente_nombre)} &lt;${esc(e.remitente_email)}&gt; · ${esc(e.fecha_recibido)} · vía ${esc(e.cuenta)}@tally.legal${e.company_id?` · <b>${esc(e.company_id)}</b>`:''}</div>
-    <div class="resumen"><b>Resumen:</b> ${esc(e.resumen)}${e.notas_agente?`\n\n${esc(e.notas_agente)}`:''}</div>`;
+    ${e.mensaje_original?`<div class="msg-label">💬 Mensaje del cliente (texto original)</div><div class="msg-original">${esc(e.mensaje_original)}</div>`:''}
+    <div class="resumen"><b>🧭 Contexto del hilo:</b> ${esc(e.resumen)}${e.notas_agente?`\n\n${esc(e.notas_agente)}`:''}</div>`;
   if(e.estado==='Nuevo'||e.estado==='Prompt recibido'){
     html += `
     <label>Tu instrucción para la respuesta</label>
@@ -490,9 +507,9 @@ function toggleNewPrompt(){ const w=document.getElementById('newPromptWrap'); w.
 function openCompose(){
   composeMode=true; selId=null; selOut=null;
   cmp={clients:[],cat:'',tpl:'',previews:[],mode:'tpl',iaPrompt:''};
-  renderCompose();
+  renderCompose(); openDrawer();
 }
-function cancelCompose(){ composeMode=false; document.getElementById('mailDetail').innerHTML='<div class="empty">Selecciona un correo.</div>'; }
+function cancelCompose(){ closeDrawer(); }
 function renderCompose(){
   const el=document.getElementById('mailDetail');
   const tpls=PLANTILLAS.filter(p=>!cmp.cat||p.categoria===cmp.cat);
