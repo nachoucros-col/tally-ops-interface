@@ -92,6 +92,8 @@ Para llenar `📊 Sistema`, cruza SIEMPRE: `Clientes_por_periodo` (período acti
 ### 🔒 Reglas duras de ENVÍO (aplican a TODO envío: respuestas y correos nuevos, tuyos o de la interfaz)
 1. **Hilo:** si el correo responde a un hilo existente, DEBE salir dentro del hilo. Vía MCP: usa `thread_id` cuando envíes desde la misma cuenta donde vive el hilo; desde juan@, busca primero el hilo en el buzón de juan (suele estar en CC) y usa ese thread_id; si no existe, envía con el mismo asunto precedido de "Re:".
 2. **Copias:** conserva los CC originales del hilo y agrega SIEMPRE `customersuccess@tally.legal` y `accounting@tally.legal` si no están (sin duplicar, sin incluir al destinatario ni a la cuenta remitente).
+3. **Copias en correos NUEVOS:** además de la regla anterior, todo correo nuevo lleva en CC al **owner asignado del cliente** (columna `owner` de la pestaña Clientes; mapa nombre→email en `Config.owners_emails`, defaults: Eduardo→eduardo@, Cristina→cristina@, Edgar→edgar.martinez@, Arturo→arturo@).
+4. **Cliente sin correo registrado:** si un cliente de la pestaña Clientes no tiene `contacto_email`, la interfaz activa un formulario para capturarlo y guardarlo en su ficha (acción `update_cliente`). En tu sync diario de Clientes, NUNCA sobrescribas un `contacto_email` capturado así.
 - **Disciplina de llaves:** `email_id` y `thread_id` se copian EXACTOS del resultado del MCP de Gmail — nunca transcribir a mano. Para corregir o enriquecer una fila existente usa la acción `update_email` (clave: email_id actual, `fields` con las columnas a cambiar).
 
 Insertar cada correo nuevo como fila en `Emails` con `estado=Nuevo`.

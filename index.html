@@ -736,21 +736,41 @@ function genPreviews(){
   }));
   renderPreviews();
 }
+function ownerDe(companyId){
+  const c=CLIENTES.find(x=>x.company_id===companyId);
+  return c?(c.owner||''):'';
+}
 function renderPreviews(){
   const el=document.getElementById('previews');
   el.innerHTML=`<label style="margin-top:20px">4 · Revisa, edita y envía</label>
-  ${senderControl('fromSelCmp', cmp.cat)}`+
+  ${senderControl('fromSelCmp', cmp.cat)}
+  <div class="notice info" style="margin-top:8px">📎 <b>CC automático en cada envío:</b> customersuccess@ · accounting@ · el owner asignado del cliente. No necesitas agregarlos.</div>`+
   cmp.previews.map((p,i)=>`
     <div class="preview-card">
-      <div class="pc-head"><span class="pc-title">${esc(p.cliente)} <span style="color:var(--gray-500);font-weight:400">· ${esc(p.company_id)}</span></span>
+      <div class="pc-head"><span class="pc-title">${esc(p.cliente)} <span style="color:var(--gray-500);font-weight:400">· ${esc(p.company_id)}${ownerDe(p.company_id)?` · owner: ${esc(ownerDe(p.company_id))}`:''}</span></span>
         <span class="pc-status" id="st-${i}">${p.sent?'✅ Enviado':''}</span></div>
-      <input type="text" id="to-${i}" value="${esc(p.to)}" placeholder="destinatario@ (obligatorio)">
-      <input type="text" id="cc-${i}" value="${esc(p.cc)}" placeholder="cc (opcional)">
+      ${!p.to?`<div class="notice warn" style="margin:0 0 8px">⚠️ <b>Este cliente no tiene correo en el registro.</b> Escríbelo abajo (varios separados por coma) y guárdalo en su ficha para que el sistema lo recuerde.</div>`:''}
+      <input type="text" id="to-${i}" value="${esc(p.to)}" placeholder="destinatario@ — varios separados por coma (obligatorio)">
+      ${!p.to?`<div class="btn-row" style="margin:0 0 8px"><button class="btn btn-ghost" id="save-${i}" onclick="guardarCorreoCliente(${i})">💾 Guardar correo(s) en la ficha del cliente</button></div>`:''}
+      <input type="text" id="cc-${i}" value="${esc(p.cc)}" placeholder="cc adicional (opcional — los de regla van solos)">
       <input type="text" id="sub-${i}" value="${esc(p.subject)}">
       <textarea id="body-${i}" rows="10">${esc(p.body)}</textarea>
-      <div class="btn-row"><button class="btn btn-approve" id="send-${i}" ${p.sent?'disabled':''} onclick="sendOne(${i})">🚀 Enviar ahora desde juan@</button></div>
+      <div class="btn-row"><button class="btn btn-approve" id="send-${i}" ${p.sent?'disabled':''} onclick="sendOne(${i})">🚀 Enviar ahora</button></div>
     </div>`).join('')+
   (cmp.previews.length>1?`<div class="btn-row"><button class="btn btn-primary" id="sendAll" onclick="sendAll()">🚀 Enviar TODOS (${cmp.previews.length})</button></div>`:'');
+}
+async function guardarCorreoCliente(i){
+  const p=cmp.previews[i];
+  const correos=document.getElementById('to-'+i).value.trim();
+  if(!correos.includes('@')){ toast('Escribe al menos un correo válido'); return; }
+  const btn=document.getElementById('save-'+i); if(btn) btn.disabled=true;
+  const r=await api('update_cliente',{company_id:p.company_id,contacto_email:correos});
+  if(r.ok){
+    p.to=correos;
+    const c=CLIENTES.find(x=>x.company_id===p.company_id); if(c) c.contacto_email=correos;
+    toast('💾 Correo guardado en la ficha de '+p.cliente+' — el sistema lo usará siempre');
+    if(btn) btn.textContent='✅ Guardado en el registro';
+  } else { if(btn) btn.disabled=false; toast('❌ '+(r.error||'error al guardar')); }
 }
 async function sendOne(i){
   const p=cmp.previews[i];

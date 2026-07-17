@@ -108,8 +108,9 @@ function handle(body) {
     case 'send_direct': {
       // body: { to, cc?, subject, body_text, company_id, cliente, categoria, plantilla }
       if (!body.to || !body.subject || !body.body_text) return { ok: false, error: 'faltan campos (to/subject/body_text)' };
-      // REGLA DURA: SIEMPRE en copia customersuccess@ y accounting@ (más los cc indicados)
-      const ccDirect = mergeCc(String(body.cc || ''), String(body.to));
+      // REGLA DURA: SIEMPRE en copia customersuccess@, accounting@ y el OWNER del cliente
+      const ownEm = ownerEmail(ss, body.company_id);
+      const ccDirect = mergeCc(String(body.cc || '') + (ownEm ? ',' + ownEm : ''), String(body.to));
       const senderD = resolveSender(ss, body, body.categoria);
       if (senderD === 'juan@tally.legal') {
         GmailApp.sendEmail(String(body.to), String(body.subject), String(body.body_text), { cc: ccDirect, name: SENDER_NAME });
@@ -186,6 +187,18 @@ function handle(body) {
       }
       sh.appendRow(vals.concat(['Pendiente', '', body.fecha_ultimo_envio||'', body.notas||'', now]));
       return { ok: true, inserted: body.company_id };
+    }
+    case 'update_cliente': {
+      // La interfaz cura el registro: agrega/corrige correos de contacto de un cliente
+      const sh = ss.getSheetByName('Clientes');
+      const row = findRow(sh, 1, body.company_id);
+      if (!row) return { ok: false, error: 'company_id no encontrado en Clientes' };
+      if (body.contacto_email !== undefined) sh.getRange(row, 7).setValue(String(body.contacto_email)); // G
+      if (body.cc_email !== undefined) sh.getRange(row, 8).setValue(String(body.cc_email));             // H
+      if (body.contacto_nombre !== undefined) sh.getRange(row, 6).setValue(String(body.contacto_nombre)); // F
+      const notas = String(sh.getRange(row, 9).getValue() || '');
+      sh.getRange(row, 9).setValue((notas ? notas + ' | ' : '') + 'Correo actualizado desde la interfaz ' + now.slice(0, 10));
+      return { ok: true, company_id: body.company_id };
     }
     case 'request_run': {
       // La interfaz solicita una corrida inmediata del agente (botón 🔄 o al guardar Config).
@@ -652,6 +665,29 @@ function sendViaDwd(from, to, cc, subject, bodyText, threadId) {
   });
   if (r.getResponseCode() !== 200) return { ok: false, error: 'Gmail API ' + r.getResponseCode() + ': ' + r.getContentText().slice(0, 160) };
   return { ok: true };
+}
+
+/** Email del owner asignado a un cliente (mapa editable en Config.owners_emails). */
+function ownerEmail(ss, companyId) {
+  try {
+    if (!companyId) return '';
+    const cl = ss.getSheetByName('Clientes');
+    const row = findRow(cl, 1, companyId);
+    if (!row) return '';
+    const owner = String(cl.getRange(row, 3).getValue() || '').trim().toLowerCase();
+    if (!owner) return '';
+    const DEFAULTS = { 'eduardo': 'eduardo@tally.legal', 'cristina': 'cristina@tally.legal',
+                       'edgar': 'edgar.martinez@tally.legal', 'arturo': 'arturo@tally.legal' };
+    const cfg = ss.getSheetByName('Config');
+    const r = findRow(cfg, 1, 'owners_emails');
+    if (r) {
+      const mapa = String(cfg.getRange(r, 2).getValue() || '');
+      const m = mapa.split(',').map(function(p){ return p.split(':'); })
+        .filter(function(p){ return p.length === 2 && p[0].trim().toLowerCase() === owner; })[0];
+      if (m) return m[1].trim().toLowerCase();
+    }
+    return DEFAULTS[owner] || '';
+  } catch (e) { return ''; }
 }
 
 /** Cuentas habilitadas para envío (Config.cuentas_mcp la mantiene el agente desde list_accounts). */
