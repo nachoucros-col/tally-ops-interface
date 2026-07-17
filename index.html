@@ -611,6 +611,7 @@ function renderCompose(){
     <div class="meta">Se envía al instante desde <b>juan@tally.legal</b> al pulsar Enviar.</div>
 
     <label>1 · Cliente(s) destinatario(s)</label>
+    <div style="font-size:12px;color:var(--gray-500);margin-bottom:6px">Busca y agrega <b>cualquier cliente del directorio completo</b> — esté o no en la cola de Seller Central (ej. clientes con acceso completo a los que solo les falta el estado de cuenta bancario).</div>
     <div class="cli-pick">
       <input type="text" id="cliSearch" placeholder="Busca por nombre o AZ… (mínimo 2 letras)" oninput="cliSearch(this.value)" autocomplete="off">
       <div class="cli-results" id="cliResults" style="display:none"></div>
@@ -682,7 +683,10 @@ function cliSearch(q){
   if(q.length<2){ box.style.display='none'; return; }
   const hits=CLIENTES.filter(c=>!cmp.clients.some(s=>s.company_id===c.company_id) &&
     ((c.cliente||'').toLowerCase().includes(q)||(c.company_id||'').toLowerCase().includes(q))).slice(0,12);
-  box.innerHTML=hits.length?hits.map(c=>`<div onclick='addClient(${JSON.stringify(c.company_id)})'>${esc(c.cliente)} <span style="color:var(--gray-500)">· ${esc(c.company_id)} · ${esc(c.owner)}${c.contacto_email?' · '+esc(c.contacto_email):' · ⚠️ sin email'}</span></div>`).join(''):'<div style="color:var(--gray-500)">sin resultados</div>';
+  box.innerHTML=hits.length?hits.map(c=>{
+    const enCola = SC.some(r=>r.company_id===c.company_id);
+    return `<div onclick='addClient(${JSON.stringify(c.company_id)})'>${esc(c.cliente)} <span style="color:var(--gray-500)">· ${esc(c.company_id)} · ${esc(c.owner)}${c.contacto_email?' · '+esc(c.contacto_email):' · ⚠️ sin email'}${enCola?' · <b style="color:#0a6d8f">🛒 en cola SC</b>':''}</span></div>`;
+  }).join(''):'<div style="color:var(--gray-500)">sin resultados</div>';
   box.style.display='block';
 }
 function addClient(id){
