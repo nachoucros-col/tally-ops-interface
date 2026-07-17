@@ -147,6 +147,7 @@ tr:hover td{background:#fdfcf7}
     <a href="#bandeja" class="active" data-view="bandeja">📥 Bandeja</a>
     <a href="#sc" data-view="sc">📦 Seller Central</a>
     <a href="#log" data-view="log">🕐 Actividad</a>
+    <a href="#clientes" data-view="clientes" id="navClientes" style="display:none">👥 Clientes</a>
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
     <div class="push"></div>
     <div class="status" id="userBox" style="border-top:none"></div>
@@ -211,6 +212,21 @@ tr:hover td{background:#fdfcf7}
       <h1>Actividad del agente</h1>
       <p class="lead">Bitácora de corridas AM/PM.</p>
       <div id="logTable">Cargando…</div>
+    </section>
+
+    <!-- ══ CLIENTES (solo admin) ══ -->
+    <section class="view" id="view-clientes">
+      <div class="page-head">
+        <div>
+          <h1>Clientes</h1>
+          <p class="lead">Directorio de contactos del sistema. Edita nombre y correo(s) directamente en la tabla — los cambios se aplican al pulsar Guardar y el sistema los usa en todos los envíos.</p>
+        </div>
+        <div class="head-actions">
+          <button class="compose-btn" id="cliSaveBtn" onclick="saveClientes()" disabled>💾 Guardar cambios</button>
+        </div>
+      </div>
+      <input type="text" id="cliFilter" placeholder="🔎 Filtrar por nombre, ID o correo…" oninput="renderClientes()" style="max-width:420px;margin-bottom:16px">
+      <div id="clientesTable">Cargando…</div>
     </section>
 
     <!-- ══ CONFIG ══ -->
@@ -314,6 +330,7 @@ async function loadAll(){
     document.getElementById('lastSync').textContent = new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
     document.getElementById('cfgReadStatus').textContent = '✅ conectado';
     renderCatChips();
+    if(AUTH && AUTH.admin && !CLI_DIRTY.size) renderClientes();
     if(document.activeElement.id!=='cfgCats') document.getElementById('cfgCats').value = CONFIG.categorias_triage || 'Documentación, Proceso, Queja y reclamo, Alerta';
     if(document.activeElement.id!=='cfgCuentas') document.getElementById('cfgCuentas').value = CONFIG.cuentas_monitoreadas || '';
     if(!composeMode){ renderMailList(); if(selId) renderDetail(selId); }
@@ -1004,6 +1021,61 @@ document.getElementById('scChips').addEventListener('click',ev=>{
   renderSC();
 });
 
+/* ═══════════════ CLIENTES (directorio editable, solo admin) ═══════════════ */
+let CLI_DIRTY = new Set();
+function markCliDirty(cid){
+  CLI_DIRTY.add(cid);
+  const b=document.getElementById('cliSaveBtn');
+  if(b){ b.disabled=false; b.textContent=`💾 Guardar cambios (${CLI_DIRTY.size})`; }
+}
+function toggleAcc(cid){
+  const a=document.getElementById('acc-'+cid);
+  if(a) a.style.display = a.style.display==='none' ? 'block' : 'none';
+}
+function renderClientes(){
+  const el=document.getElementById('clientesTable');
+  if(!el) return;
+  const q=(document.getElementById('cliFilter')?.value||'').trim().toLowerCase();
+  let rows=[...CLIENTES].sort((a,b)=>String(a.cliente).localeCompare(String(b.cliente)));
+  if(q) rows=rows.filter(c=>(c.cliente||'').toLowerCase().includes(q)||(c.company_id||'').toLowerCase().includes(q)||(c.contacto_email||'').toLowerCase().includes(q));
+  if(!rows.length){ el.innerHTML='<p style="color:var(--gray-500)">Sin clientes que coincidan con el filtro.</p>'; return; }
+  el.innerHTML=`<table><thead><tr><th style="width:110px">ID</th><th>Cliente</th><th style="width:200px">Nombre de contacto</th><th>Correo(s)</th></tr></thead><tbody>
+  ${rows.map(c=>{
+    const dirty=CLI_DIRTY.has(c.company_id);
+    const correos=String(c.contacto_email||'').match(/[\w.+-]+@[\w.-]+/g)||[];
+    return `<tr ${dirty?'style="background:#fbfaff"':''}>
+      <td style="font-size:12px;color:var(--gray-500)">${esc(c.company_id)}${dirty?' ✏️':''}</td>
+      <td><b>${esc(c.cliente)}</b><br><span style="font-size:11px;color:var(--gray-500)">owner: ${esc(c.owner||'—')}</span></td>
+      <td><input type="text" id="cn-${esc(c.company_id)}" value="${esc(c.contacto_nombre||'')}" placeholder="nombre" oninput="markCliDirty('${esc(c.company_id)}')"></td>
+      <td>
+        <input type="text" id="ce-${esc(c.company_id)}" value="${esc(c.contacto_email||'')}" placeholder="correo@ — varios separados por coma" oninput="markCliDirty('${esc(c.company_id)}')">
+        ${correos.length>1?`<button class="mini btn-ghost" style="margin-top:4px" onclick="toggleAcc('${esc(c.company_id)}')">▸ ${correos.length} correos asignados</button>
+        <div id="acc-${esc(c.company_id)}" style="display:none;margin-top:6px">${correos.map(e=>`<div style="font-size:12px;padding:3px 8px;background:var(--gray-100);border-radius:6px;margin-bottom:3px">📧 ${esc(e)}</div>`).join('')}</div>`:''}
+      </td>
+    </tr>`;
+  }).join('')}</tbody></table>`;
+}
+async function saveClientes(){
+  if(!CLI_DIRTY.size){ toast('No hay cambios pendientes'); return; }
+  const btn=document.getElementById('cliSaveBtn'); btn.disabled=true;
+  let ok=0, fail=0;
+  for(const cid of [...CLI_DIRTY]){
+    const nombre=document.getElementById('cn-'+cid)?.value.trim();
+    const correos=document.getElementById('ce-'+cid)?.value.trim();
+    btn.textContent=`💾 Guardando… (${ok+fail+1}/${CLI_DIRTY.size})`;
+    const r=await api('update_cliente',{company_id:cid,contacto_nombre:nombre,contacto_email:correos});
+    if(r.ok){
+      const c=CLIENTES.find(x=>x.company_id===cid);
+      if(c){ c.contacto_nombre=nombre; c.contacto_email=correos; }
+      CLI_DIRTY.delete(cid); ok++;
+    } else fail++;
+  }
+  btn.textContent = CLI_DIRTY.size?`💾 Guardar cambios (${CLI_DIRTY.size})`:'💾 Guardar cambios';
+  btn.disabled = !CLI_DIRTY.size;
+  toast(fail?`Guardados ${ok} · ❌ ${fail} con error (reintenta)`:`✅ ${ok} cliente(s) actualizados en el registro`);
+  renderClientes();
+}
+
 /* ═══════════════ LOGIN / SESIÓN ═══════════════ */
 let AUTH = null;
 try{ AUTH = JSON.parse(sessionStorage.getItem('tallyAuth')||'null'); }catch(e){}
@@ -1011,6 +1083,7 @@ function applyAuth(){
   if(!AUTH){ document.getElementById('loginVeil').style.display='flex'; return; }
   document.getElementById('loginVeil').style.display='none';
   document.getElementById('navConfig').style.display = AUTH.admin ? 'flex' : 'none';
+  document.getElementById('navClientes').style.display = AUTH.admin ? 'flex' : 'none';
   document.getElementById('userBox').innerHTML = `👤 <b>${esc(AUTH.nombre||AUTH.email)}</b>${AUTH.admin?' · admin':''}<br><a href="#" onclick="logout();return false" style="color:var(--gray-500)">Cerrar sesión</a>`;
   if(AUTH.admin) renderUsers();
 }
