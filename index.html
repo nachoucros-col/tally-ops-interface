@@ -352,10 +352,10 @@ const ST_CLASS={'Nuevo':'st-Nuevo','Prompt recibido':'st-Prompt','Draft listo':'
 function visibleEmails(){
   return EMAILS.filter(e=>{
     if(catFilter==='__hist') return e.estado==='Enviado';
-    if(e.estado==='Enviado'||e.estado==='Descartado') return false;
+    if(e.estado==='Descartado') return false;
     if(catFilter==='__pend') return e.estado==='Nuevo'||e.estado==='Draft listo';
     if(catFilter!=='*' && e.categoria!==catFilter) return false;
-    return true;
+    return true; // los respondidos se quedan visibles con su tag verde ✓
   }).sort((a,b)=>(b.fecha_recibido||'').localeCompare(a.fecha_recibido||''));
 }
 
@@ -371,7 +371,7 @@ function renderMailList(){
       <div class="sum">${esc(e.resumen)}</div>
       <div class="tags">
         <span class="tag ${CAT_CLASS[e.categoria]||'st-Nuevo'}">${esc(e.categoria)}</span>
-        <span class="tag ${ST_CLASS[e.estado]||'st-Nuevo'}">${esc(e.estado)}</span>
+        <span class="tag ${ST_CLASS[e.estado]||'st-Nuevo'}">${e.estado==='Enviado'?'✓ Respondido':esc(e.estado)}</span>
         <span class="tag acct">${esc(e.cuenta)}@</span>
         ${e.cliente&&e.cliente!=='INTERNO'?`<span class="tag acct">${esc(e.cliente)}</span>`:''}
         ${e.cliente==='INTERNO'?`<span class="tag acct">equipo interno</span>`:''}
