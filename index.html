@@ -185,8 +185,15 @@ tr:hover td{background:#fdfcf7}
 
     <!-- ══ SELLER CENTRAL ══ -->
     <section class="view" id="view-sc">
-      <h1>Seller Central — Seguimiento SOP</h1>
-      <p class="lead">Cola de recopilación documental. Bloque A = listos para envío de escenario; Bloque B = discrepancias. Al aprobar, el agente envía desde accounting@ CC customersuccess@ y actualiza AppSheet.</p>
+      <div class="page-head">
+        <div>
+          <h1>Seller Central — Seguimiento SOP</h1>
+          <p class="lead">Cola de recopilación documental. Bloque A = listos para envío de escenario; Bloque B = discrepancias. Al aprobar, el agente envía desde accounting@ CC customersuccess@ y actualiza AppSheet.</p>
+        </div>
+        <div class="head-actions">
+          <button class="compose-btn" id="scBatchBtn" onclick="scBatch()">📦 Enviar en Batch</button>
+        </div>
+      </div>
       <div class="chips" id="scChips">
         <button class="chip on" data-b="*">Todos</button>
         <button class="chip" data-b="A">Bloque A — enviar</button>
@@ -812,6 +819,32 @@ async function sendAll(){
 }
 
 /* ═══════════════ SELLER CENTRAL ═══════════════ */
+let scSel = new Set();
+function scToggle(cid, on){ if(on) scSel.add(cid); else scSel.delete(cid); scBtnLabel(); }
+function scToggleAll(on){
+  let rows=SC;
+  if(scFilter==='A'||scFilter==='B') rows=rows.filter(r=>r.bloque===scFilter);
+  if(scFilter==='__resp') rows=rows.filter(r=>r.estado_sop==='Respondió');
+  rows.forEach(r=>{ if(on) scSel.add(r.company_id); else scSel.delete(r.company_id); });
+  renderSC();
+}
+function scBtnLabel(){
+  const b=document.getElementById('scBatchBtn');
+  if(b) b.textContent = scSel.size ? `📦 Enviar en Batch (${scSel.size})` : '📦 Enviar en Batch';
+}
+function scBatch(){
+  if(!scSel.size){ toast('Marca con ☑️ los clientes de la tabla que quieres incluir en el batch'); return; }
+  const clients=[];
+  scSel.forEach(cid=>{
+    const ficha=CLIENTES.find(c=>c.company_id===cid);
+    const fila=SC.find(r=>r.company_id===cid);
+    clients.push(ficha || {company_id:cid, cliente:(fila&&fila.cliente)||cid, owner:(fila&&fila.owner)||'', contacto_nombre:'', contacto_email:'', cc_email:''});
+  });
+  composeMode=true; selId=null; selOut=null;
+  cmp={clients:clients, cat:'Seguimiento Seller Central', tpl:'', previews:[], mode:'tpl', iaPrompt:''};
+  renderCompose(); openDrawer();
+  toast('📦 Batch con '+clients.length+' cliente(s) — elige la plantilla y genera');
+}
 const ESC_NOMBRES={
   'Esc.1':'Solicitud inicial de accesos y documentos',
   'Esc.2':'Recordatorio de documentos pendientes',
@@ -834,8 +867,9 @@ function renderSC(){
   if(scFilter==='__resp') rows=rows.filter(r=>r.estado_sop==='Respondió');
   const el=document.getElementById('scTable');
   if(!rows.length){ el.innerHTML='<p style="color:var(--gray-500)">Sin registros. El agente sincroniza la cola desde AppSheet en cada corrida.</p>'; return; }
-  el.innerHTML=`<table><thead><tr><th>Cliente</th><th>Owner</th><th>Período</th><th>Escenario de envío <span class="tip">ℹ️<span class="tiptext">Es el correo que saldrá al aprobar. Puedes cambiarlo por cliente con el selector. <b>Regla del 17:</b> del día 17 en adelante, el agente fuerza "Estrategia declaración en ceros" aunque el selector diga otra cosa.</span></span></th><th>Estado</th><th>Días</th><th>Bloque <span class="tip">ℹ️<span class="tiptext"><b>A</b> = cumple el SOP, listo para envío con tu aprobación.<br><b>B</b> = excluido por discrepancia (suspensión, FS sin finalizar, acceso total, conversación activa) — requiere decisión.</span></span></th><th>Acción pendiente</th><th>Aprobación</th><th></th></tr></thead><tbody>${rows.map(r=>`
+  el.innerHTML=`<table><thead><tr><th style="width:34px"><input type="checkbox" onclick="scToggleAll(this.checked)" title="Seleccionar visibles"></th><th>Cliente</th><th>Owner</th><th>Período</th><th>Escenario de envío <span class="tip">ℹ️<span class="tiptext">Es el correo que saldrá al aprobar. Puedes cambiarlo por cliente con el selector. <b>Regla del 17:</b> del día 17 en adelante, el agente fuerza "Estrategia declaración en ceros" aunque el selector diga otra cosa.</span></span></th><th>Estado</th><th>Días</th><th>Bloque <span class="tip">ℹ️<span class="tiptext"><b>A</b> = cumple el SOP, listo para envío con tu aprobación.<br><b>B</b> = excluido por discrepancia (suspensión, FS sin finalizar, acceso total, conversación activa) — requiere decisión.</span></span></th><th>Acción pendiente</th><th>Aprobación</th><th></th></tr></thead><tbody>${rows.map(r=>`
     <tr>
+      <td><input type="checkbox" ${scSel.has(r.company_id)?'checked':''} onclick="scToggle('${esc(r.company_id)}',this.checked)"></td>
       <td><b>${esc(r.cliente)}</b><br><span style="color:var(--gray-500);font-size:11px">${esc(r.company_id)}</span></td>
       <td>${esc(r.owner)}</td><td>${esc(r.periodo)}</td>
       <td>${r.aprobacion==='Aprobado'
@@ -852,6 +886,7 @@ function renderSC(){
         <button class="mini btn-approve" onclick="scDecide('${esc(r.company_id)}','Aprobado')">Aprobar envío</button>
         <button class="mini btn-ghost" onclick="scDecide('${esc(r.company_id)}','Rechazado')" style="margin-top:4px">Rechazar</button>`:''}</td>
     </tr>`).join('')}</tbody></table>`;
+  scBtnLabel();
 }
 async function scDecide(cid,decision){
   const r=await api('sc_decision',{company_id:cid,decision});
