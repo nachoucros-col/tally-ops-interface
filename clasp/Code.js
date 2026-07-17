@@ -110,15 +110,18 @@ function handle(body) {
       if (!body.to || !body.subject || !body.body_text) return { ok: false, error: 'faltan campos (to/subject/body_text)' };
       // REGLA DURA: SIEMPRE en copia customersuccess@ y accounting@ (más los cc indicados)
       const ccDirect = mergeCc(String(body.cc || ''), String(body.to));
-      GmailApp.sendEmail(String(body.to), String(body.subject), String(body.body_text), {
-        cc: ccDirect,
-        name: SENDER_NAME
-      });
+      const senderD = resolveSender(ss, body, body.categoria);
+      if (senderD === 'juan@tally.legal') {
+        GmailApp.sendEmail(String(body.to), String(body.subject), String(body.body_text), { cc: ccDirect, name: SENDER_NAME });
+      } else {
+        const rd = sendViaDwd(senderD, String(body.to), ccDirect, String(body.subject), String(body.body_text), null);
+        if (!rd.ok) return rd;
+      }
       const sal = getOrCreate(ss, 'Salientes', HEADERS.Salientes);
       const id = 'SAL-' + Date.now() + '-' + (body.company_id || 'X');
       sal.appendRow([id, now, body.company_id || '', body.cliente || '', String(body.to) + (body.cc ? ' cc:' + body.cc : ''),
-                     body.categoria || '', body.plantilla || '', String(body.subject), String(body.body_text), 'Enviado', 'juan@tally.legal (interfaz)']);
-      return { ok: true, saliente_id: id, enviado_a: body.to };
+                     body.categoria || '', body.plantilla || '', String(body.subject), String(body.body_text), 'Enviado', senderD + ' (interfaz)']);
+      return { ok: true, saliente_id: id, enviado_a: body.to, desde: senderD };
     }
 
     /* ── Escritura del AGENTE (triage, drafts, envíos, SC, log) ──
@@ -311,35 +314,49 @@ function handle(body) {
       const cuerpo = String(body.draft_final || v[16] || v[15]);
       if (to.indexOf('@') < 0) return { ok: false, error: 'la fila no tiene remitente_email válido' };
       const cc = mergeCc(String(v[21] || ''), to);
+      const categoria = String(v[10] || '');
+      const cuentaOrigen = String(v[2] || '').toLowerCase();      // cuenta que recibió el correo
+      const threadOrigen = String(v[1] || '');                     // thread_id en ESA cuenta
+      const sender = resolveSender(ss, body, categoria);
 
-      // 1) intentar hilo real en el buzón de juan@
-      let enHilo = false;
-      try {
-        const subjClean = asuntoOrig.replace(/^\s*((re|fwd|rv|fw)\s*:\s*)+/i, '').replace(/"/g, ' ').trim();
-        if (subjClean) {
-          const ths = GmailApp.search('subject:"' + subjClean + '"', 0, 10);
-          outer:
-          for (let t = 0; t < ths.length; t++) {
-            const msgs = ths[t].getMessages();
-            for (let m = msgs.length - 1; m >= 0; m--) {
-              if (String(msgs[m].getFrom()).toLowerCase().indexOf(to.toLowerCase()) >= 0) {
-                msgs[m].reply(cuerpo, { cc: cc, name: SENDER_NAME });
-                enHilo = true;
-                break outer;
+      let enHilo = false, resultado = null;
+
+      if (sender === 'juan@tally.legal') {
+        // vía nativa: buscar el hilo en el buzón de juan@ (suele estar en CC)
+        try {
+          const subjClean = asuntoOrig.replace(/^\s*((re|fwd|rv|fw)\s*:\s*)+/i, '').replace(/"/g, ' ').trim();
+          if (subjClean) {
+            const ths = GmailApp.search('subject:"' + subjClean + '"', 0, 10);
+            outer:
+            for (let t = 0; t < ths.length; t++) {
+              const msgs = ths[t].getMessages();
+              for (let m = msgs.length - 1; m >= 0; m--) {
+                if (String(msgs[m].getFrom()).toLowerCase().indexOf(to.toLowerCase()) >= 0) {
+                  msgs[m].reply(cuerpo, { cc: cc, name: SENDER_NAME });
+                  enHilo = true;
+                  break outer;
+                }
               }
             }
           }
-        }
-      } catch (e) { /* degradar a envío directo */ }
-
-      // 2) fallback: correo nuevo con mismo asunto Re: (el cliente lo agrupa por asunto)
-      if (!enHilo) GmailApp.sendEmail(to, asunto, cuerpo, { cc: cc, name: SENDER_NAME });
+        } catch (e) {}
+        if (!enHilo) GmailApp.sendEmail(to, asunto, cuerpo, { cc: cc, name: SENDER_NAME });
+        resultado = { ok: true };
+      } else {
+        // vía DWD: si enviamos desde la MISMA cuenta que recibió el correo,
+        // el thread_id almacenado es válido → hilo nativo perfecto
+        const tid = (sender === cuentaOrigen + '@tally.legal') ? threadOrigen : null;
+        resultado = sendViaDwd(sender, to, cc, asunto, cuerpo, tid);
+        if (!resultado.ok) return resultado;
+        enHilo = !!tid;
+      }
 
       if (body.draft_final) sh.getRange(row, 17).setValue(body.draft_final);
       sh.getRange(row, 13).setValue('Enviado');
       sh.getRange(row, 18).setValue(now);
+      sh.getRange(row, 19).setValue('desde: ' + sender);
       sh.getRange(row, 21).setValue(now);
-      return { ok: true, enviado_a: to, cc: cc, en_hilo: enHilo };
+      return { ok: true, enviado_a: to, cc: cc, en_hilo: enHilo, desde: sender };
     }
 
     /* ── Sincronización por correo de control ──
@@ -591,6 +608,95 @@ function mergeCc(ccOriginal, to) {
     if (EXCLUIR.indexOf(e) < 0 && set.indexOf(e) < 0) set.push(e);
   });
   return set.join(', ');
+}
+
+/* ══════════ ENVÍO MULTI-CUENTA (Service Account + Domain-Wide Delegation) ══════════
+   Requiere UNA VEZ: Propiedades del script → GOOGLE_SA_KEY = contenido completo del
+   credentials.json del Service Account (el mismo de tally-gmail-mcp). */
+
+function dwdToken(userEmail) {
+  try {
+    const key = JSON.parse(PropertiesService.getScriptProperties().getProperty('GOOGLE_SA_KEY') || '{}');
+    if (!key.client_email || !key.private_key) return null;
+    const now = Math.floor(Date.now() / 1000);
+    const header = Utilities.base64EncodeWebSafe(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+    const claim = Utilities.base64EncodeWebSafe(JSON.stringify({
+      iss: key.client_email, sub: userEmail,
+      scope: 'https://www.googleapis.com/auth/gmail.send',
+      aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600
+    }));
+    const sig = Utilities.computeRsaSha256Signature(header + '.' + claim, key.private_key);
+    const jwt = header + '.' + claim + '.' + Utilities.base64EncodeWebSafe(sig);
+    const resp = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
+      method: 'post', muteHttpExceptions: true,
+      payload: { grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: jwt }
+    });
+    if (resp.getResponseCode() !== 200) return null;
+    return JSON.parse(resp.getContentText()).access_token;
+  } catch (e) { return null; }
+}
+
+function sendViaDwd(from, to, cc, subject, bodyText, threadId) {
+  const token = dwdToken(from);
+  if (!token) return { ok: false, error: 'envío como ' + from + ' no disponible: falta GOOGLE_SA_KEY en Propiedades del script o DWD sin permiso' };
+  let mime = 'From: ' + from + '\r\nTo: ' + to + '\r\n';
+  if (cc) mime += 'Cc: ' + cc + '\r\n';
+  mime += 'Subject: =?UTF-8?B?' + Utilities.base64Encode(subject, Utilities.Charset.UTF_8) + '?=\r\n';
+  mime += 'MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n';
+  mime += Utilities.base64Encode(bodyText, Utilities.Charset.UTF_8);
+  const payload = { raw: Utilities.base64EncodeWebSafe(mime) };
+  if (threadId) payload.threadId = threadId;
+  const r = UrlFetchApp.fetch('https://gmail.googleapis.com/gmail/v1/users/' + encodeURIComponent(from) + '/messages/send', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { Authorization: 'Bearer ' + token }, payload: JSON.stringify(payload)
+  });
+  if (r.getResponseCode() !== 200) return { ok: false, error: 'Gmail API ' + r.getResponseCode() + ': ' + r.getContentText().slice(0, 160) };
+  return { ok: true };
+}
+
+/** Cuentas habilitadas para envío (Config.cuentas_mcp la mantiene el agente desde list_accounts). */
+function cuentasMcp(ss) {
+  const cfg = ss.getSheetByName('Config');
+  let lista = '';
+  const row = findRow(cfg, 1, 'cuentas_mcp');
+  if (row) lista = String(cfg.getRange(row, 2).getValue() || '');
+  const arr = (lista.match(/[\w.+-]+@[\w.-]+/g) || []).map(function(e){ return e.toLowerCase(); });
+  if (arr.indexOf('accounting@tally.legal') < 0) arr.push('accounting@tally.legal');
+  if (arr.indexOf('juan@tally.legal') < 0) arr.push('juan@tally.legal');
+  return arr;
+}
+
+/** Resuelve el remitente según las reglas de negocio:
+ *  - Seller Central → accounting@ por default
+ *  - No-admin → SIEMPRE su propia cuenta (o accounting@ si no está en el MCP)
+ *  - Admin → puede elegir (from_account); si no elige, su cuenta
+ *  - Cualquier remitente fuera del MCP → accounting@ */
+function resolveSender(ss, body, categoria) {
+  const habilitadas = cuentasMcp(ss);
+  const esSC = /seller\s*central/i.test(String(categoria || ''));
+  let userEmail = '', admin = false;
+  try {
+    if (body.auth && body.auth.email && USUARIOS_ID.indexOf('PEGAR') !== 0) {
+      const us = SpreadsheetApp.openById(USUARIOS_ID).getSheetByName('Usuarios');
+      const data = us.getDataRange().getValues();
+      const em = String(body.auth.email).trim().toLowerCase();
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][0]).trim().toLowerCase() === em && String(data[i][1]) === String(body.auth.password)) {
+          userEmail = em;
+          admin = (em === 'juan@tally.legal') || String(data[i][5] || '').toLowerCase() === 'admin';
+          break;
+        }
+      }
+    }
+  } catch (e) {}
+  let sender;
+  if (admin) {
+    sender = String(body.from_account || '').toLowerCase() || (esSC ? 'accounting@tally.legal' : (userEmail || 'juan@tally.legal'));
+  } else {
+    sender = esSC ? 'accounting@tally.legal' : (userEmail || 'accounting@tally.legal');
+  }
+  if (habilitadas.indexOf(sender) < 0) sender = 'accounting@tally.legal';
+  return sender;
 }
 
 /** Valida credenciales de administrador (para acciones de gestión de usuarios). */

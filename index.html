@@ -422,6 +422,32 @@ function renderOutDetail(id){
     <div class="notice ok">📤 ${esc(s.estado)} — registrado en Salientes.</div>`;
 }
 
+/* ═══ Remitente: reglas de negocio ═══ */
+function cuentasEnvio(){
+  const src = (CONFIG.cuentas_mcp || CONFIG.cuentas_monitoreadas || '');
+  const arr = (src.match(/[\w.+-]+@[\w.-]+/g)||[]).map(e=>e.toLowerCase());
+  ['accounting@tally.legal','juan@tally.legal'].forEach(e=>{ if(!arr.includes(e)) arr.push(e); });
+  return [...new Set(arr)];
+}
+function defaultSender(categoria){
+  if(/seller\s*central/i.test(categoria||'')) return 'accounting@tally.legal';
+  const own = ((AUTH&&AUTH.email)||'').toLowerCase();
+  return cuentasEnvio().includes(own) ? own : 'accounting@tally.legal';
+}
+function senderControl(id, categoria){
+  const def = defaultSender(categoria);
+  if(AUTH && AUTH.admin){
+    return `<label>Enviar desde</label>
+      <select id="${id}">${cuentasEnvio().map(c=>`<option value="${esc(c)}" ${c===def?'selected':''}>${esc(c)}</option>`).join('')}</select>`;
+  }
+  return `<div style="font-size:13px;color:var(--gray-500);margin:10px 0 2px">📮 Se enviará desde <b>${esc(def)}</b>${/seller\s*central/i.test(categoria||'')?' (regla Seller Central)':''}</div>
+          <input type="hidden" id="${id}" value="${esc(def)}">`;
+}
+function senderVal(id, categoria){
+  const el=document.getElementById(id);
+  return (el&&el.value)||defaultSender(categoria);
+}
+
 /* Divide resumen + notas_agente en tarjetas por sección (marcadores 📌🕓📊⚠️💡🌐) */
 const CTX_SECCIONES = [
   ['📌','Qué pide el cliente',''],
@@ -483,8 +509,9 @@ function renderDetail(id){
       <div class="dsubj">Asunto: ${esc(e.draft_asunto)}</div>
       <textarea id="draftBox" rows="12">${esc(e.draft_final||e.draft_cuerpo)}</textarea>
     </div>
+    ${senderControl('fromSel', e.categoria)}
     <div class="btn-row">
-      <button class="btn btn-approve" id="sendBtn" onclick="approveAndSend('${e.email_id}')">✅ Aprobar y ENVIAR AHORA desde juan@</button>
+      <button class="btn btn-approve" id="sendBtn" onclick="approveAndSend('${e.email_id}')">✅ Aprobar y ENVIAR AHORA</button>
       <button class="btn btn-ghost" onclick="toggleNewPrompt()">↻ Modificar con nueva instrucción</button>
       <button class="btn btn-ghost" onclick="discard('${e.email_id}')">Descartar</button>
     </div>
@@ -538,11 +565,12 @@ async function approveAndSend(id){
   const e=EMAILS.find(x=>x.email_id===id);
   const box=document.getElementById('draftBox');
   const cuerpo=box?box.value.trim():(e.draft_final||e.draft_cuerpo);
-  if(!confirm('Enviar AHORA esta respuesta a '+(e.remitente_nombre||e.remitente_email)+' desde juan@tally.legal?')) return;
+  const from=senderVal('fromSel', e.categoria);
+  if(!confirm('Enviar AHORA esta respuesta a '+(e.remitente_nombre||e.remitente_email)+' desde '+from+'?')) return;
   const btn=document.getElementById('sendBtn'); if(btn) btn.disabled=true;
-  const r=await api('send_reply',{email_id:id,draft_final:cuerpo});
+  const r=await api('send_reply',{email_id:id,draft_final:cuerpo,from_account:from,auth:{email:AUTH.email,password:AUTH.password}});
   if(r.ok){ e.draft_final=cuerpo; e.estado='Enviado'; e.fecha_envio=new Date().toISOString().slice(0,16).replace('T',' ');
-    toast('📤 Enviado a '+(r.enviado_a||e.remitente_email)+' desde juan@'); renderMailList(); renderDetail(id); }
+    toast('📤 Enviado a '+(r.enviado_a||e.remitente_email)+' desde '+(r.desde||from)); renderMailList(); renderDetail(id); }
   else{ if(btn) btn.disabled=false; toast('❌ '+(r.error||'error al enviar')); }
 }
 async function discard(id){
@@ -702,7 +730,8 @@ function genPreviews(){
 }
 function renderPreviews(){
   const el=document.getElementById('previews');
-  el.innerHTML=`<label style="margin-top:20px">4 · Revisa, edita y envía</label>`+
+  el.innerHTML=`<label style="margin-top:20px">4 · Revisa, edita y envía</label>
+  ${senderControl('fromSelCmp', cmp.cat)}`+
   cmp.previews.map((p,i)=>`
     <div class="preview-card">
       <div class="pc-head"><span class="pc-title">${esc(p.cliente)} <span style="color:var(--gray-500);font-weight:400">· ${esc(p.company_id)}</span></span>
@@ -724,15 +753,17 @@ async function sendOne(i){
   if(!p.to||!p.to.includes('@')){ toast('⚠️ '+p.cliente+': falta destinatario válido'); return; }
   const pend=bracketsIn(p.subject+'\n'+p.body);
   if(pend.length){ toast('🔒 '+p.cliente+': completa antes de enviar → '+pend.join(' · ')); document.getElementById('st-'+i).textContent='🔒 campos pendientes'; return; }
-  if(!confirm('Enviar a '+p.cliente+' <'+p.to+'> desde juan@tally.legal?')) return;
+  const fromC=senderVal('fromSelCmp', cmp.cat);
+  if(!confirm('Enviar a '+p.cliente+' <'+p.to+'> desde '+fromC+'?')) return;
   document.getElementById('st-'+i).textContent='⏳ enviando…';
   document.getElementById('send-'+i).disabled=true;
-  const r=await api('send_direct',{to:p.to,cc:p.cc,subject:p.subject,body_text:p.body,company_id:p.company_id,cliente:p.cliente,categoria:cmp.cat,plantilla:cmp.tpl});
+  const r=await api('send_direct',{to:p.to,cc:p.cc,subject:p.subject,body_text:p.body,company_id:p.company_id,cliente:p.cliente,categoria:cmp.cat,plantilla:cmp.tpl,from_account:fromC,auth:{email:AUTH.email,password:AUTH.password}});
   if(r.ok){ p.sent=true; document.getElementById('st-'+i).textContent='✅ Enviado'; toast('📤 Enviado a '+p.cliente); }
   else{ document.getElementById('st-'+i).textContent='❌ '+(r.error||'error'); document.getElementById('send-'+i).disabled=false; toast('❌ '+p.cliente+': '+(r.error||'error')); }
 }
 async function sendAll(){
-  if(!confirm('Enviar los '+cmp.previews.length+' correos desde juan@tally.legal?')) return;
+  const fromA=senderVal('fromSelCmp', cmp.cat);
+  if(!confirm('Enviar los '+cmp.previews.length+' correos desde '+fromA+'?')) return;
   for(let i=0;i<cmp.previews.length;i++){
     if(!cmp.previews[i].sent){
       const p=cmp.previews[i];
@@ -744,7 +775,7 @@ async function sendAll(){
       const pend=bracketsIn(p.subject+'\n'+p.body);
       if(pend.length){ document.getElementById('st-'+i).textContent='🔒 campos pendientes: '+pend.join(', '); continue; }
       document.getElementById('st-'+i).textContent='⏳ enviando…';
-      const r=await api('send_direct',{to:p.to,cc:p.cc,subject:p.subject,body_text:p.body,company_id:p.company_id,cliente:p.cliente,categoria:cmp.cat,plantilla:cmp.tpl});
+      const r=await api('send_direct',{to:p.to,cc:p.cc,subject:p.subject,body_text:p.body,company_id:p.company_id,cliente:p.cliente,categoria:cmp.cat,plantilla:cmp.tpl,from_account:fromA,auth:{email:AUTH.email,password:AUTH.password}});
       if(r.ok){ p.sent=true; document.getElementById('st-'+i).textContent='✅ Enviado'; document.getElementById('send-'+i).disabled=true; }
       else document.getElementById('st-'+i).textContent='❌ '+(r.error||'error');
     }
