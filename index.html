@@ -1220,54 +1220,113 @@ async function scScenario(cid, escenario){
     toast('✅ Escenario de '+ (row.cliente||cid) +' → '+escNombre(escenario)); renderSC(); }
   else toast('❌ '+(r.error||'error'));
 }
+/* ═══ Kanban SC — ciclo mensual, se reinicia el 01 ═══ */
+function mesActualISO(){ const n=new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); }
+function envioEsteMes(r){ return !!r.fecha_ultimo_envio && String(r.fecha_ultimo_envio).substring(0,7)===mesActualISO(); }
+function cicloCerrado(r){ return envioEsteMes(r) && r.escenario_actual==='Esc.3'; }
 function accionPendiente(r){
-  if(r.fecha_ultimo_envio){
-    if(r.escenario_actual==='Esc.3') return 'N/A — ciclo cerrado';
+  if(envioEsteMes(r)){
+    if(r.escenario_actual==='Esc.3') return 'N/A — ciclo cerrado este mes';
     if(r.escenario_actual==='Esc.1') return 'Siguiente: Recordatorio (Esc.2)';
     if(r.escenario_actual==='Esc.2') return 'Siguiente: Ceros + complementaria (Esc.3)';
     return 'Siguiente escenario del ciclo';
   }
-  return r.accion_pendiente||'';
+  return r.accion_pendiente||'Enviar solicitud inicial (Esc.1)';
 }
-function cicloCerrado(r){ return !!r.fecha_ultimo_envio && r.escenario_actual==='Esc.3'; }
+const KB_COLS=[
+  {nombre:'Sin envíos', hint:'aún nada este mes — arrastra a la derecha para registrar un envío hecho por fuera', color:'var(--gray-300)', esc:null},
+  {nombre:'Solicitud inicial', hint:'días 01–05 · accesos y documentos', color:'var(--violet-500)', esc:'Esc.1'},
+  {nombre:'Recordatorio docs pendientes', hint:'días 05–10 · segundo toque', color:'var(--orange-500)', esc:'Esc.2'},
+  {nombre:'Estrategia declaración ceros', hint:'cierra el ciclo del mes (regla del 17)', color:'var(--green-500)', esc:'Esc.3'}
+];
+function kbColDe(r){
+  if(!envioEsteMes(r)) return 0;
+  if(r.escenario_actual==='Esc.1') return 1;
+  if(r.escenario_actual==='Esc.2') return 2;
+  return 3;
+}
+function kbCard(r,col){
+  const resp=r.estado_sop==='Respondió', cerrado=cicloCerrado(r);
+  return `<div class="kb-card" draggable="true" ondragstart="kbDrag(event,'${esc(r.company_id)}')" ondragend="this.classList.remove('dragging')" onclick="scDetail('${esc(r.company_id)}')">
+    <div class="kb-title">${esc(r.cliente)}</div>
+    <div class="kb-meta">${esc(r.company_id)} · 👤 ${esc(ownerDe(r.company_id)||r.owner||'—')}</div>
+    <div class="kb-tags">
+      ${resp?'<span class="tag" style="background:var(--cyan-100);color:#0a6d8f">💬 Respondió</span>':''}
+      ${cerrado?'<span class="tag" style="background:var(--green-500);color:#fff">✅ Cerrado</span>':(envioEsteMes(r)?`<span class="tag" style="background:var(--green-100);color:#1d7a3f">📤 ${esc(String(r.fecha_ultimo_envio).substring(5,10))}</span>`:'')}
+      ${col===0&&r.aprobacion==='Aprobado'?'<span class="tag" style="background:var(--violet-100);color:#3a2bb3">🕐 En cola del agente</span>':''}
+      ${col===0&&r.aprobacion!=='Aprobado'&&r.dias_desde_contacto?`<span class="tag" style="background:var(--gray-100)">${esc(r.dias_desde_contacto)} días</span>`:''}
+      ${r.motivo_exclusion?`<span class="tag cat-out" title="${esc(r.motivo_exclusion)}">⛔</span>`:''}
+    </div>
+    ${col===0&&!cerrado&&r.bloque==='A'&&r.aprobacion!=='Aprobado'?`<button class="mini btn-approve" style="margin-top:8px" onclick="event.stopPropagation();scDecide('${esc(r.company_id)}','Aprobado')">✅ Aprobar envío</button>`:''}
+  </div>`;
+}
 function renderSC(){
-  const dia=new Date().getDate();
+  const hoy=new Date(), dia=hoy.getDate();
+  const mesTxt=hoy.toLocaleString('es-MX',{month:'long',year:'numeric'});
+  const ciclo=document.getElementById('scCiclo'); if(ciclo) ciclo.textContent='🔄 Ciclo: '+mesTxt+' — el tablero se reinicia el 01';
   document.getElementById('scRegla17').innerHTML = dia>=17
     ? `<div class="notice warn" style="margin-bottom:16px">📅 <b>Hoy es día ${dia} — regla del 17 activa:</b> los envíos que apruebes ya NO solicitan documentos adicionales; notifican la <b>estrategia de declaración en ceros con complementaria</b> (Esc.3, plantilla del SOP). El agente aplica el cambio automáticamente.</div>`
     : `<div class="notice info" style="margin-bottom:16px">📅 Antes del día 17: los envíos aprobados solicitan documentos/accesos. A partir del 17, cambian automáticamente a estrategia de ceros con complementaria (Esc.3).</div>`;
   let rows=SC;
   const q=(document.getElementById('scBuscar')?.value||'').trim().toLowerCase();
   if(q) rows=rows.filter(r=>(r.cliente||'').toLowerCase().includes(q)||(r.company_id||'').toLowerCase().includes(q));
-  const escF=document.getElementById('scEsc')?.value||'';
-  if(escF) rows=rows.filter(r=>r.escenario_actual===escF);
-  if(scFilter==='__espera') rows=rows.filter(r=>!r.fecha_ultimo_envio&&r.estado_sop!=='Respondió');
-  if(scFilter==='__env') rows=rows.filter(r=>r.fecha_ultimo_envio&&!cicloCerrado(r));
-  if(scFilter==='__cerrado') rows=rows.filter(r=>cicloCerrado(r));
-  if(scFilter==='__resp') rows=rows.filter(r=>r.estado_sop==='Respondió');
-  const el=document.getElementById('scTable');
-  if(!rows.length){ el.innerHTML='<p style="color:var(--gray-500)">Sin registros. El agente sincroniza la cola desde AppSheet en cada corrida.</p>'; return; }
-  el.innerHTML=`<table><thead><tr><th>Cliente</th><th>Owner</th><th>Período</th><th>Escenario de envío <span class="tip">ℹ️<span class="tiptext">Es el correo que saldrá al aprobar. Puedes cambiarlo por cliente con el selector. <b>Regla del 17:</b> del día 17 en adelante, el agente fuerza "Estrategia declaración en ceros" aunque el selector diga otra cosa.</span></span></th><th>Estado</th><th>Días</th><th>Acción pendiente</th><th>Aprobación</th><th></th></tr></thead><tbody>${rows.map(r=>`
-    <tr>
-      <td><b>${esc(r.cliente)}</b><br><span style="color:var(--gray-500);font-size:11px">${esc(r.company_id)}</span></td>
-      <td>${esc(ownerDe(r.company_id)||r.owner)}</td><td>${esc(r.periodo)}</td>
-      <td>${r.aprobacion==='Aprobado'
-        ? esc(escNombre(r.escenario_actual))
-        : `<select onchange="scScenario('${esc(r.company_id)}',this.value)" style="min-width:180px;font-size:12px;padding:6px 8px">
-             ${['Esc.1','Esc.2','Esc.3'].map(e=>`<option value="${e}" ${r.escenario_actual===e?'selected':''}>${escNombre(e)}</option>`).join('')}
-           </select>`}</td>
-      <td>${r.fecha_ultimo_envio
-            ? (r.escenario_actual==='Esc.3'
-                ? `<span class="pill" style="background:var(--green-500);color:#fff">✅ Enviado y cerrado</span>`
-                : `<span class="pill" style="background:var(--green-100);color:#1d7a3f">📤 Enviado ${esc(r.escenario_actual||'')}</span>`)
-              + `<br><span style="color:var(--gray-500);font-size:11px">${esc(String(r.fecha_ultimo_envio).substring(0,10))}</span>`
-            : esc(r.estado_sop)}${r.motivo_exclusion?`<br><span style="color:var(--gray-500);font-size:11px">${esc(r.motivo_exclusion)}</span>`:''}</td>
-      <td>${esc(r.dias_desde_contacto)}</td>
-      <td>${esc(accionPendiente(r))}</td>
-      <td>${cicloCerrado(r)?'—':`<span class="pill ${esc(r.aprobacion||'Pendiente')}">${esc(r.aprobacion||'Pendiente')}</span>`}</td>
-      <td>${!cicloCerrado(r)&&r.bloque==='A'&&r.aprobacion!=='Aprobado'?`
-        <button class="mini btn-approve" onclick="scDecide('${esc(r.company_id)}','Aprobado')">Aprobar envío</button>
-        <button class="mini btn-ghost" onclick="scDecide('${esc(r.company_id)}','Rechazado')" style="margin-top:4px">Rechazar</button>`:''}</td>
-    </tr>`).join('')}</tbody></table>`;
+  const el=document.getElementById('scBoard');
+  if(!SC.length){ el.innerHTML='<p style="color:var(--gray-500)">Sin registros. El agente sincroniza la cola desde AppSheet en cada corrida.</p>'; return; }
+  const cols=KB_COLS.map(c=>({...c,rows:[]}));
+  rows.forEach(r=>cols[kbColDe(r)].rows.push(r));
+  // Orden dentro de columna: Respondió primero, luego más días sin contacto
+  cols.forEach(c=>c.rows.sort((a,b)=>(b.estado_sop==='Respondió')-(a.estado_sop==='Respondió')||(parseInt(b.dias_desde_contacto)||0)-(parseInt(a.dias_desde_contacto)||0)));
+  el.innerHTML=cols.map((c,i)=>`
+    <div class="kb-col" style="border-top-color:${c.color}" ondragover="kbOver(event)" ondragleave="kbLeave(event)" ondrop="kbDrop(event,${i})">
+      <div class="kb-head"><span>${c.nombre}</span><span class="kb-count">${c.rows.length}</span><span class="kb-hint">${c.hint}</span></div>
+      <div class="kb-cards">
+        ${c.rows.length?c.rows.map(r=>kbCard(r,i)).join(''):'<div class="kb-empty">Sin clientes aquí</div>'}
+      </div>
+    </div>`).join('');
+}
+/* Drag & drop: mover a la derecha = registrar envío manual (no envía correos) */
+let KB_DRAG=null;
+function kbDrag(ev,cid){ KB_DRAG=cid; ev.dataTransfer.effectAllowed='move'; ev.target.classList.add('dragging'); }
+function kbOver(ev){ ev.preventDefault(); ev.currentTarget.classList.add('drag-over'); }
+function kbLeave(ev){ ev.currentTarget.classList.remove('drag-over'); }
+async function kbDrop(ev,col){
+  ev.preventDefault(); ev.currentTarget.classList.remove('drag-over');
+  const cid=KB_DRAG; KB_DRAG=null; if(!cid) return;
+  const r=SC.find(x=>x.company_id===cid); if(!r) return;
+  const desde=kbColDe(r); if(col===desde){ renderSC(); return; }
+  if(col===0){ toast('Un envío registrado no se deshace desde el tablero — corrígelo en el Sheet si fue un error.'); renderSC(); return; }
+  const escN=KB_COLS[col].esc;
+  if(!confirm('¿Registrar "'+escNombre(escN)+'" como ENVIADO hoy para '+(r.cliente||cid)+'?\n\nÚsalo cuando el correo ya salió por fuera del sistema. Esta acción NO envía ningún correo.')){ renderSC(); return; }
+  const res=await api('sc_mark_sent',{company_id:cid,escenario:escN});
+  if(res.ok){ r.escenario_actual=escN; r.fecha_ultimo_envio=new Date().toISOString().slice(0,16).replace('T',' '); toast('✅ Registrado: '+escNombre(escN)+' — '+(r.cliente||cid)); }
+  else toast('❌ '+(res.error||'error'));
+  renderSC();
+}
+/* Detalle de tarjeta en drawer */
+function scDetail(cid){
+  const r=SC.find(x=>x.company_id===cid); if(!r) return;
+  composeMode=false; selId=null;
+  const el=document.getElementById('mailDetail');
+  el.innerHTML=`
+    <h3>${esc(r.cliente)}</h3>
+    <div class="meta">${esc(r.company_id)} · 👤 ${esc(ownerDe(r.company_id)||r.owner||'—')}${r.periodo?' · '+esc(r.periodo):''}</div>
+    <label>Escenario de envío</label>
+    ${r.aprobacion==='Aprobado'
+      ? `<div class="resumen">${esc(escNombre(r.escenario_actual))}</div>`
+      : `<select onchange="scScenario('${esc(cid)}',this.value)">${['Esc.1','Esc.2','Esc.3'].map(e=>`<option value="${e}" ${r.escenario_actual===e?'selected':''}>${escNombre(e)}</option>`).join('')}</select>`}
+    <label>Estado del ciclo (${mesActualISO()})</label>
+    <div class="resumen">${envioEsteMes(r)
+      ? (cicloCerrado(r)?'✅ Enviado y cerrado':'📤 Enviado '+esc(r.escenario_actual))+' — '+esc(String(r.fecha_ultimo_envio).substring(0,10))
+      : esc(r.estado_sop||'En espera — sin envíos este mes')}${r.dias_desde_contacto?' · '+esc(r.dias_desde_contacto)+' días desde contacto':''}</div>
+    ${r.motivo_exclusion?`<div class="notice warn">⛔ ${esc(r.motivo_exclusion)}</div>`:''}
+    <label>Acción pendiente</label>
+    <div class="resumen">${esc(accionPendiente(r))}</div>
+    ${r.notas?`<label>Notas</label><div class="resumen">${esc(r.notas)}</div>`:''}
+    ${!cicloCerrado(r)&&r.aprobacion!=='Aprobado'?`<div class="btn-row">
+      <button class="btn btn-approve" onclick="scDecide('${esc(cid)}','Aprobado');closeDrawer()">✅ Aprobar envío</button>
+      <button class="btn btn-ghost" onclick="scDecide('${esc(cid)}','Rechazado');closeDrawer()">Rechazar</button></div>`
+      :(r.aprobacion==='Aprobado'&&!envioEsteMes(r)?'<div class="notice info">🕐 Aprobado — el agente lo envía desde accounting@ en su próxima corrida.</div>':'')}`;
+  openDrawer();
 }
 async function scDecide(cid,decision){
   const r=await api('sc_decision',{company_id:cid,decision});
