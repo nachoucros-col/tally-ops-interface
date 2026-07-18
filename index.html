@@ -150,6 +150,22 @@ tr:hover td{background:rgba(96,71,255,.04)}
 .preview-card .pc-title{font-weight:700;font-size:14px}
 .preview-card input[type=text]{margin-bottom:8px}
 .pc-status{font-size:12px;font-weight:500}
+/* ═══ Kanban Seller Central ═══ */
+.kb-board{display:flex;gap:14px;overflow-x:auto;align-items:flex-start;padding-bottom:16px}
+.kb-col{flex:0 0 292px;min-width:292px;background:var(--gray-100);border-radius:var(--radius-md);border-top:3px solid var(--gray-300);display:flex;flex-direction:column;max-height:calc(100vh - 300px);transition:var(--transition-micro)}
+.kb-col.drag-over{background:rgba(96,71,255,.08);outline:2px dashed var(--brand-primary);outline-offset:-2px}
+.kb-head{display:flex;align-items:baseline;gap:8px;padding:12px 12px 8px;font-weight:700;font-size:13px;flex-wrap:wrap}
+.kb-count{background:#fff;border-radius:var(--radius-pill);font-size:11px;padding:1px 8px;color:var(--text-secondary);font-weight:500;box-shadow:var(--shadow-sm)}
+.kb-hint{font-size:11px;color:var(--text-secondary);font-weight:400;width:100%}
+.kb-cards{overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:2px 10px 12px;min-height:70px}
+.kb-card{background:#fff;border:1px solid var(--border-light);border-radius:var(--radius-md);padding:12px 14px;box-shadow:var(--shadow-sm);cursor:grab;transition:var(--transition-state)}
+.kb-card:hover{box-shadow:var(--shadow-md);transform:translateY(-2px);border-color:var(--gray-300)}
+.kb-card:active{cursor:grabbing}
+.kb-card.dragging{opacity:.45;transform:rotate(2deg) scale(.98)}
+.kb-title{font-weight:700;font-size:13.5px;line-height:1.3}
+.kb-meta{font-size:11.5px;color:var(--text-secondary);margin:3px 0 6px}
+.kb-tags{display:flex;gap:5px;flex-wrap:wrap}
+.kb-empty{border:1.5px dashed var(--gray-300);border-radius:var(--radius-sm);padding:18px 12px;color:var(--text-secondary);font-size:12px;text-align:center;margin:2px 0}
 /* Brand Master §6.7 — reduced motion */
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{transition-duration:0.01ms !important;animation-duration:0.01ms !important}
@@ -213,23 +229,13 @@ tr:hover td{background:rgba(96,71,255,.04)}
           <button class="compose-btn" id="scBatchBtn" onclick="scBatch()">📦 Enviar en Batch</button>
         </div>
       </div>
-      <div class="chips" id="scChips" style="align-items:center">
+      <div class="chips" style="align-items:center">
         <input type="text" id="scBuscar" placeholder="🔎 Buscar cliente o AZ…" oninput="renderSC()" style="max-width:230px;width:230px">
-        <button class="chip on" data-b="*">Todos</button>
-        <button class="chip" data-b="__espera">En espera</button>
-        <button class="chip" data-b="__env">📤 Enviados</button>
-        <button class="chip" data-b="__cerrado">✅ Cerrados</button>
-        <button class="chip" data-b="__resp">Respondieron</button>
-        <select id="scEsc" onchange="renderSC()" style="width:auto;padding:6px 10px;font-size:13px">
-          <option value="">Escenario: todos</option>
-          <option value="Esc.1">Solicitud inicial (Esc.1)</option>
-          <option value="Esc.2">Recordatorio (Esc.2)</option>
-          <option value="Esc.3">Ceros + complementaria (Esc.3)</option>
-        </select>
+        <span class="chip" id="scCiclo" style="cursor:default;background:var(--brand-primary-soft);color:#3a2bb3"></span>
         <a class="chip" href="https://app.notion.com/p/34a325ede0a3808b9404e013f3249dec" target="_blank" style="margin-left:auto;text-decoration:none;display:inline-flex;align-items:center;gap:6px">📖 Glosario de los escenarios ↗</a>
       </div>
       <div id="scRegla17"></div>
-      <div id="scTable">Cargando…</div>
+      <div class="kb-board" id="scBoard">Cargando…</div>
     </section>
 
     <!-- ══ LOG ══ -->
@@ -1294,12 +1300,6 @@ document.getElementById('catChips').addEventListener('click',ev=>{
   catFilter=ev.target.dataset.cat; composeMode=false;
   document.querySelectorAll('#catChips .chip').forEach(c=>c.classList.toggle('on',c===ev.target));
   renderMailList();
-});
-document.getElementById('scChips').addEventListener('click',ev=>{
-  if(!ev.target.dataset.b) return;
-  scFilter=ev.target.dataset.b;
-  document.querySelectorAll('#scChips .chip').forEach(c=>c.classList.toggle('on',c===ev.target));
-  renderSC();
 });
 
 /* ═══════════════ CLIENTES (directorio editable, solo admin) ═══════════════ */
