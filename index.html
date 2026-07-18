@@ -150,6 +150,11 @@ tr:hover td{background:rgba(96,71,255,.04)}
 .preview-card .pc-title{font-weight:700;font-size:14px}
 .preview-card input[type=text]{margin-bottom:8px}
 .pc-status{font-size:12px;font-weight:500}
+/* Brand Master §6.7 — reduced motion */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{transition-duration:0.01ms !important;animation-duration:0.01ms !important}
+  .mail-card:hover,.btn-primary:hover,.btn-approve:hover,.compose-btn:hover{transform:none}
+}
 </style>
 </head>
 <body>
@@ -293,7 +298,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
 
 <!-- ══ LOGIN ══ -->
 <div id="loginVeil" style="position:fixed;inset:0;background:var(--ink);z-index:200;display:flex;align-items:center;justify-content:center">
-  <div style="background:var(--cream);border-radius:20px;padding:40px;width:360px;max-width:90vw">
+  <div style="background:var(--cream);border-radius:var(--radius-lg);padding:40px;width:360px;max-width:90vw">
     <div style="font-weight:700;font-size:26px;letter-spacing:-0.015em">Tally <span style="font-weight:300">Ops</span></div>
     <div style="font-size:12px;color:var(--gray-500);text-transform:uppercase;letter-spacing:.08em;margin-bottom:24px">Interfaz Contable</div>
     <label style="display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Correo</label>
@@ -423,7 +428,7 @@ function renderMailList(){
   const el = document.getElementById('mailList');
   if(catFilter==='__out'){ renderSalientesList(el); return; }
   const list = visibleEmails();
-  if(!list.length){ el.innerHTML=`<div style="color:var(--gray-500);padding:40px;text-align:center;background:#fff;border-radius:12px;border:1px solid var(--gray-100)">Sin correos en esta vista. 🎉</div>`; return; }
+  if(!list.length){ el.innerHTML=`<div style="color:var(--gray-500);padding:40px;text-align:center;background:#fff;border-radius:var(--radius-md);border:1px solid var(--border-light)">Sin correos en esta vista. 🎉</div>`; return; }
   el.innerHTML = list.map(e=>`
     <div class="mail-card ${e.email_id===selId?'sel':''}" onclick="select('${e.email_id}')">
       <div class="row1"><span class="from">${esc(e.remitente_nombre||e.remitente_email)}</span><span class="date">${esc(e.fecha_recibido)}</span></div>
@@ -443,7 +448,7 @@ function renderMailList(){
 
 function renderSalientesList(el){
   const list=[...SALIENTES].sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
-  if(!list.length){ el.innerHTML=`<div style="color:var(--gray-500);padding:40px;text-align:center;background:#fff;border-radius:12px;border:1px solid var(--gray-100)">Aún no has enviado correos desde la interfaz.</div>`; return; }
+  if(!list.length){ el.innerHTML=`<div style="color:var(--gray-500);padding:40px;text-align:center;background:#fff;border-radius:var(--radius-md);border:1px solid var(--border-light)">Aún no has enviado correos desde la interfaz.</div>`; return; }
   el.innerHTML = list.map(s=>`
     <div class="mail-card ${s.saliente_id===selOut?'sel':''}" onclick="selectOut('${s.saliente_id}')">
       <div class="row1"><span class="from">→ ${esc(s.cliente||s.destinatarios)}</span><span class="date">${esc(String(s.fecha).substring(0,16).replace('T',' '))}</span></div>
@@ -1316,7 +1321,7 @@ function renderClientes(){
     </tr>
     ${abierto?`<tr><td></td><td colspan="2" style="background:#fbfaff">
       ${c.contacto_nombre?`<div style="font-size:12px;margin-bottom:6px">👤 Contacto: <b>${esc(c.contacto_nombre)}</b></div>`:''}
-      ${correos.map(e=>`<div style="display:inline-block;font-size:12.5px;padding:5px 10px;background:#fff;border:1px solid var(--gray-300);border-radius:8px;margin:0 6px 6px 0">📧 ${esc(e)} <b style="cursor:pointer;color:#b34a17" onclick="cliQuitar('${esc(c.company_id)}','${esc(e)}')">✕</b></div>`).join('')||'<div style="color:var(--gray-500);font-size:12px;margin-bottom:6px">sin correos registrados</div>'}
+      ${correos.map(e=>`<div style="display:inline-block;font-size:12.5px;padding:5px 10px;background:#fff;border:1px solid var(--border-light);border-radius:var(--radius-sm);margin:0 6px 6px 0">📧 ${esc(e)} <b style="cursor:pointer;color:#b34a17" onclick="cliQuitar('${esc(c.company_id)}','${esc(e)}')">✕</b></div>`).join('')||'<div style="color:var(--gray-500);font-size:12px;margin-bottom:6px">sin correos registrados</div>'}
       <div style="display:flex;gap:8px;margin-top:8px;max-width:560px">
         <input type="text" id="nc-nom-${esc(c.company_id)}" placeholder="nombre (opcional)" style="flex:1">
         <input type="text" id="nc-em-${esc(c.company_id)}" placeholder="correo@nuevo.com" style="flex:1.4">
