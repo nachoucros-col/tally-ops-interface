@@ -167,6 +167,11 @@ tr:hover td{background:rgba(96,71,255,.04)}
 .kb-meta{font-size:11.5px;color:var(--text-secondary);margin:3px 0 6px}
 .kb-tags{display:flex;gap:5px;flex-wrap:wrap}
 .kb-empty{border:1.5px dashed var(--gray-300);border-radius:var(--radius-sm);padding:18px 12px;color:var(--text-secondary);font-size:12px;text-align:center;margin:2px 0}
+#kbConfirmBack{position:fixed;inset:0;background:rgba(33,33,33,.42);z-index:220;display:flex;align-items:center;justify-content:center;padding:20px}
+.kb-modal{background:#fff;border-radius:var(--radius-lg);padding:28px;max-width:460px;width:100%;box-shadow:var(--shadow-xl)}
+.kb-modal h3{font-size:17px;font-weight:700;margin-bottom:6px}
+.kb-modal p{font-size:13.5px;color:var(--text-secondary);margin-bottom:8px;line-height:1.5}
+.kb-modal .btn{width:100%;margin-top:8px}
 /* Brand Master §6.7 — reduced motion */
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{transition-duration:0.01ms !important;animation-duration:0.01ms !important}
@@ -1253,7 +1258,7 @@ function kbCard(r,col){
     <div class="kb-meta">${esc(r.company_id)} · 👤 ${esc(ownerDe(r.company_id)||r.owner||'—')}</div>
     <div class="kb-tags">
       ${resp?'<span class="tag" style="background:var(--cyan-100);color:#0a6d8f">💬 Respondió</span>':''}
-      ${cerrado?'<span class="tag" style="background:var(--green-500);color:#fff">✅ Cerrado</span>':(envioEsteMes(r)?`<span class="tag" style="background:var(--green-100);color:#1d7a3f">📤 ${esc(String(r.fecha_ultimo_envio).substring(5,10))}</span>`:'')}
+      ${cerrado?`<span class="tag" style="background:var(--green-500);color:#fff">✅ Cerrado · ${esc(String(r.fecha_ultimo_envio).substring(5,16))}</span>`:(envioEsteMes(r)?`<span class="tag" style="background:var(--green-100);color:#1d7a3f">📤 Enviado · ${esc(String(r.fecha_ultimo_envio).substring(5,16))}</span>`:'')}
       ${col===0&&r.aprobacion==='Aprobado'?'<span class="tag" style="background:var(--violet-100);color:#3a2bb3">🕐 En cola del agente</span>':''}
       ${col===0&&r.aprobacion!=='Aprobado'&&r.dias_desde_contacto?`<span class="tag" style="background:var(--gray-100)">${esc(r.dias_desde_contacto)} días</span>`:''}
       ${r.motivo_exclusion?`<span class="tag cat-out" title="${esc(r.motivo_exclusion)}">⛔</span>`:''}
@@ -1285,23 +1290,77 @@ function renderSC(){
       </div>
     </div>`).join('');
 }
-/* Drag & drop: mover a la derecha = registrar envío manual (no envía correos) */
+/* Drag & drop: mover a la derecha = registrar (y opcionalmente ENVIAR) el escenario */
 let KB_DRAG=null;
 function kbDrag(ev,cid){ KB_DRAG=cid; ev.dataTransfer.effectAllowed='move'; ev.target.classList.add('dragging'); }
 function kbOver(ev){ ev.preventDefault(); ev.currentTarget.classList.add('drag-over'); }
 function kbLeave(ev){ ev.currentTarget.classList.remove('drag-over'); }
+function kbConfirm(r,escN){
+  return new Promise(res=>{
+    const c=CLIENTES.find(x=>x.company_id===r.company_id)||{};
+    const to=(c.contacto_email||'').trim();
+    const back=document.createElement('div');
+    back.id='kbConfirmBack';
+    back.innerHTML=`<div class="kb-modal">
+      <h3>${esc(r.cliente||r.company_id)} → ${esc(escNombre(escN))}</h3>
+      <p>📬 Destinatario: <b>${to?esc(to):'⚠️ sin correo registrado'}</b> · desde accounting@ · CC customersuccess@, owner<br>🌐 Idioma: ${idiomaDefault(r.company_id)==='es'?'español':'inglés'} (regla del cliente)</p>
+      <button class="btn btn-primary" data-a="send" ${to.includes('@')?'':'disabled'}>📤 Cambiar card y ENVIAR correo ahora</button>
+      <button class="btn btn-ghost" data-a="move">Solo cambiar card — el correo ya salió por fuera</button>
+      <button class="btn btn-ghost" data-a="">Cancelar</button>
+    </div>`;
+    back.addEventListener('click',ev=>{
+      const b=ev.target.closest('button');
+      if(!b && ev.target!==back) return;
+      back.remove(); res(b?(b.dataset.a||null):null);
+    });
+    document.body.appendChild(back);
+  });
+}
 async function kbDrop(ev,col){
   ev.preventDefault(); ev.currentTarget.classList.remove('drag-over');
   const cid=KB_DRAG; KB_DRAG=null; if(!cid) return;
   const r=SC.find(x=>x.company_id===cid); if(!r) return;
-  const desde=kbColDe(r); if(col===desde){ renderSC(); return; }
-  if(col===0){ toast('Un envío registrado no se deshace desde el tablero — corrígelo en el Sheet si fue un error.'); renderSC(); return; }
+  const desde=kbColDe(r);
+  if(col===desde){ renderSC(); return; }
+  if(col<desde||col===0){ toast('🔒 El ciclo solo avanza — un escenario enviado este mes no se repite ni se deshace desde la interfaz.'); renderSC(); return; }
   const escN=KB_COLS[col].esc;
-  if(!confirm('¿Registrar "'+escNombre(escN)+'" como ENVIADO hoy para '+(r.cliente||cid)+'?\n\nÚsalo cuando el correo ya salió por fuera del sistema. Esta acción NO envía ningún correo.')){ renderSC(); return; }
-  const res=await api('sc_mark_sent',{company_id:cid,escenario:escN});
-  if(res.ok){ r.escenario_actual=escN; r.fecha_ultimo_envio=new Date().toISOString().slice(0,16).replace('T',' '); toast('✅ Registrado: '+escNombre(escN)+' — '+(r.cliente||cid)); }
-  else toast('❌ '+(res.error||'error'));
+  const choice=await kbConfirm(r,escN);
+  if(!choice){ renderSC(); return; }
+  if(choice==='send'){ await kbSend(r,escN); }
+  else{
+    const res=await api('sc_mark_sent',{company_id:cid,escenario:escN});
+    if(res.ok){ r.escenario_actual=escN; r.fecha_ultimo_envio=new Date().toISOString().slice(0,16).replace('T',' '); toast('✅ Registrado (sin enviar): '+escNombre(escN)+' — '+(r.cliente||cid)); }
+    else toast('❌ '+(res.error||'error'));
+  }
   renderSC();
+}
+async function kbSend(r,escN){
+  // Candado anti-duplicado: nunca re-enviar un escenario ya enviado este mes
+  if(envioEsteMes(r) && kbColDe(r)>=({'Esc.1':1,'Esc.2':2,'Esc.3':3}[escN]||0)){
+    toast('🔒 '+(r.cliente||'')+' ya tiene ese escenario (o uno posterior) enviado este mes.'); return;
+  }
+  const c=CLIENTES.find(x=>x.company_id===r.company_id)||{};
+  const to=(c.contacto_email||'').trim();
+  if(!to.includes('@')){ toast('❌ '+(r.cliente||'')+' no tiene correo registrado — agrégalo en el menú Clientes.'); return; }
+  const tplId={'Esc.1':'TPL-SC-01','Esc.2':'TPL-SC-02','Esc.3':'TPL-SC-03'}[escN];
+  const tpl=PLANTILLAS.find(p=>p.plantilla_id===tplId);
+  if(!tpl){ toast('❌ No encuentro la plantilla '+tplId+' en el caché — sincroniza plantillas.'); return; }
+  let subject=fillTemplate(tpl.asunto,Object.assign({cliente:r.cliente},c)),
+      body=fillTemplate(tpl.cuerpo,Object.assign({cliente:r.cliente},c));
+  body=body.replace(/\[DOC:[^\]]+\]/g,'').replace(/\n{3,}/g,'\n\n');
+  const faltan=bracketsIn(subject+'\n'+body);
+  if(faltan.length){ toast('🔒 Esta plantilla pide campos manuales ('+faltan.join(' · ')+') — usa 📦 Enviar en Batch para completarlos.'); return; }
+  toast('📤 Enviando '+escNombre(escN)+' a '+(r.cliente||'')+'…');
+  if(idiomaDefault(r.company_id)==='es'){
+    const t=await api('translate_text',{subject,body_text:body,idioma:'es'});
+    if(t.ok){ subject=t.subject; body=t.body_text; }
+  }
+  const res=await api('send_direct',{to,cc:c.cc_email||'',subject,body_text:body,company_id:r.company_id,cliente:r.cliente,categoria:'Seguimiento Seller Central',plantilla:tplId,adjuntos:docsDePlantilla(tpl),auth:{email:AUTH.email,password:AUTH.password}});
+  if(res.ok){
+    r.escenario_actual=escN;
+    r.fecha_ultimo_envio=new Date().toISOString().slice(0,16).replace('T',' ');
+    toast('✅ Enviado '+escNombre(escN)+' a '+to);
+  } else toast('❌ '+(res.error||'error al enviar'));
 }
 /* Detalle de tarjeta en drawer */
 function scDetail(cid){
@@ -1317,8 +1376,9 @@ function scDetail(cid){
       : `<select onchange="scScenario('${esc(cid)}',this.value)">${['Esc.1','Esc.2','Esc.3'].map(e=>`<option value="${e}" ${r.escenario_actual===e?'selected':''}>${escNombre(e)}</option>`).join('')}</select>`}
     <label>Estado del ciclo (${mesActualISO()})</label>
     <div class="resumen">${envioEsteMes(r)
-      ? (cicloCerrado(r)?'✅ Enviado y cerrado':'📤 Enviado '+esc(r.escenario_actual))+' — '+esc(String(r.fecha_ultimo_envio).substring(0,10))
+      ? (cicloCerrado(r)?'✅ Enviado y cerrado':'📤 Enviado '+esc(r.escenario_actual))+' — '+esc(String(r.fecha_ultimo_envio).substring(0,16))+' hrs'
       : esc(r.estado_sop||'En espera — sin envíos este mes')}${r.dias_desde_contacto?' · '+esc(r.dias_desde_contacto)+' días desde contacto':''}</div>
+    ${envioEsteMes(r)&&!cicloCerrado(r)?'<div class="notice info">🔒 Este escenario ya salió este mes — desde la interfaz solo puedes avanzar al siguiente (arrastrando la card), nunca repetirlo.</div>':''}
     ${r.motivo_exclusion?`<div class="notice warn">⛔ ${esc(r.motivo_exclusion)}</div>`:''}
     <label>Acción pendiente</label>
     <div class="resumen">${esc(accionPendiente(r))}</div>
