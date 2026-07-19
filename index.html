@@ -217,6 +217,10 @@ tr:hover td{background:rgba(96,71,255,.04)}
         <button class="chip" data-cat="__pend">⏳ Pendientes de mí</button>
         <button class="chip" data-cat="__out">📤 Enviados por mí</button>
         <button class="chip" data-cat="__hist">Respondidos</button>
+        <select id="mailOrden" onchange="mailOrden=this.value;renderMailList()" style="width:auto;padding:6px 10px;font-size:13px;margin-left:auto">
+          <option value="desc">🕐 Más recientes primero</option>
+          <option value="asc">🕐 Orden de llegada</option>
+        </select>
         <button class="compose-btn" onclick="openCompose()">✍️ Redactar correo</button>
       </div>
       <div class="split">
@@ -402,7 +406,11 @@ function renderCatChips(){
     + cats.map(c=>`<button class="chip" data-cat="${esc(c)}">${esc(c)}</button>`).join('')
     + `<button class="chip" data-cat="__pend">⏳ Pendientes de mí</button>
        <button class="chip" data-cat="__out">📤 Enviados por mí</button>
-       <button class="chip" data-cat="__hist">Respondidos</button>`;
+       <button class="chip" data-cat="__hist">Respondidos</button>
+       <select id="mailOrden" onchange="mailOrden=this.value;renderMailList()" style="width:auto;padding:6px 10px;font-size:13px;margin-left:auto">
+         <option value="desc" ${mailOrden==='desc'?'selected':''}>🕐 Más recientes primero</option>
+         <option value="asc" ${mailOrden==='asc'?'selected':''}>🕐 Orden de llegada</option>
+       </select>`;
   el.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on', c.dataset.cat===catFilter));
 }
 async function saveCfg(key, elId, okMsg){
@@ -426,6 +434,7 @@ async function requestRun(){
 const CAT_CLASS={'Documentación':'cat-Documentación','Proceso':'cat-Proceso','Queja y reclamo':'cat-Queja','Alerta':'cat-Alerta'};
 const ST_CLASS={'Nuevo':'st-Nuevo','Prompt recibido':'st-Prompt','Draft listo':'st-Draft','Aprobado':'st-Aprobado','Enviado':'st-Enviado','Descartado':'st-Nuevo'};
 
+let mailOrden='desc'; // 'desc' = más recientes primero · 'asc' = orden de llegada
 function visibleEmails(){
   return EMAILS.filter(e=>{
     if(catFilter==='__hist') return e.estado==='Enviado';
@@ -433,7 +442,21 @@ function visibleEmails(){
     if(catFilter==='__pend') return e.estado==='Nuevo'||e.estado==='Draft listo';
     if(catFilter!=='*' && e.categoria!==catFilter) return false;
     return true; // los respondidos se quedan visibles con su tag verde ✓
-  }).sort((a,b)=>(b.fecha_recibido||'').localeCompare(a.fecha_recibido||''));
+  }).sort((a,b)=>{
+    const cmp=(a.fecha_recibido||'').localeCompare(b.fecha_recibido||'');
+    return mailOrden==='asc'?cmp:-cmp;
+  });
+}
+/* Fecha larga: "9 de junio de 2026, 09:58 a.m." */
+function fechaLarga(iso){
+  if(!iso) return '';
+  const s=String(iso).replace(' ','T');
+  const d=new Date(s);
+  if(isNaN(d)) return String(iso);
+  const f=d.toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'});
+  let h=d.getHours(), m=String(d.getMinutes()).padStart(2,'0');
+  const ap=h<12?'a.m.':'p.m.'; h=h%12||12;
+  return f+', '+String(h).padStart(2,'0')+':'+m+' '+ap;
 }
 
 function renderMailList(){
@@ -443,7 +466,7 @@ function renderMailList(){
   if(!list.length){ el.innerHTML=`<div style="color:var(--gray-500);padding:40px;text-align:center;background:#fff;border-radius:var(--radius-md);border:1px solid var(--border-light)">Sin correos en esta vista. 🎉</div>`; return; }
   el.innerHTML = list.map(e=>`
     <div class="mail-card ${e.email_id===selId?'sel':''}" onclick="select('${e.email_id}')">
-      <div class="row1"><span class="from">${esc(e.remitente_nombre||e.remitente_email)}</span><span class="date">${esc(e.fecha_recibido)}</span></div>
+      <div class="row1"><span class="from">${esc(e.remitente_nombre||e.remitente_email)}</span><span class="date">${esc(fechaLarga(e.fecha_recibido))}</span></div>
       <div class="subj">${esc(e.asunto)}</div>
       <div class="sum">${esc(e.resumen)}</div>
       <div class="tags">
@@ -459,11 +482,14 @@ function renderMailList(){
 }
 
 function renderSalientesList(el){
-  const list=[...SALIENTES].sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
+  const list=[...SALIENTES].sort((a,b)=>{
+    const cmp=(a.fecha||'').localeCompare(b.fecha||'');
+    return mailOrden==='asc'?cmp:-cmp;
+  });
   if(!list.length){ el.innerHTML=`<div style="color:var(--gray-500);padding:40px;text-align:center;background:#fff;border-radius:var(--radius-md);border:1px solid var(--border-light)">Aún no has enviado correos desde la interfaz.</div>`; return; }
   el.innerHTML = list.map(s=>`
     <div class="mail-card ${s.saliente_id===selOut?'sel':''}" onclick="selectOut('${s.saliente_id}')">
-      <div class="row1"><span class="from">→ ${esc(s.cliente||s.destinatarios)}</span><span class="date">${esc(String(s.fecha).substring(0,16).replace('T',' '))}</span></div>
+      <div class="row1"><span class="from">→ ${esc(s.cliente||s.destinatarios)}</span><span class="date">${esc(fechaLarga(s.fecha))}</span></div>
       <div class="subj">${esc(s.asunto)}</div>
       <div class="tags">
         <span class="tag cat-out">${esc(s.categoria)}</span>
