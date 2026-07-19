@@ -151,8 +151,9 @@ tr:hover td{background:rgba(96,71,255,.04)}
 .preview-card input[type=text]{margin-bottom:8px}
 .pc-status{font-size:12px;font-weight:500}
 /* ═══ Kanban Seller Central ═══ */
-.kb-board{display:flex;gap:14px;overflow-x:auto;align-items:flex-start;padding-bottom:16px}
-.kb-col{flex:0 0 292px;min-width:292px;background:var(--gray-100);border-radius:var(--radius-md);border-top:3px solid var(--gray-300);display:flex;flex-direction:column;max-height:calc(100vh - 300px);transition:var(--transition-micro)}
+.kb-board{display:flex;gap:12px;align-items:flex-start;padding-bottom:16px;width:100%}
+.kb-col{flex:1 1 0;min-width:0;background:var(--gray-100);border-radius:var(--radius-md);border-top:3px solid var(--gray-300);display:flex;flex-direction:column;max-height:calc(100vh - 300px);transition:var(--transition-micro)}
+@media (max-width:900px){ .kb-board{overflow-x:auto} .kb-col{flex:0 0 250px;min-width:250px} }
 .kb-col.drag-over{background:rgba(96,71,255,.08);outline:2px dashed var(--brand-primary);outline-offset:-2px}
 .kb-head{display:flex;align-items:baseline;gap:8px;padding:12px 12px 8px;font-weight:700;font-size:13px;flex-wrap:wrap}
 .kb-count{background:#fff;border-radius:var(--radius-pill);font-size:11px;padding:1px 8px;color:var(--text-secondary);font-weight:500;box-shadow:var(--shadow-sm)}
