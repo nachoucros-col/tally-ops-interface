@@ -25,6 +25,14 @@ const DB_ID = '1A5TSql1ksUHQ8DBYwfTDrj_V3J1HGAs8cgCF9mijmnQ';
 
 // Sheet maestro de datos de clientes (Accounting_DataModel)
 const DATAMODEL_ID = '1_RrCnxuh0mg7cDTNCqIm5o3S2OmlSs7CGzU5zS3FNsI';
+// Spreadsheet de reportes contables (Balance_general, balanza_comprobacion, calculo_impuestos,
+// estado_resultados, reportes_extra) — conectado a AppSheet, referenciado desde Clientes_por_periodo.
+const REPORTES_ID = '1AtBItd-kqNtm-QB72byTyySQ9WaY91vYqHA_tAa0tMg';
+/** Localiza la pestaña de una tabla AppSheet: primero en el DataModel, luego en Reportes. */
+function hojaDeTabla(tabla) {
+  try { const s = SpreadsheetApp.openById(DATAMODEL_ID).getSheetByName(tabla); if (s) return s; } catch (e) {}
+  try { return SpreadsheetApp.openById(REPORTES_ID).getSheetByName(tabla); } catch (e) { return null; }
+}
 
 // Sheet PRIVADO de usuarios de la interfaz (login). Crear un Google Sheet
 // nuevo SIN compartir por link, y pegar aquí su ID (el de la URL).
@@ -843,7 +851,7 @@ function sendViaDwd(from, to, cc, subject, bodyText, threadId, adjuntos) {
 function existeDocumento(companyId, tabla, columna) {
   try {
     if (!companyId || !tabla || !columna) return false;
-    const dm = SpreadsheetApp.openById(DATAMODEL_ID).getSheetByName(tabla);
+    const dm = hojaDeTabla(tabla);
     if (!dm) return false;
     const data = dm.getDataRange().getValues();
     const colIdx = data[0].map(String).indexOf(columna);
@@ -864,7 +872,7 @@ function existeDocumento(companyId, tabla, columna) {
 function buscarDocumento(companyId, tabla, columna) {
   try {
     if (!companyId || !tabla || !columna) return null;
-    const dm = SpreadsheetApp.openById(DATAMODEL_ID).getSheetByName(tabla);
+    const dm = hojaDeTabla(tabla);
     if (!dm) return null;
     const data = dm.getDataRange().getValues();
     const H = data[0].map(String);
@@ -889,7 +897,7 @@ function buscarDocumento(companyId, tabla, columna) {
 /** Busca el DATO (texto) más reciente de un cliente en una tabla de AppSheet. */
 function buscarDato(companyId, tabla, columna) {
   try {
-    const dm = SpreadsheetApp.openById(DATAMODEL_ID).getSheetByName(tabla);
+    const dm = hojaDeTabla(tabla);
     if (!dm) return null;
     const data = dm.getDataRange().getValues();
     const colIdx = data[0].map(String).indexOf(columna);
