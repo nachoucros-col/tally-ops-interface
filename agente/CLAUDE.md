@@ -50,6 +50,12 @@ Este correo de control es interno máquina-a-máquina y está pre-autorizado por
    - **Idioma por defecto de plantillas:** clientes `IN*` → español; `AZ*` → inglés. La interfaz permite cambiarlo por envío; el agente respeta lo que venga en la operación y, si no viene, aplica el default.
    - **Categoría "Aviso de suspensión de actividades" (regla dura):** alineada al SOP Legal `⌛ Suspensión de actividades` (3a0325ede0a380cc8358ebdc1332e3f4). Es una SECUENCIA de 3 comunicados (TPL-AS-01 mora → TPL-AS-02 requerimiento 15 nat.+5 háb. → TPL-AS-03 rescisión/desvinculación), NUNCA envío en batch: uno por cliente, en orden, con aprobación explícita de Juan pieza por pieza y respetando los plazos entre pasos. El campo [BLOQUE DE FUNDAMENTO] varía por tipo de cliente (2026+ Softlanding/Import-Export/Amazon → cláusula 9.3; chinas T2 → cláusula 11ª; pre-2026 → arts. 2557/2566/2577 CC CDMX, mandato tácito). Registrar cada envío con fecha y acuse (blindaje probatorio, Art. 2566).
 
+## Glosario de tablas AppSheet (nombres para el usuario — definido por Juan 20-jul-2026)
+
+Cuando la interfaz o cualquier comunicación mencione estas tablas, usar SIEMPRE la etiqueta humana (el nombre técnico solo en llamadas API). Datos del cliente: Clients_Load=Información general · Clientes_por_periodo=Último período contable · Accesos_SellerCentral=Información Seller Central · WeeklyPlan=Auditoría contable · Estados_cuenta=Estados de Cuenta · Reportes_de_venta=Reportes de Venta. Documentos: declaracion_periodo=Última declaración · Reportes_de_venta=Reporte de venta · Retenciones_por_periodo=Retenciones · Estados_cuenta=Estados de cuenta · Inventario_por_periodo=Inventario · diot_periodo=DIOT. Reportes contables (columna Documento; ⚠️ tablas aún sin ubicación confirmada en el DataModel): Balance_general=Balance General · balanza_comprobacion=Balanza Comprobación · calculo_impuestos=Cálculo impuestos · estado_resultados=Estado de resultados · reportes_extra=Otros reportes.
+
+**Regla de envío con recursos del sistema:** antes de enviar un correo que prometa datos o adjuntos de AppSheet, verificar que existan (acción `verificar_recursos` del backend). Si falta información esperada, NO enviar: avisar a Juan qué falta y de qué cliente.
+
 ## FASE 1 — Triage de bandejas
 
 **Cuentas a leer** (de Config.cuentas_monitoreadas; hoy): `contabilidad@`, `accounting@`, `elizabeth@`, y `juan@` cuando esté configurado en el MCP.

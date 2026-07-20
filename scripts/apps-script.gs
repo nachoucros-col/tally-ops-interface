@@ -301,6 +301,18 @@ function handle(body) {
       sh.appendRow(vals);
       return { ok: true, inserted: body.plantilla_id };
     }
+    case 'verificar_recursos': {
+      // Aviso preventivo: reporta qué datos/documentos esperados NO están cargados en el sistema
+      // para un cliente, ANTES de generar/enviar el correo. body: {company_id, datos:[], docs:[]}
+      const faltan = [];
+      (body.datos || []).forEach(function(d){
+        if (!buscarDato(body.company_id, d.tabla, d.columna)) faltan.push({ tipo: 'dato', tabla: d.tabla, columna: d.columna });
+      });
+      (body.docs || []).forEach(function(d){
+        if (!existeDocumento(body.company_id, d.tabla, d.columna)) faltan.push({ tipo: 'documento', tabla: d.tabla, columna: d.columna });
+      });
+      return { ok: true, company_id: body.company_id, faltantes: faltan };
+    }
     case 'append_log': {
       const sh = ss.getSheetByName('Log');
       sh.appendRow([now, body.corrida||'manual', body.correos_revisados||0, body.correos_filtrados_fuera||0,
@@ -827,6 +839,28 @@ function sendViaDwd(from, to, cc, subject, bodyText, threadId, adjuntos) {
  *  y lo trae del Drive por nombre de archivo. Columnas de archivo típicas:
  *  declaracion_periodo.Documento · Reportes_de_venta.Archivo · Retenciones_por_periodo.URLRetencion
  *  Estados_cuenta.UrlVentas · Inventario_por_periodo.URLInventario · diot_periodo.Documento */
+/** Verifica existencia (barato, sin descargar el archivo) de un documento en el expediente. */
+function existeDocumento(companyId, tabla, columna) {
+  try {
+    if (!companyId || !tabla || !columna) return false;
+    const dm = SpreadsheetApp.openById(DATAMODEL_ID).getSheetByName(tabla);
+    if (!dm) return false;
+    const data = dm.getDataRange().getValues();
+    const colIdx = data[0].map(String).indexOf(columna);
+    if (colIdx < 0) return false;
+    for (let i = data.length - 1; i >= 1; i--) {
+      if (data[i].join('|').indexOf(companyId) >= 0) {
+        const val = String(data[i][colIdx] || '').trim();
+        if (val) {
+          const fname = val.split('/').pop().trim();
+          return fname ? DriveApp.getFilesByName(fname).hasNext() : false;
+        }
+      }
+    }
+    return false;
+  } catch (e) { return false; }
+}
+
 function buscarDocumento(companyId, tabla, columna) {
   try {
     if (!companyId || !tabla || !columna) return null;

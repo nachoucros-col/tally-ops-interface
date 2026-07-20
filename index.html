@@ -829,18 +829,18 @@ function renderCompose(){
     ${cmp.clients.some(c=>!c.custom)?`
     <label>Datos del cliente a incluir (opcional)</label>
     <div style="display:flex;gap:8px;margin-bottom:6px">
-      <select id="iaDatoTabla" onchange="datoTablaChange(this.value)" style="flex:1"><option value="">— tabla —</option>${Object.keys(TABLAS_APPSHEET).map(t=>`<option>${t}</option>`).join('')}</select>
+      <select id="iaDatoTabla" onchange="datoTablaChange(this.value)" style="flex:1"><option value="">— dato del cliente —</option>${Object.keys(TABLAS_APPSHEET).map(t=>`<option value="${t}">${tablaLabel(t)}</option>`).join('')}</select>
       <select id="iaDatoCol" style="flex:1"><option value="">— columna —</option></select>
       <button class="mini btn-ghost" onclick="iaAddDato()">➕</button>
     </div>
-    <div class="sel-clients">${(cmp.iaDatos||[]).map((d,ix)=>`<span class="chip">📊 ${esc(d.tabla)}.${esc(d.columna)} <b onclick="cmp.iaDatos.splice(${ix},1);renderCompose()">✕</b></span>`).join('')}</div>
+    <div class="sel-clients">${(cmp.iaDatos||[]).map((d,ix)=>`<span class="chip">📊 ${esc(tablaLabel(d.tabla))} → ${esc(d.columna)} <b onclick="cmp.iaDatos.splice(${ix},1);renderCompose()">✕</b></span>`).join('')}</div>
 
     <label>Documentos a adjuntar por cliente (opcional)</label>
     <div style="display:flex;gap:8px;margin-bottom:6px">
-      <select id="iaDocTabla" style="flex:1"><option value="">— documento de tabla —</option>${Object.keys(TABLAS_DOCS).map(t=>`<option value="${t}">${t} (${TABLAS_DOCS[t]})</option>`).join('')}</select>
+      <select id="iaDocTabla" style="flex:1"><option value="">— documento —</option>${Object.keys(TABLAS_DOCS).map(t=>`<option value="${t}">${tablaLabel(t)}</option>`).join('')}</select>
       <button class="mini btn-ghost" onclick="iaAddDoc()">➕</button>
     </div>
-    <div class="sel-clients">${(cmp.iaDocs||[]).map((d,ix)=>`<span class="chip">📎 ${esc(d.tabla)} <b onclick="cmp.iaDocs.splice(${ix},1);renderCompose()">✕</b></span>`).join('')}</div>
+    <div class="sel-clients">${(cmp.iaDocs||[]).map((d,ix)=>`<span class="chip">📎 ${esc(tablaLabel(d.tabla))} <b onclick="cmp.iaDocs.splice(${ix},1);renderCompose()">✕</b></span>`).join('')}</div>
     `:`
     <div class="notice info" style="margin-top:8px">📊 Los <b>datos y documentos de AppSheet</b> son por cliente: agrega al menos un cliente del directorio (o vinculado 🔗) en el paso 1 y aquí aparecerán las opciones para incluirlos.</div>
     `}
@@ -908,7 +908,7 @@ function camposFormHtml(tpl, ctxId){
     h+=campos.map((c,ix)=>`<input type="text" id="${ctxId}-campo-${ix}" placeholder="${esc(c)}" value="${esc((cmp.camposVals||{})[c]||'')}" style="margin-bottom:8px" oninput="cmp.camposVals=cmp.camposVals||{};cmp.camposVals['${esc(c)}']=this.value">`).join('');
   }
   if(docs.length){
-    h+=`<div class="notice info" style="margin-top:4px">📎 Esta plantilla adjunta automáticamente por cliente: <b>${docs.map(d=>esc(d.tabla+' → '+d.columna)).join(' · ')}</b> (documento más reciente en su expediente). Si algún cliente no lo tiene, su envío se bloquea y te aviso.</div>`;
+    h+=`<div class="notice info" style="margin-top:4px">📎 Esta plantilla adjunta automáticamente por cliente: <b>${docs.map(d=>esc(tablaLabel(d.tabla))).join(' · ')}</b> (documento más reciente en su expediente). Si algún cliente no lo tiene, su envío se bloquea y te aviso.</div>`;
   }
   return h;
 }
@@ -932,7 +932,31 @@ const TABLAS_APPSHEET={
  'Estados_cuenta':['IngresoTotal','MesPeriodo','FechaRecepción'],
  'Reportes_de_venta':['Ingresos','MesPeriodo']
 };
-const TABLAS_DOCS={'declaracion_periodo':'Documento','Reportes_de_venta':'Archivo','Retenciones_por_periodo':'URLRetencion','Estados_cuenta':'UrlVentas','Inventario_por_periodo':'URLInventario','diot_periodo':'Documento'};
+const TABLAS_DOCS={'declaracion_periodo':'Documento','Reportes_de_venta':'Archivo','Retenciones_por_periodo':'URLRetencion','Estados_cuenta':'UrlVentas','Inventario_por_periodo':'URLInventario','diot_periodo':'Documento',
+ 'Balance_general':'Documento','balanza_comprobacion':'Documento','calculo_impuestos':'Documento','estado_resultados':'Documento','reportes_extra':'Documento'};
+/* ═══ Glosario: nombre técnico de tabla → etiqueta para el usuario ═══ */
+const TABLA_LABELS={
+ 'Clients_Load':'Información general',
+ 'Clientes_por_periodo':'Último período contable',
+ 'Accesos_SellerCentral':'Información Seller Central',
+ 'WeeklyPlan':'Auditoría contable',
+ 'Estados_cuenta':'Estados de Cuenta',
+ 'Reportes_de_venta':'Reportes de Venta'
+};
+const DOC_LABELS={
+ 'declaracion_periodo':'Última declaración',
+ 'Reportes_de_venta':'Reporte de venta',
+ 'Retenciones_por_periodo':'Retenciones',
+ 'Estados_cuenta':'Estados de cuenta',
+ 'Inventario_por_periodo':'Inventario',
+ 'diot_periodo':'DIOT',
+ 'Balance_general':'Balance General',
+ 'balanza_comprobacion':'Balanza Comprobación',
+ 'calculo_impuestos':'Cálculo impuestos',
+ 'estado_resultados':'Estado de resultados',
+ 'reportes_extra':'Otros reportes'
+};
+function tablaLabel(t){ return TABLA_LABELS[t]||DOC_LABELS[t]||t; }
 let WIZ={};
 function abrirWizardPlantilla(){
   WIZ={nombre:'',categoria:cmp.cat||'Seguimiento proceso',asunto:'',cuerpo:'',analisis:null};
@@ -978,7 +1002,7 @@ function wizardResultadoHtml(){
 function wizardTablaSel(ix,tablas,a){
   const [tSel,cSel]=(a.match||'').split('.');
   return `<div style="display:flex;gap:8px">
-    <select id="wz-tabla-${ix}" onchange="WIZ.analisis[${ix}].match=this.value+'.'+(document.getElementById('wz-col-${ix}')?.value||'');renderWizard()" style="flex:1"><option value="">— tabla —</option>${Object.keys(tablas).map(t=>`<option ${tSel===t?'selected':''}>${t}</option>`).join('')}</select>
+    <select id="wz-tabla-${ix}" onchange="WIZ.analisis[${ix}].match=this.value+'.'+(document.getElementById('wz-col-${ix}')?.value||'');renderWizard()" style="flex:1"><option value="">— tabla —</option>${Object.keys(tablas).map(t=>`<option value="${t}" ${tSel===t?'selected':''}>${tablaLabel(t)}</option>`).join('')}</select>
     <select id="wz-col-${ix}" onchange="WIZ.analisis[${ix}].match=(document.getElementById('wz-tabla-${ix}')?.value||'')+'.'+this.value" style="flex:1"><option value="">— columna —</option>${(tablas[tSel]||[]).map(c=>`<option ${cSel===c?'selected':''}>${c}</option>`).join('')}</select>
   </div>`;
 }
@@ -1129,6 +1153,8 @@ async function genIA(){
       document.getElementById('iaGenBtn').disabled=false; return;
     }
   }
+  st.innerHTML='<div class="notice info">🔍 Verificando que los datos y documentos estén cargados en el sistema…</div>';
+  await verificarRecursos();
   st.innerHTML='';
   document.getElementById('iaGenBtn').disabled=false;
   renderPreviews();
@@ -1150,7 +1176,22 @@ async function genPreviews(){
   }));
   renderPreviews();
   await aplicarIdiomasAuto(null);
+  await verificarRecursos();
   renderPreviews();
+}
+/* ═══ Aviso preventivo: verifica en el sistema los datos/docs esperados antes de enviar ═══ */
+async function verificarRecursos(){
+  for(const p of cmp.previews){
+    const datos=(cmp.tpl==='IA')?(cmp.iaDatos||[]):[];
+    const docs=p.adjuntos||[];
+    if(!p.company_id||String(p.company_id).startsWith('CUSTOM')||(!datos.length&&!docs.length)){ p.faltantes=[]; continue; }
+    const r=await api('verificar_recursos',{company_id:p.company_id,datos,docs});
+    p.faltantes=(r.ok&&r.faltantes)?r.faltantes:[];
+  }
+}
+function faltantesHtml(p){
+  if(!p.faltantes||!p.faltantes.length) return '';
+  return `<div class="notice warn" style="margin:0 0 8px">⚠️ <b>Falta información en el sistema para este cliente:</b> ${p.faltantes.map(f=>esc((f.tipo==='documento'?'📎 ':'📊 ')+tablaLabel(f.tabla)+(f.tipo==='dato'?' → '+f.columna:''))).join(' · ')}.<br>Cárgala en AppSheet y vuelve a generar — el envío queda bloqueado para no mandar el correo incompleto.</div>`;
 }
 function ownerDe(companyId){
   const c=CLIENTES.find(x=>x.company_id===companyId);
@@ -1165,6 +1206,7 @@ function renderPreviews(){
     <div class="preview-card">
       <div class="pc-head"><span class="pc-title">${esc(p.cliente)} <span style="color:var(--gray-500);font-weight:400">· ${String(p.company_id||'').startsWith('CUSTOM')?'✉️ personalizado':esc(p.company_id)}${ownerDe(p.company_id)?` · owner: ${esc(ownerDe(p.company_id))}`:''}</span></span>
         <span class="pc-status" id="st-${i}">${p.sent?'✅ Enviado':''}</span></div>
+      ${faltantesHtml(p)}
       ${!p.to?`<div class="notice warn" style="margin:0 0 8px">⚠️ <b>Este cliente no tiene correo en el registro.</b> Escríbelo abajo (varios separados por coma) y guárdalo en su ficha para que el sistema lo recuerde.</div>`:''}
       <input type="text" id="to-${i}" value="${esc(p.to)}" placeholder="destinatario@ — varios separados por coma (obligatorio)">
       ${!p.to?`<div class="btn-row" style="margin:0 0 8px"><button class="btn btn-ghost" id="save-${i}" onclick="guardarCorreoCliente(${i})">💾 Guardar correo(s) en la ficha del cliente</button></div>`:''}
@@ -1175,11 +1217,11 @@ function renderPreviews(){
           <option value="en" ${p.idioma!=='es'?'selected':''}>Inglés</option>
           <option value="es" ${p.idioma==='es'?'selected':''}>Español</option>
         </select>
-        ${(p.adjuntos&&p.adjuntos.length)?`<span style="font-size:12px">📎 adjuntará: ${p.adjuntos.map(a=>esc(a.tabla)).join(', ')}</span>`:''}
+        ${(p.adjuntos&&p.adjuntos.length)?`<span style="font-size:12px">📎 adjuntará: ${p.adjuntos.map(a=>esc(tablaLabel(a.tabla))).join(', ')}</span>`:''}
       </div>
       <input type="text" id="sub-${i}" value="${esc(p.subject)}">
       <textarea id="body-${i}" rows="10">${esc(p.body)}</textarea>
-      <div class="btn-row"><button class="btn btn-approve" id="send-${i}" ${p.sent?'disabled':''} onclick="sendOne(${i})">🚀 Enviar ahora</button></div>
+      <div class="btn-row"><button class="btn btn-approve" id="send-${i}" ${(p.sent||(p.faltantes&&p.faltantes.length))?'disabled':''} onclick="sendOne(${i})">🚀 Enviar ahora</button></div>
     </div>`).join('')+
   (cmp.previews.length>1?`<div class="btn-row"><button class="btn btn-primary" id="sendAll" onclick="sendAll()">🚀 Enviar TODOS (${cmp.previews.length})</button></div>`:'');
 }
@@ -1198,6 +1240,7 @@ async function guardarCorreoCliente(i){
 }
 async function sendOne(i){
   const p=cmp.previews[i];
+  if(p.faltantes&&p.faltantes.length){ toast('🔒 '+p.cliente+': falta información en el sistema — revisa el aviso ⚠️ de su tarjeta'); return; }
   p.to=document.getElementById('to-'+i).value.trim();
   p.cc=document.getElementById('cc-'+i).value.trim();
   p.subject=document.getElementById('sub-'+i).value.trim();
@@ -1219,6 +1262,7 @@ async function sendAll(){
   for(let i=0;i<cmp.previews.length;i++){
     if(!cmp.previews[i].sent){
       const p=cmp.previews[i];
+      if(p.faltantes&&p.faltantes.length){ document.getElementById('st-'+i).textContent='🔒 info faltante en el sistema'; continue; }
       p.to=document.getElementById('to-'+i).value.trim();
       p.cc=document.getElementById('cc-'+i).value.trim();
       p.subject=document.getElementById('sub-'+i).value.trim();
