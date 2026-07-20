@@ -51,6 +51,8 @@ h1{font-size:28px;font-weight:700;letter-spacing:-0.015em;margin-bottom:4px}
 .chip{padding:6px 14px;border-radius:var(--radius-sm);background:var(--gray-100);font-size:13px;font-weight:500;border:1px solid transparent;color:var(--ink);transition:var(--transition-micro)}
 .chip:hover{border-color:var(--gray-300)}
 .chip.on{background:var(--ink);color:var(--cream)}
+.chip-n{background:#fff;border-radius:var(--radius-pill);padding:0 7px;font-size:11px;color:var(--text-secondary);margin-left:2px;box-shadow:var(--shadow-sm);display:inline-block;line-height:1.6}
+.chip.on .chip-n{background:rgba(255,255,255,.18);color:var(--cream);box-shadow:none}
 .split{display:block;max-width:980px}
 .mail-list{display:flex;flex-direction:column;gap:10px}
 .mail-card{background:#fff;border:1px solid var(--border-light);border-radius:var(--radius-md);padding:14px 16px;cursor:pointer;box-shadow:var(--shadow-sm);transition:var(--transition-state)}
@@ -402,14 +404,26 @@ function api(action, payload){
 }
 
 /* ═══════════════ CONFIG EDITABLE ═══════════════ */
+function countCat(cat){
+  if(cat==='__out') return SALIENTES.length;
+  return EMAILS.filter(e=>{
+    if(cuentaFilter && e.cuenta!==cuentaFilter) return false;
+    if(cat==='__hist') return e.estado==='Enviado';
+    if(e.estado==='Descartado') return false;
+    if(cat==='__pend') return e.estado==='Nuevo'||e.estado==='Draft listo';
+    if(cat!=='*' && e.categoria!==cat) return false;
+    return true;
+  }).length;
+}
+function chipN(cat){ return `<span class="chip-n">${countCat(cat)}</span>`; }
 function renderCatChips(){
   const cats = (CONFIG.categorias_triage || 'Documentación, Proceso, Queja y reclamo, Alerta').split(',').map(s=>s.trim()).filter(Boolean);
   const el = document.getElementById('catChips');
-  el.innerHTML = `<button class="chip" data-cat="*">Todos</button>`
-    + cats.map(c=>`<button class="chip" data-cat="${esc(c)}">${esc(c)}</button>`).join('')
-    + `<button class="chip" data-cat="__pend">⏳ Pendientes de mí</button>
-       <button class="chip" data-cat="__out">📤 Enviados por mí</button>
-       <button class="chip" data-cat="__hist">Respondidos</button>
+  el.innerHTML = `<button class="chip" data-cat="*">Todos ${chipN('*')}</button>`
+    + cats.map(c=>`<button class="chip" data-cat="${esc(c)}">${esc(c)} ${chipN(c)}</button>`).join('')
+    + `<button class="chip" data-cat="__pend">⏳ Pendientes de mí ${chipN('__pend')}</button>
+       <button class="chip" data-cat="__out">📤 Enviados por mí ${chipN('__out')}</button>
+       <button class="chip" data-cat="__hist">Respondidos ${chipN('__hist')}</button>
        <select id="mailCuenta" onchange="cuentaFilter=this.value;renderMailList()" style="width:auto;padding:6px 10px;font-size:13px;margin-left:auto">
          <option value="">📧 Cuenta: todas</option>
          ${[...new Set(EMAILS.map(e=>e.cuenta).filter(Boolean))].sort().map(c=>`<option value="${esc(c)}" ${cuentaFilter===c?'selected':''}>${esc(c)}@</option>`).join('')}
@@ -469,6 +483,7 @@ function fechaLarga(iso){
 }
 
 function renderMailList(){
+  renderCatChips(); // refresca los contadores de cada filtro
   const el = document.getElementById('mailList');
   if(catFilter==='__out'){ renderSalientesList(el); return; }
   const list = visibleEmails();
@@ -1451,9 +1466,10 @@ document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',ev=>{
   document.getElementById('view-'+a.dataset.view).classList.add('active');
 }));
 document.getElementById('catChips').addEventListener('click',ev=>{
-  if(!ev.target.dataset.cat) return;
-  catFilter=ev.target.dataset.cat; composeMode=false;
-  document.querySelectorAll('#catChips .chip').forEach(c=>c.classList.toggle('on',c===ev.target));
+  const ch=ev.target.closest('.chip');
+  if(!ch||!ch.dataset.cat) return;
+  catFilter=ch.dataset.cat; composeMode=false;
+  document.querySelectorAll('#catChips .chip').forEach(c=>c.classList.toggle('on',c===ch));
   renderMailList();
 });
 
