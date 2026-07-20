@@ -193,7 +193,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <div class="logo">Tally <span>Ops</span></div>
     <div class="sub">Interfaz Contable</div>
     <a href="#bandeja" class="active" data-view="bandeja">📥 Bandeja</a>
-    <a href="#sc" data-view="sc">📦 Seller Central</a>
+    <a href="#sc" data-view="sc">📦 Documentación</a>
     <a href="#log" data-view="log" style="display:none">🕐 Actividad</a>
     <a href="#clientes" data-view="clientes" id="navClientes" style="display:none">👥 Clientes</a>
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
@@ -236,15 +236,22 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <section class="view" id="view-sc">
       <div class="page-head">
         <div>
-          <h1>Seller Central — Seguimiento SOP</h1>
-          <p class="lead">Cola de recopilación documental. Bloque A = listos para envío de escenario; Bloque B = discrepancias. Al aprobar, el agente envía desde accounting@ CC customersuccess@ y actualiza AppSheet.</p>
+          <h1>Documentación mensual</h1>
+          <p class="lead">Ciclo documental de TODOS los clientes elegibles: Amazon (First Shipment ✅) y China/Legacy (RFC + banco). Cada card trae su checklist según perfil: 📊 acceso SC · 🏦 estado de cuenta · 🧾 facturas y gastos. Payoneer ✅ = edo. cuenta auto-cumplido.</p>
         </div>
         <div class="head-actions">
+          <button class="chip" onclick="syncDoc()" title="Recalcula elegibilidad y checklist desde AppSheet (Clients_Load, Accesos, Estados de cuenta)">🧾 Recalcular checklist</button>
           <button class="compose-btn" id="scBatchBtn" onclick="scBatch()">📦 Enviar en Batch</button>
         </div>
       </div>
       <div class="chips" style="align-items:center">
-        <input type="text" id="scBuscar" placeholder="🔎 Buscar cliente o AZ…" oninput="renderSC()" style="max-width:230px;width:230px">
+        <input type="text" id="scBuscar" placeholder="🔎 Buscar cliente o ID…" oninput="renderSC()" style="max-width:230px;width:230px">
+        <select id="scTipo" onchange="renderSC()" style="width:auto;padding:6px 10px;font-size:13px">
+          <option value="">Tipo: todos</option>
+          <option value="AZ">🛒 Amazon (AZ)</option>
+          <option value="CH">🇨🇳 China (CH)</option>
+          <option value="IN">🌎 Legacy (IN)</option>
+        </select>
         <span class="chip" id="scCiclo" style="cursor:default;background:var(--brand-primary-soft);color:#3a2bb3"></span>
         <a class="chip" href="https://app.notion.com/p/34a325ede0a3808b9404e013f3249dec" target="_blank" style="margin-left:auto;text-decoration:none;display:inline-flex;align-items:center;gap:6px">📖 Glosario de los escenarios ↗</a>
       </div>
@@ -385,10 +392,10 @@ async function loadAll(){
 
 /* ═══════════════ API (JSONP → respuesta legible del Apps Script) ═══════════════ */
 let jsonpN = 0;
-function api(action, payload){
+function api(action, payload, timeoutMs){
   return new Promise((resolve)=>{
     const cb = '__tallyCb' + (++jsonpN);
-    const timer = setTimeout(()=>{ cleanup(); resolve({ok:false,error:'timeout — sin respuesta del Apps Script'}); }, 30000);
+    const timer = setTimeout(()=>{ cleanup(); resolve({ok:false,error:'timeout — sin respuesta del Apps Script'}); }, timeoutMs||30000);
     function cleanup(){ clearTimeout(timer); delete window[cb]; script.remove(); }
     window[cb] = (data)=>{ cleanup(); resolve(data); };
     const url = APPS_SCRIPT_URL + '?action=' + encodeURIComponent(action)
@@ -1423,11 +1430,28 @@ function kbColDe(r){
   if(r.escenario_actual==='Esc.2') return 2;
   return 3;
 }
+/* Checklist documental por perfil (columna Q de SC_Seguimiento, JSON) */
+const CHK_META={sc:['📊','Acceso SC'],edo:['🏦','Edo. cuenta'],fact:['🧾','Facturas']};
+function checklistArr(r){ try{ const a=JSON.parse(r.checklist||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function docCompleto(r){ const c=checklistArr(r); return c.length>0 && c.every(x=>x.ok); }
+function checklistChips(r){
+  return checklistArr(r).map(c=>{
+    const [ico,lbl]=CHK_META[c.k]||['❔',c.k];
+    return `<span class="tag" style="${c.ok?'background:var(--green-100);color:#1d7a3f':'background:var(--gray-100)'}" title="${lbl}${c.auto?' — Payoneer ✅ (auto-cumplido)':''}">${ico} ${c.ok?'✅':'⬜'}</span>`;
+  }).join('');
+}
+async function syncDoc(){
+  toast('🧾 Recalculando elegibilidad y checklist desde AppSheet… (puede tardar ~1 min)');
+  const r=await api('sync_documentacion',{},180000);
+  if(r.ok){ toast(`✅ ${r.periodo}: ${r.con_pendientes} con pendientes · ${r.completos} completos`); loadAll(); }
+  else toast('❌ '+(r.error||'error'));
+}
 function kbCard(r,col){
   const resp=r.estado_sop==='Respondió', cerrado=cicloCerrado(r);
   return `<div class="kb-card" draggable="true" ondragstart="kbDrag(event,'${esc(r.company_id)}')" ondragend="this.classList.remove('dragging')" onclick="scDetail('${esc(r.company_id)}')">
     <div class="kb-title">${esc(r.cliente)}</div>
-    <div class="kb-meta">${esc(r.company_id)} · 👤 ${esc(ownerDe(r.company_id)||r.owner||'—')}</div>
+    <div class="kb-meta">${esc(r.company_id)} · 👤 ${esc(ownerDe(r.company_id)||r.owner||'—')}${r.tipo_perfil?' · '+esc(r.tipo_perfil):''}</div>
+    ${checklistArr(r).length?`<div class="kb-tags" style="margin-bottom:5px">${checklistChips(r)}</div>`:''}
     <div class="kb-tags">
       ${resp?'<span class="tag" style="background:var(--cyan-100);color:#0a6d8f">💬 Respondió</span>':''}
       ${cerrado?`<span class="tag" style="background:var(--green-500);color:#fff">✅ Cerrado · ${esc(String(r.fecha_ultimo_envio).substring(5,16))}</span>`:(envioEsteMes(r)?`<span class="tag" style="background:var(--green-100);color:#1d7a3f">📤 Enviado · ${esc(String(r.fecha_ultimo_envio).substring(5,16))}</span>`:'')}

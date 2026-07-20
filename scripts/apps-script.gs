@@ -309,6 +309,11 @@ function handle(body) {
       sh.appendRow(vals);
       return { ok: true, inserted: body.plantilla_id };
     }
+    case 'sync_documentacion': {
+      // 📦 Documentación mensual — elegibilidad y checklist por cliente.
+      // Blueprint: docs/documentacion-mensual-blueprint.md (decidido con Juan 20-jul-2026).
+      return syncDocumentacion(ss);
+    }
     case 'verificar_recursos': {
       // Aviso preventivo: reporta qué datos/documentos esperados NO están cargados en el sistema
       // para un cliente, ANTES de generar/enviar el correo. body: {company_id, datos:[], docs:[]}
@@ -847,6 +852,90 @@ function sendViaDwd(from, to, cc, subject, bodyText, threadId, adjuntos) {
  *  y lo trae del Drive por nombre de archivo. Columnas de archivo típicas:
  *  declaracion_periodo.Documento · Reportes_de_venta.Archivo · Retenciones_por_periodo.URLRetencion
  *  Estados_cuenta.UrlVentas · Inventario_por_periodo.URLInventario · diot_periodo.Documento */
+/* ══════════ 📦 DOCUMENTACIÓN MENSUAL — elegibilidad + checklist (blueprint 20-jul-2026) ══════════
+   Universo: AZ con First Shipment=Finalizado · CH/IN con RFC válido y banco activo.
+   Checklist: sc (solo AZ) · edo (Payoneer Y = auto-cumplido) · fact (Clients_Load.Control_facturas=Sí).
+   Escribe SC_Seguimiento en UN solo setValues (preserva escenario/aprobación/envíos). */
+function syncDocumentacion(ss) {
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const hoy = new Date(), mesNombre = MESES[hoy.getMonth()], anio = String(hoy.getFullYear());
+  const periodo = mesNombre + ' ' + anio;
+  const dm = SpreadsheetApp.openById(DATAMODEL_ID);
+
+  const cl = dm.getSheetByName('Clients_Load').getDataRange().getValues();
+  const H = cl[0].map(String);
+  const iId = H.indexOf('Company_Id'), iRfc = H.indexOf('RFC'), iName = H.indexOf('ClientName'),
+        iOwner = H.indexOf('Owner'), iSusp = H.indexOf('Suspension'), iCtrl = H.indexOf('Control_facturas'),
+        iFS = H.indexOf('First Shipment'), iBanco = H.indexOf('Banco'), iEdoB = H.indexOf('Estado Banco');
+
+  const ac = dm.getSheetByName('Accesos_SellerCentral').getDataRange().getValues();
+  const hA = ac[0].map(String), aId = hA.indexOf('Company_id'), aEst = hA.indexOf('EstadoAcceso'), aPay = hA.indexOf('Acceso_Payoneer');
+  const ACC = {};
+  for (let i = 1; i < ac.length; i++) { const k = String(ac[i][aId] || '').trim(); if (k) ACC[k] = { estado: String(ac[i][aEst] || ''), pay: String(ac[i][aPay] || '') }; }
+
+  const ec = dm.getSheetByName('Estados_cuenta').getDataRange().getValues();
+  const hE = ec[0].map(String), eId = hE.indexOf('Company_id'), eMes = hE.indexOf('MesPeriodo'), eAnio = hE.indexOf('AñoPeríodo');
+  const EDO = {};
+  for (let i = 1; i < ec.length; i++) {
+    if (String(ec[i][eMes] || '') === mesNombre && String(ec[i][eAnio] || '') === anio) {
+      const m = String(ec[i][eId] || '').match(/([A-Z]{2,4}\d{6})/);
+      if (m) EDO[m[1]] = true;
+    }
+  }
+
+  const sh = ss.getSheetByName('SC_Seguimiento');
+  const sc = sh.getDataRange().getValues();
+  const W = 17; // A..Q (P tipo_perfil, Q checklist)
+  sc.forEach(function(r){ while (r.length < W) r.push(''); });
+  sc[0][15] = 'tipo_perfil'; sc[0][16] = 'checklist';
+  const IDX = {};
+  for (let r = 1; r < sc.length; r++) IDX[String(sc[r][0]).trim()] = r;
+
+  let conPend = 0, completos = 0, fuera = 0;
+  for (let i = 1; i < cl.length; i++) {
+    const cid = String(cl[i][iId] || '').trim();
+    if (!cid) continue;
+    if (/^s/i.test(String(cl[i][iSusp] || ''))) continue; // suspendidos fuera
+    let tipo = '';
+    if (cid.indexOf('AZ') === 0) tipo = 'AZ';
+    else if (cid.indexOf('CH') === 0) tipo = 'CH';
+    else if (cid.indexOf('IN') === 0) tipo = 'IN';
+    else { fuera++; continue; } // ML/MX fuera de alcance v1
+    const rfc = String(cl[i][iRfc] || '').trim();
+    const rfcOK = rfc && rfc !== 'NO MATCH';
+    const bancoOK = String(cl[i][iBanco] || '').trim() !== '' || String(cl[i][iEdoB] || '') === 'Finalizado';
+    if (tipo === 'AZ') { if (String(cl[i][iFS] || '') !== 'Finalizado') continue; }
+    else if (!(rfcOK && bancoOK)) continue;
+
+    const acc = ACC[cid] || { estado: '', pay: '' };
+    const payOK = String(acc.pay).toUpperCase() === 'Y';
+    const check = [];
+    if (tipo === 'AZ') check.push({ k: 'sc', ok: /complet|total/i.test(acc.estado) });
+    check.push(payOK ? { k: 'edo', ok: true, auto: true } : { k: 'edo', ok: !!EDO[cid] });
+    if (/^s/i.test(String(cl[i][iCtrl] || ''))) check.push({ k: 'fact', ok: false });
+    const pend = check.filter(function(c){ return !c.ok; });
+    const accion = pend.length
+      ? 'Solicitar: ' + pend.map(function(c){ return { sc: 'acceso SC', edo: 'estado de cuenta', fact: 'facturas y gastos' }[c.k]; }).join(', ') + ' (' + periodo + ')'
+      : '';
+    const chk = JSON.stringify(check);
+    const r = IDX[cid];
+    if (r !== undefined) {
+      sc[r][1] = String(cl[i][iName] || ''); sc[r][2] = String(cl[i][iOwner] || ''); sc[r][3] = periodo;
+      sc[r][8] = pend.length ? '' : '✅ Documentación completa';
+      sc[r][9] = accion;
+      sc[r][14] = new Date().toISOString();
+      sc[r][15] = tipo; sc[r][16] = chk;
+      // E escenario, F estado, K aprobación, L/M envíos: NO se tocan
+    } else if (pend.length) {
+      const fila = [cid, String(cl[i][iName] || ''), String(cl[i][iOwner] || ''), periodo, 'Esc.1', 'En espera', '', 'A', '', accion, 'Pendiente', '', '', '', new Date().toISOString(), tipo, chk];
+      sc.push(fila); IDX[cid] = sc.length - 1;
+    } else { completos++; continue; }
+    if (pend.length) conPend++; else completos++;
+  }
+  sh.getRange(1, 1, sc.length, W).setValues(sc);
+  return { ok: true, periodo: periodo, con_pendientes: conPend, completos: completos, fuera_alcance_v1: fuera };
+}
+
 /** Verifica existencia (barato, sin descargar el archivo) de un documento en el expediente. */
 function existeDocumento(companyId, tabla, columna) {
   try {
