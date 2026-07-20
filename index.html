@@ -217,7 +217,10 @@ tr:hover td{background:rgba(96,71,255,.04)}
         <button class="chip" data-cat="__pend">⏳ Pendientes de mí</button>
         <button class="chip" data-cat="__out">📤 Enviados por mí</button>
         <button class="chip" data-cat="__hist">Respondidos</button>
-        <select id="mailOrden" onchange="mailOrden=this.value;renderMailList()" style="width:auto;padding:6px 10px;font-size:13px;margin-left:auto">
+        <select id="mailCuenta" onchange="cuentaFilter=this.value;renderMailList()" style="width:auto;padding:6px 10px;font-size:13px;margin-left:auto">
+          <option value="">📧 Cuenta: todas</option>
+        </select>
+        <select id="mailOrden" onchange="mailOrden=this.value;renderMailList()" style="width:auto;padding:6px 10px;font-size:13px">
           <option value="desc">🕐 Más recientes primero</option>
           <option value="asc">🕐 Orden de llegada</option>
         </select>
@@ -407,7 +410,11 @@ function renderCatChips(){
     + `<button class="chip" data-cat="__pend">⏳ Pendientes de mí</button>
        <button class="chip" data-cat="__out">📤 Enviados por mí</button>
        <button class="chip" data-cat="__hist">Respondidos</button>
-       <select id="mailOrden" onchange="mailOrden=this.value;renderMailList()" style="width:auto;padding:6px 10px;font-size:13px;margin-left:auto">
+       <select id="mailCuenta" onchange="cuentaFilter=this.value;renderMailList()" style="width:auto;padding:6px 10px;font-size:13px;margin-left:auto">
+         <option value="">📧 Cuenta: todas</option>
+         ${[...new Set(EMAILS.map(e=>e.cuenta).filter(Boolean))].sort().map(c=>`<option value="${esc(c)}" ${cuentaFilter===c?'selected':''}>${esc(c)}@</option>`).join('')}
+       </select>
+       <select id="mailOrden" onchange="mailOrden=this.value;renderMailList()" style="width:auto;padding:6px 10px;font-size:13px">
          <option value="desc" ${mailOrden==='desc'?'selected':''}>🕐 Más recientes primero</option>
          <option value="asc" ${mailOrden==='asc'?'selected':''}>🕐 Orden de llegada</option>
        </select>`;
@@ -435,8 +442,10 @@ const CAT_CLASS={'Documentación':'cat-Documentación','Proceso':'cat-Proceso','
 const ST_CLASS={'Nuevo':'st-Nuevo','Prompt recibido':'st-Prompt','Draft listo':'st-Draft','Aprobado':'st-Aprobado','Enviado':'st-Enviado','Descartado':'st-Nuevo'};
 
 let mailOrden='desc'; // 'desc' = más recientes primero · 'asc' = orden de llegada
+let cuentaFilter='';  // '' = todas las cuentas
 function visibleEmails(){
   return EMAILS.filter(e=>{
+    if(cuentaFilter && e.cuenta!==cuentaFilter) return false;
     if(catFilter==='__hist') return e.estado==='Enviado';
     if(e.estado==='Descartado') return false;
     if(catFilter==='__pend') return e.estado==='Nuevo'||e.estado==='Draft listo';
