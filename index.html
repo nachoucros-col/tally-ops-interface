@@ -53,6 +53,12 @@ h1{font-size:28px;font-weight:700;letter-spacing:-0.015em;margin-bottom:4px}
 .chip.on{background:var(--ink);color:var(--cream)}
 .chip-n{background:#fff;border-radius:var(--radius-pill);padding:0 7px;font-size:11px;color:var(--text-secondary);margin-left:2px;box-shadow:var(--shadow-sm);display:inline-block;line-height:1.6}
 .chip.on .chip-n{background:rgba(255,255,255,.18);color:var(--cream);box-shadow:none}
+.chip-sep{color:var(--gray-300);font-weight:300;padding:0 4px;user-select:none}
+#filterBtn{display:inline-flex;align-items:center;gap:6px}
+.fdot{width:7px;height:7px;border-radius:var(--radius-pill);background:var(--brand-primary);display:inline-block}
+.filter-pop{position:absolute;right:0;top:100%;margin-top:-10px;background:#fff;border:1px solid var(--border-light);border-radius:var(--radius-md);box-shadow:var(--shadow-xl);padding:16px;z-index:85;min-width:270px}
+.filter-pop label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin:10px 0 5px;color:var(--text-secondary)}
+.filter-pop label:first-child{margin-top:0}
 .split{display:block;max-width:980px}
 .mail-list{display:flex;flex-direction:column;gap:10px}
 .mail-card{background:#fff;border:1px solid var(--border-light);border-radius:var(--radius-md);padding:14px 16px;cursor:pointer;box-shadow:var(--shadow-sm);transition:var(--transition-state)}
@@ -210,23 +216,16 @@ tr:hover td{background:rgba(96,71,255,.04)}
           <button class="compose-btn" onclick="openCompose()">✍️ Redactar correo</button>
         </div>
       </div>
-      <div class="chips" id="catChips">
-        <button class="chip on" data-cat="*">Todos</button>
-        <button class="chip" data-cat="Documentación">Documentación</button>
-        <button class="chip" data-cat="Proceso">Proceso</button>
-        <button class="chip" data-cat="Queja y reclamo">Queja y reclamo</button>
-        <button class="chip" data-cat="Alerta">Alerta</button>
-        <button class="chip" data-cat="__pend">⏳ Pendientes de mí</button>
-        <button class="chip" data-cat="__out">📤 Enviados por mí</button>
-        <button class="chip" data-cat="__hist">Respondidos</button>
-        <select id="mailCuenta" onchange="cuentaFilter=this.value;renderMailList()" style="width:auto;padding:6px 10px;font-size:13px;margin-left:auto">
-          <option value="">📧 Cuenta: todas</option>
-        </select>
-        <select id="mailOrden" onchange="mailOrden=this.value;renderMailList()" style="width:auto;padding:6px 10px;font-size:13px">
-          <option value="desc">🕐 Más recientes primero</option>
-          <option value="asc">🕐 Orden de llegada</option>
-        </select>
-        <button class="compose-btn" onclick="openCompose()">✍️ Redactar correo</button>
+      <div style="position:relative">
+        <div class="chips" id="catChips">
+          <button class="chip on" data-cat="*">Todos</button>
+          <button class="chip" data-cat="Documentación">Documentación</button>
+          <button class="chip" data-cat="Proceso">Proceso</button>
+          <button class="chip" data-cat="Quejas y alertas">Quejas y alertas</button>
+          <button class="chip" data-cat="__pend">⏳ Pendientes de mí</button>
+          <button class="chip" data-cat="__env">📤 Enviados</button>
+        </div>
+        <div class="filter-pop" id="filterPop" style="display:none"></div>
       </div>
       <div class="split">
         <div class="mail-list" id="mailList"><div style="color:var(--gray-500);padding:30px;text-align:center">Cargando…</div></div>
@@ -405,34 +404,33 @@ function api(action, payload){
 
 /* ═══════════════ CONFIG EDITABLE ═══════════════ */
 function countCat(cat){
-  if(cat==='__out') return SALIENTES.length;
-  return EMAILS.filter(e=>{
+  const mails=EMAILS.filter(e=>{
     if(cuentaFilter && e.cuenta!==cuentaFilter) return false;
-    if(cat==='__hist') return e.estado==='Enviado';
+    if(cat==='__env') return e.estado==='Enviado';
     if(e.estado==='Descartado') return false;
     if(cat==='__pend') return e.estado==='Nuevo'||e.estado==='Draft listo';
-    if(cat!=='*' && e.categoria!==cat) return false;
+    if(cat!=='*' && !catMatch(cat,e.categoria)) return false;
     return true;
   }).length;
+  return cat==='__env' ? mails+(cuentaFilter?0:SALIENTES.length) : mails;
 }
 function chipN(cat){ return `<span class="chip-n">${countCat(cat)}</span>`; }
 function renderCatChips(){
-  const cats = (CONFIG.categorias_triage || 'Documentación, Proceso, Queja y reclamo, Alerta').split(',').map(s=>s.trim()).filter(Boolean);
+  let cats = (CONFIG.categorias_triage || 'Documentación, Proceso, Quejas y alertas').split(',').map(s=>s.trim()).filter(Boolean);
+  // fusión Queja y reclamo + Alerta → Quejas y alertas (aunque la config aún tenga las viejas)
+  if(cats.includes('Queja y reclamo')||cats.includes('Alerta')){
+    cats=cats.filter(c=>c!=='Queja y reclamo'&&c!=='Alerta');
+    if(!cats.includes('Quejas y alertas')) cats.push('Quejas y alertas');
+  }
   const el = document.getElementById('catChips');
   el.innerHTML = `<button class="chip" data-cat="*">Todos ${chipN('*')}</button>`
     + cats.map(c=>`<button class="chip" data-cat="${esc(c)}">${esc(c)} ${chipN(c)}</button>`).join('')
     + `<button class="chip" data-cat="__pend">⏳ Pendientes de mí ${chipN('__pend')}</button>
-       <button class="chip" data-cat="__out">📤 Enviados por mí ${chipN('__out')}</button>
-       <button class="chip" data-cat="__hist">Respondidos ${chipN('__hist')}</button>
-       <select id="mailCuenta" onchange="cuentaFilter=this.value;renderMailList()" style="width:auto;padding:6px 10px;font-size:13px;margin-left:auto">
-         <option value="">📧 Cuenta: todas</option>
-         ${[...new Set(EMAILS.map(e=>e.cuenta).filter(Boolean))].sort().map(c=>`<option value="${esc(c)}" ${cuentaFilter===c?'selected':''}>${esc(c)}@</option>`).join('')}
-       </select>
-       <select id="mailOrden" onchange="mailOrden=this.value;renderMailList()" style="width:auto;padding:6px 10px;font-size:13px">
-         <option value="desc" ${mailOrden==='desc'?'selected':''}>🕐 Más recientes primero</option>
-         <option value="asc" ${mailOrden==='asc'?'selected':''}>🕐 Orden de llegada</option>
-       </select>`;
+       <button class="chip" data-cat="__env">📤 Enviados ${chipN('__env')}</button>
+       <span class="chip-sep">|</span>
+       <button class="chip" id="filterBtn" onclick="toggleFilterPop()" title="Filtros de cuenta y orden"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polygon points="22 3 2 3 10 12.5 10 19 14 21 14 12.5 22 3"/></svg> Filtros${(cuentaFilter||mailOrden!=='desc')?' <span class="fdot"></span>':''}</button>`;
   el.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on', c.dataset.cat===catFilter));
+  renderFilterPop();
 }
 async function saveCfg(key, elId, okMsg){
   const v = document.getElementById(elId).value.trim();
@@ -452,7 +450,11 @@ async function requestRun(){
 }
 
 /* ═══════════════ BANDEJA ═══════════════ */
-const CAT_CLASS={'Documentación':'cat-Documentación','Proceso':'cat-Proceso','Queja y reclamo':'cat-Queja','Alerta':'cat-Alerta'};
+const CAT_CLASS={'Documentación':'cat-Documentación','Proceso':'cat-Proceso','Queja y reclamo':'cat-Queja','Alerta':'cat-Alerta','Quejas y alertas':'cat-Queja'};
+/* Categorías fusionadas: los correos viejos conservan su valor original en el Sheet */
+const CAT_ALIAS={'Quejas y alertas':['Quejas y alertas','Queja y reclamo','Alerta']};
+function catMatch(cat,eCat){ const l=CAT_ALIAS[cat]; return l?l.includes(eCat):eCat===cat; }
+function catNorm(c){ return (c==='Queja y reclamo'||c==='Alerta')?'Quejas y alertas':c; }
 const ST_CLASS={'Nuevo':'st-Nuevo','Prompt recibido':'st-Prompt','Draft listo':'st-Draft','Aprobado':'st-Aprobado','Enviado':'st-Enviado','Descartado':'st-Nuevo'};
 
 let mailOrden='desc'; // 'desc' = más recientes primero · 'asc' = orden de llegada
@@ -460,10 +462,10 @@ let cuentaFilter='';  // '' = todas las cuentas
 function visibleEmails(){
   return EMAILS.filter(e=>{
     if(cuentaFilter && e.cuenta!==cuentaFilter) return false;
-    if(catFilter==='__hist') return e.estado==='Enviado';
+    if(catFilter==='__env') return e.estado==='Enviado';
     if(e.estado==='Descartado') return false;
     if(catFilter==='__pend') return e.estado==='Nuevo'||e.estado==='Draft listo';
-    if(catFilter!=='*' && e.categoria!==catFilter) return false;
+    if(catFilter!=='*' && !catMatch(catFilter,e.categoria)) return false;
     return true; // los respondidos se quedan visibles con su tag verde ✓
   }).sort((a,b)=>{
     const cmp=(a.fecha_recibido||'').localeCompare(b.fecha_recibido||'');
@@ -482,19 +484,37 @@ function fechaLarga(iso){
   return f+', '+String(h).padStart(2,'0')+':'+m+' '+ap;
 }
 
-function renderMailList(){
-  renderCatChips(); // refresca los contadores de cada filtro
-  const el = document.getElementById('mailList');
-  if(catFilter==='__out'){ renderSalientesList(el); return; }
-  const list = visibleEmails();
-  if(!list.length){ el.innerHTML=`<div style="color:var(--gray-500);padding:40px;text-align:center;background:#fff;border-radius:var(--radius-md);border:1px solid var(--border-light)">Sin correos en esta vista. 🎉</div>`; return; }
-  el.innerHTML = list.map(e=>`
+function toggleFilterPop(){
+  const p=document.getElementById('filterPop');
+  p.style.display=p.style.display==='none'?'block':'none';
+}
+function renderFilterPop(){
+  const p=document.getElementById('filterPop'); if(!p) return;
+  p.innerHTML=`
+    <label>📧 Cuenta</label>
+    <select id="mailCuenta" onchange="cuentaFilter=this.value;renderMailList()">
+      <option value="">Todas las cuentas</option>
+      ${[...new Set(EMAILS.map(e=>e.cuenta).filter(Boolean))].sort().map(c=>`<option value="${esc(c)}" ${cuentaFilter===c?'selected':''}>${esc(c)}@</option>`).join('')}
+    </select>
+    <label>🕐 Orden de llegada</label>
+    <select id="mailOrden" onchange="mailOrden=this.value;renderMailList()">
+      <option value="desc" ${mailOrden==='desc'?'selected':''}>Más recientes primero</option>
+      <option value="asc" ${mailOrden==='asc'?'selected':''}>Más antiguos primero</option>
+    </select>
+    ${(cuentaFilter||mailOrden!=='desc')?`<div class="btn-row"><button class="mini btn-ghost" onclick="cuentaFilter='';mailOrden='desc';renderMailList()">Limpiar filtros</button></div>`:''}`;
+}
+document.addEventListener('click',ev=>{
+  const p=document.getElementById('filterPop');
+  if(p&&p.style.display!=='none'&&!ev.target.closest('#filterPop')&&!ev.target.closest('#filterBtn')) p.style.display='none';
+});
+function mailCardHtml(e){
+  return `
     <div class="mail-card ${e.email_id===selId?'sel':''}" onclick="select('${e.email_id}')">
       <div class="row1"><span class="from">${esc(e.remitente_nombre||e.remitente_email)}</span><span class="date">${esc(fechaLarga(e.fecha_recibido))}</span></div>
       <div class="subj">${esc(e.asunto)}</div>
       <div class="sum">${esc(e.resumen)}</div>
       <div class="tags">
-        <span class="tag ${CAT_CLASS[e.categoria]||'st-Nuevo'}">${esc(e.categoria)}</span>
+        <span class="tag ${CAT_CLASS[e.categoria]||'st-Nuevo'}">${esc(catNorm(e.categoria))}</span>
         <span class="tag ${ST_CLASS[e.estado]||'st-Nuevo'}">${e.estado==='Enviado'?'✓ Respondido':esc(e.estado)}</span>
         <span class="tag acct">${esc(e.cuenta)}@</span>
         ${e.cliente&&e.cliente!=='INTERNO'?`<span class="tag acct">${esc(e.cliente)}</span>`:''}
@@ -502,25 +522,41 @@ function renderMailList(){
         ${e.company_id&&ownerDe(e.company_id)?`<span class="tag acct">👤 ${esc(ownerDe(e.company_id))}</span>`:''}
         ${e.cliente==='INTERNO'?`<span class="tag acct">equipo interno</span>`:''}
       </div>
-    </div>`).join('');
+    </div>`;
+}
+function renderMailList(){
+  renderCatChips(); // refresca los contadores de cada filtro
+  const el = document.getElementById('mailList');
+  if(catFilter==='__env'){ renderEnviados(el); return; }
+  const list = visibleEmails();
+  if(!list.length){ el.innerHTML=`<div style="color:var(--gray-500);padding:40px;text-align:center;background:#fff;border-radius:var(--radius-md);border:1px solid var(--border-light)">Sin correos en esta vista. 🎉</div>`; return; }
+  el.innerHTML = list.map(mailCardHtml).join('');
 }
 
-function renderSalientesList(el){
-  const list=[...SALIENTES].sort((a,b)=>{
-    const cmp=(a.fecha||'').localeCompare(b.fecha||'');
-    return mailOrden==='asc'?cmp:-cmp;
-  });
-  if(!list.length){ el.innerHTML=`<div style="color:var(--gray-500);padding:40px;text-align:center;background:#fff;border-radius:var(--radius-md);border:1px solid var(--border-light)">Aún no has enviado correos desde la interfaz.</div>`; return; }
-  el.innerHTML = list.map(s=>`
+function salienteCardHtml(s){
+  return `
     <div class="mail-card ${s.saliente_id===selOut?'sel':''}" onclick="selectOut('${s.saliente_id}')">
       <div class="row1"><span class="from">→ ${esc(s.cliente||s.destinatarios)}</span><span class="date">${esc(fechaLarga(s.fecha))}</span></div>
       <div class="subj">${esc(s.asunto)}</div>
       <div class="tags">
+        <span class="tag cat-out">📤 Enviado por mí</span>
         <span class="tag cat-out">${esc(s.categoria)}</span>
         <span class="tag st-Enviado">${esc(s.estado)}</span>
         ${s.plantilla?`<span class="tag acct">${esc(s.plantilla)}</span>`:''}
       </div>
-    </div>`).join('');
+    </div>`;
+}
+/* 📤 Enviados = respondidos desde la bandeja + correos creados desde cero, en una sola línea de tiempo */
+function renderEnviados(el){
+  const items=[
+    ...visibleEmails().map(e=>({fecha:e.fecha_recibido||'', html:mailCardHtml(e)})),
+    ...(cuentaFilter?[]:SALIENTES.map(s=>({fecha:s.fecha||'', html:salienteCardHtml(s)})))
+  ].sort((a,b)=>{
+    const cmp=(a.fecha||'').localeCompare(b.fecha||'');
+    return mailOrden==='asc'?cmp:-cmp;
+  });
+  if(!items.length){ el.innerHTML=`<div style="color:var(--gray-500);padding:40px;text-align:center;background:#fff;border-radius:var(--radius-md);border:1px solid var(--border-light)">Aún no hay correos enviados.</div>`; return; }
+  el.innerHTML=items.map(i=>i.html).join('');
 }
 
 function openDrawer(){ document.getElementById('mailDrawer').classList.add('open'); document.getElementById('drawerBack').classList.add('open'); }
