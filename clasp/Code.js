@@ -121,7 +121,7 @@ function handle(body) {
       // REGLA DURA: SIEMPRE en copia customersuccess@, accounting@ y el OWNER del cliente
       const ownEm = ownerEmail(ss, body.company_id);
       const senderD = resolveSender(ss, body, body.categoria);
-      const ccDirect = mergeCc(String(body.cc || '') + (ownEm ? ',' + ownEm : ''), String(body.to), senderD);
+      const ccDirect = mergeCc(String(body.cc || '') + (ownEm ? ',' + ownEm : '') + ',' + ccCliente(ss, body.company_id), String(body.to), senderD);
       // Adjuntos desde Drive vía tablas AppSheet: body.adjuntos = [{tabla, columna}]
       const docs = [];
       if (body.adjuntos && body.adjuntos.length) {
@@ -456,7 +456,7 @@ function handle(body) {
       const cuentaOrigen = String(v[2] || '').toLowerCase();      // cuenta que recibió el correo
       const threadOrigen = String(v[1] || '');                     // thread_id en ESA cuenta
       const sender = resolveSender(ss, body, categoria);
-      const cc = mergeCc(String(v[21] || ''), to, sender);
+      const cc = mergeCc(String(v[21] || '') + ',' + ccCliente(ss, String(v[6] || '')), to, sender);
 
       let enHilo = false, resultado = null;
 
@@ -744,6 +744,16 @@ function setEmailFields(ss, emailId, fields, now) {
 /** REGLA DURA DE COPIAS: conserva los CC originales y agrega SIEMPRE
  *  customersuccess@ y accounting@ si no están. Excluye al destinatario y a la CUENTA REMITENTE
  *  (para que el correo no llegue a la bandeja de entrada de quien lo envía). */
+/* REGLA DURA (20-jul-2026): los correos en `cc_email` de la ficha del cliente van SIEMPRE
+ * en copia en cualquier comunicación que salga de la interfaz hacia ese cliente. */
+function ccCliente(ss, companyId) {
+  if (!companyId) return '';
+  const sh = ss.getSheetByName('Clientes');
+  if (!sh) return '';
+  const row = findRow(sh, 1, companyId);
+  if (!row) return '';
+  return String(sh.getRange(row, 8).getValue() || ''); // H = cc_email
+}
 function mergeCc(ccOriginal, to, sender) {
   const OBLIGATORIOS = ['customersuccess@tally.legal', 'accounting@tally.legal'];
   const EXCLUIR = [String(to || '').toLowerCase(), String(sender || 'juan@tally.legal').toLowerCase()];

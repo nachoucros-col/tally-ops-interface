@@ -639,6 +639,45 @@ function renderContexto(e){
   return html;
 }
 
+/* ═══ CC del hilo: visibles con tag Cliente/Tally + acciones sobre la ficha ═══ */
+function splitEmails(s){ return (String(s||'').match(/[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/g)||[]).map(x=>x.toLowerCase()); }
+function esTally(e){ return /@tally\.legal$/i.test(e); }
+function renderCcOriginales(e){
+  const ccs=splitEmails(e.cc_originales);
+  if(!ccs.length) return '';
+  const c=e.company_id?CLIENTES.find(x=>x.company_id===e.company_id):null;
+  const base=c?splitEmails(c.contacto_email):[], ccPerm=c?splitEmails(c.cc_email):[];
+  const chips=ccs.map(em=>{
+    if(esTally(em)) return `<span class="chip" style="cursor:default">${esc(em)} <span class="chip-n">Tally</span></span>`;
+    let acciones='';
+    if(c){
+      acciones=(base.includes(em)?' <span class="chip-n" title="Ya está en la base de correos del cliente">✓ en base</span>':` <b style="cursor:pointer" title="Agregar a la base de correos del cliente" onclick="ccAddBase('${esc(e.company_id)}','${esc(em)}')">➕ base</b>`)
+        +(ccPerm.includes(em)?` <b style="cursor:pointer;color:#b34a17" title="Quitar del CC permanente" onclick="ccToggleFuturo('${esc(e.company_id)}','${esc(em)}')">✕ CC futuro</b>`:` <b style="cursor:pointer" title="Copiar SIEMPRE en correos futuros a este cliente" onclick="ccToggleFuturo('${esc(e.company_id)}','${esc(em)}')">📋 CC futuro</b>`);
+    }
+    return `<span class="chip" style="cursor:default;background:var(--violet-100);color:#3a2bb3">${esc(em)} <span class="chip-n">Cliente</span>${acciones}</span>`;
+  }).join('');
+  return `<div class="msg-label">👥 En copia en este hilo</div><div class="sel-clients" style="margin:0 0 14px">${chips}</div>
+  ${!c&&ccs.some(x=>!esTally(x))?'<div class="notice info" style="margin:0 0 14px">Este correo no está vinculado a un cliente del directorio — vincúlalo para poder guardar sus CC.</div>':''}`;
+}
+async function ccAddBase(cid,email){
+  const c=CLIENTES.find(x=>x.company_id===cid); if(!c) return;
+  const list=splitEmails(c.contacto_email);
+  if(!list.includes(email)) list.push(email);
+  const r=await api('update_cliente',{company_id:cid,contacto_email:list.join(', ')});
+  if(r.ok){ c.contacto_email=list.join(', '); toast('✅ '+email+' agregado a la base de '+(c.cliente||cid)); if(selId) renderDetail(selId); }
+  else toast('❌ '+(r.error||'error'));
+}
+async function ccToggleFuturo(cid,email){
+  const c=CLIENTES.find(x=>x.company_id===cid); if(!c) return;
+  let list=splitEmails(c.cc_email);
+  const estaba=list.includes(email);
+  list=estaba?list.filter(x=>x!==email):list.concat([email]);
+  const r=await api('update_cliente',{company_id:cid,cc_email:list.join(', ')});
+  if(r.ok){ c.cc_email=list.join(', ');
+    toast(estaba?('✕ '+email+' ya NO irá en copia'):('📋 '+email+' irá SIEMPRE en copia a '+(c.cliente||cid)));
+    if(selId) renderDetail(selId); renderClientes&&document.getElementById('clientesTable')?renderClientes():null; }
+  else toast('❌ '+(r.error||'error'));
+}
 function renderDetail(id){
   const e = EMAILS.find(x=>x.email_id===id);
   const el = document.getElementById('mailDetail');
@@ -647,6 +686,7 @@ function renderDetail(id){
     <h3>${esc(e.asunto)}</h3>
     <div class="meta">${esc(e.remitente_nombre)} &lt;${esc(e.remitente_email)}&gt; · ${esc(e.fecha_recibido)} · vía ${esc(e.cuenta)}@tally.legal${e.company_id?` · <b>${esc(e.company_id)}</b>`:''}</div>
     ${e.mensaje_original?`<div class="msg-label">💬 Mensaje del cliente (texto original)</div><div class="msg-original">${esc(e.mensaje_original)}</div>`:''}
+    ${renderCcOriginales(e)}
     ${renderContexto(e)}`;
   if(e.estado==='Nuevo'||e.estado==='Prompt recibido'){
     html += `
@@ -1120,7 +1160,7 @@ function renderPreviews(){
   const el=document.getElementById('previews');
   el.innerHTML=`<label style="margin-top:20px">4 · Revisa, edita y envía</label>
   ${senderControl('fromSelCmp', cmp.cat)}
-  <div class="notice info" style="margin-top:8px">📎 <b>CC automático en cada envío:</b> customersuccess@ · accounting@ · el owner asignado del cliente. No necesitas agregarlos.</div>`+
+  <div class="notice info" style="margin-top:8px">📎 <b>CC automático en cada envío (regla dura):</b> customersuccess@ · accounting@ · el owner asignado · los <b>CC permanentes</b> de la ficha del cliente. No necesitas agregarlos — el servidor los suma aunque los borres aquí.</div>`+
   cmp.previews.map((p,i)=>`
     <div class="preview-card">
       <div class="pc-head"><span class="pc-title">${esc(p.cliente)} <span style="color:var(--gray-500);font-weight:400">· ${String(p.company_id||'').startsWith('CUSTOM')?'✉️ personalizado':esc(p.company_id)}${ownerDe(p.company_id)?` · owner: ${esc(ownerDe(p.company_id))}`:''}</span></span>
@@ -1536,6 +1576,12 @@ function renderClientes(){
         <input type="text" id="nc-em-${esc(c.company_id)}" placeholder="correo@nuevo.com" style="flex:1.4">
         <button class="mini btn-approve" onclick="cliAgregar('${esc(c.company_id)}')">➕ Agregar contacto</button>
       </div>
+      <div class="msg-label" style="margin:14px 0 6px">📋 CC permanentes <span style="font-weight:400;text-transform:none;letter-spacing:0">— van SIEMPRE en copia en toda comunicación a este cliente</span></div>
+      ${splitEmails(c.cc_email).map(e=>`<div style="display:inline-block;font-size:12.5px;padding:5px 10px;background:var(--violet-100);color:#3a2bb3;border-radius:var(--radius-sm);margin:0 6px 6px 0">📋 ${esc(e)} <b style="cursor:pointer;color:#b34a17" onclick="ccToggleFuturo('${esc(c.company_id)}','${esc(e)}')">✕</b></div>`).join('')||'<div style="color:var(--gray-500);font-size:12px;margin-bottom:6px">sin CC permanentes (los obligatorios customersuccess@ y accounting@ van solos)</div>'}
+      <div style="display:flex;gap:8px;margin-top:6px;max-width:560px">
+        <input type="text" id="ncc-em-${esc(c.company_id)}" placeholder="correo@ a copiar siempre" style="flex:1">
+        <button class="mini btn-ghost" onclick="cliCcAgregar('${esc(c.company_id)}')">📋 Agregar CC permanente</button>
+      </div>
     </td></tr>`:''}`;
   }).join('')}</tbody></table>`;
 }
@@ -1555,6 +1601,14 @@ async function cliAgregar(cid){
   if(r.ok){ c.contacto_email=nuevos; if(payload.contacto_nombre) c.contacto_nombre=nom;
     toast('✅ Contacto agregado a '+c.cliente); renderClientes(); }
   else toast('❌ '+(r.error||'error'));
+}
+async function cliCcAgregar(cid){
+  const em=(document.getElementById('ncc-em-'+cid)?.value||'').trim().toLowerCase();
+  if(!em.includes('@')){ toast('Escribe un correo válido'); return; }
+  const c=CLIENTES.find(x=>x.company_id===cid);
+  if(splitEmails(c.cc_email).includes(em)){ toast('Ese correo ya está en el CC permanente'); return; }
+  await ccToggleFuturo(cid,em);
+  renderClientes();
 }
 async function cliQuitar(cid,email){
   const c=CLIENTES.find(x=>x.company_id===cid);
