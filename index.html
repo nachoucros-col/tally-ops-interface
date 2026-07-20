@@ -475,7 +475,9 @@ function visibleEmails(){
 /* Fecha larga: "9 de junio de 2026, 09:58 a.m." */
 function fechaLarga(iso){
   if(!iso) return '';
-  const s=String(iso).replace(' ','T');
+  let s=String(iso).replace(' ','T');
+  // normaliza horas de un dígito ("2026-07-20T8:20" → "T08:20") para que Date() no las rechace
+  s=s.replace(/T(\d):/,'T0$1:');
   const d=new Date(s);
   if(isNaN(d)) return String(iso);
   const f=d.toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'});
