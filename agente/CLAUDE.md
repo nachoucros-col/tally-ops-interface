@@ -29,6 +29,7 @@ https://script.google.com/macros/s/AKfycbylh4xs3Ch09rUd05CnfxOE-wgERMCZIW38V-lGI
 2. Envía UN correo interno con `send_gmail` desde `accounting@tally.legal` a `juan@tally.legal`:
    - Asunto: `[TALLY-OPS-SYNC] <fecha> <corrida>`
    - Cuerpo: `<<<JSON [ ...operaciones... ] JSON>>>` (el bloque de marcadores es obligatorio; texto plano).
+   - **FORMATO DE CADA OPERACIÓN (regla dura — incidente 20-jul-2026):** objeto PLANO con `action` y los campos al mismo nivel. `{"action":"update_config","key":"x","value":"y"}` ✅ · `{"action":"update_config","payload":{...}}` ❌ — el `payload` anidado hace que el backend lea campos undefined: las ops fallan en silencio o escriben filas vacías/corruptas, y el correo queda etiquetado como procesado (pérdida de datos). Nunca anidar.
 3. Dispara la aplicación con GET corto (web_fetch): `.../exec?action=sync_inbox&token=<TOKEN>` — el Apps Script lee los correos [TALLY-OPS-SYNC] no procesados, aplica las operaciones al Sheet y etiqueta el hilo `tally-ops-processed`.
 4. Verifica leyendo la pestaña afectada (el MCP de Sheets SÍ lee).
 
