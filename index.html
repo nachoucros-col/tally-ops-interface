@@ -1088,10 +1088,20 @@ function addClient(id){
 }
 function removeClient(id){ cmp.clients=cmp.clients.filter(c=>c.company_id!==id); (cmp.flow==='batch'?renderBatch:renderCompose)(); }
 
+function checklistTexto(companyId){
+  const r=SC.find(x=>x.company_id===companyId);
+  if(!r) return '';
+  const pend=checklistArr(r).filter(c=>!c.ok);
+  const L={sc:'Grant view & edit access to your Amazon Seller Central reports for marketplaces@tally.legal (Sales, Inventory, Tax Document Library)',
+           edo:'Send your bank / Payoneer statement for the period',
+           fact:'Send your monthly invoices and expenses for the period'};
+  return pend.map(c=>'• '+(L[c.k]||c.k)).join('\n');
+}
 function fillTemplate(str,c){
   const now=new Date(); const prev=new Date(now.getFullYear(),now.getMonth()-1,1);
   const period=prev.toLocaleString('en-US',{month:'long'})+' '+prev.getFullYear();
   const contact=(c.contacto_nombre||'').trim() || 'team';
+  str=String(str).split('[CHECKLIST]').join(checklistTexto(c.company_id));
   return String(str)
     .replaceAll('{{contact_name}}',contact)
     .replaceAll('{{company_name}}',c.cliente||'')
@@ -1472,6 +1482,10 @@ function renderSC(){
   let rows=SC;
   const q=(document.getElementById('scBuscar')?.value||'').trim().toLowerCase();
   if(q) rows=rows.filter(r=>(r.cliente||'').toLowerCase().includes(q)||(r.company_id||'').toLowerCase().includes(q));
+  const tipoF=document.getElementById('scTipo')?.value||'';
+  if(tipoF) rows=rows.filter(r=>String(r.tipo_perfil||'').toUpperCase()===tipoF||(!r.tipo_perfil&&String(r.company_id||'').startsWith(tipoF)));
+  // Completos fuera del ruido: checklist todo ✅ sin actividad del ciclo → no se muestran
+  rows=rows.filter(r=>!(docCompleto(r)&&!envioEsteMes(r)&&r.estado_sop!=='Respondió'));
   const el=document.getElementById('scBoard');
   if(!SC.length){ el.innerHTML='<p style="color:var(--gray-500)">Sin registros. El agente sincroniza la cola desde AppSheet en cada corrida.</p>'; return; }
   const cols=KB_COLS.map(c=>({...c,rows:[]}));
@@ -1565,7 +1579,9 @@ function scDetail(cid){
   const el=document.getElementById('mailDetail');
   el.innerHTML=`
     <h3>${esc(r.cliente)}</h3>
-    <div class="meta">${esc(r.company_id)} · 👤 ${esc(ownerDe(r.company_id)||r.owner||'—')}${r.periodo?' · '+esc(r.periodo):''}</div>
+    <div class="meta">${esc(r.company_id)} · 👤 ${esc(ownerDe(r.company_id)||r.owner||'—')}${r.tipo_perfil?' · '+esc(r.tipo_perfil):''}${r.periodo?' · '+esc(r.periodo):''}</div>
+    ${checklistArr(r).length?`<label>Checklist documental del mes</label>
+    <div class="resumen">${checklistArr(r).map(c=>{const [ico,lbl]=CHK_META[c.k]||['❔',c.k];return `${ico} ${lbl}: ${c.ok?(c.auto?'✅ auto (Payoneer)':'✅'):'⬜ pendiente'}`;}).join('\n')}</div>`:''}
     <label>Escenario de envío</label>
     ${r.aprobacion==='Aprobado'
       ? `<div class="resumen">${esc(escNombre(r.escenario_actual))}</div>`

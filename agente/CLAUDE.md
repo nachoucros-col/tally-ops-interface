@@ -125,6 +125,13 @@ Buscar filas con `estado=Aprobado`:
 
 ## FASE 4 — Sync Seller Central (SOP CX)
 Fuente: SOP Notion "Seguimiento Customer Support a Clientes" (379325ede0a380309409c724205c600a) + AppSheet.
+
+**📦 DOCUMENTACIÓN MENSUAL UNIFICADA (20-jul-2026 — blueprint en docs/documentacion-mensual-blueprint.md):** la sección dejó de ser exclusiva de Amazon. Reglas nuevas que sustituyen la población de la cola:
+- **Universo:** AZ con `First Shipment=Finalizado` · CH e IN con RFC válido (≠vacío, ≠"NO MATCH") y banco activo (Clients_Load.Banco no vacío o Estado Banco=Finalizado). ML/MX fuera de alcance v1. Suspendidos fuera.
+- **Checklist por perfil** (columnas P `tipo_perfil` y Q `checklist` de SC_Seguimiento, JSON [{k:sc|edo|fact, ok, auto}]): sc solo AZ (EstadoAcceso completo/total = ok) · edo para todos (Payoneer=Y → ok automático, NO pedir nunca; si no, ok si hay fila de Estados_cuenta del mes) · fact solo si Clients_Load.Control_facturas=Sí.
+- El cálculo lo hace la acción `sync_documentacion` del backend (botón 🧾 en la interfaz). El agente puede dispararla vía canal de control una vez por corrida diaria; NO recalcula el checklist por su cuenta ni pisa las columnas P/Q.
+- **Plantillas Esc.1/Esc.2** llevan el bloque `[CHECKLIST]`: lo llena el sistema con los pendientes reales del cliente. El agente NUNCA envía un escenario con [CHECKLIST] sin resolver, ni pide ítems que el checklist marque ok (especialmente edo. cuenta de clientes Payoneer ✅).
+- Clientes con checklist completo y sin actividad del ciclo no aparecen en el tablero ni reciben correos.
 1. Leer cola: `WeeklyPlan` owner=AI, Category=Seller Central, status≠Finalizado + `Accesos_SellerCentral`.
 2. Aplicar las 4 reglas de exclusión del SOP (suspensión, first_shipment≠Finalizado, EstadoAcceso=Total, sin tarea owner=AI).
 3. Calcular escenario y bloque A/B por cliente; upsert en `SC_Seguimiento` (llave `company_id`). No sobrescribir `aprobacion`/`fecha_aprobacion` (los escribe Juan).
