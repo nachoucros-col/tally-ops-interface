@@ -309,6 +309,26 @@ function handle(body) {
       sh.appendRow(vals);
       return { ok: true, inserted: body.plantilla_id };
     }
+    /* ══════════ 🗺️ ROADMAP KPIs CONTABILIDAD (dashboard.tallylegal.io/accounting) ══════════ */
+    case 'kpi_item_add': {
+      // body: {texto, estado: 'Next Steps'|'En proceso'|'Implementado'}
+      if (!String(body.texto || '').trim()) return { ok: false, error: 'texto vacío' };
+      const sh = getOrCreate(ss, 'Roadmap_KPIs', ['item_id', 'texto', 'estado', 'creado', 'actualizado']);
+      const id = 'RK-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+      const est = ['Next Steps', 'En proceso', 'Implementado'].indexOf(String(body.estado)) >= 0 ? String(body.estado) : 'Next Steps';
+      sh.appendRow([id, String(body.texto).trim(), est, now, now]);
+      return { ok: true, item_id: id, estado: est };
+    }
+    case 'kpi_item_estado': {
+      const sh = ss.getSheetByName('Roadmap_KPIs');
+      if (!sh) return { ok: false, error: 'sin pestaña Roadmap_KPIs' };
+      const row = findRow(sh, 1, body.item_id);
+      if (!row) return { ok: false, error: 'item no encontrado' };
+      const est = ['Next Steps', 'En proceso', 'Implementado'].indexOf(String(body.estado)) >= 0 ? String(body.estado) : 'Next Steps';
+      sh.getRange(row, 3).setValue(est);
+      sh.getRange(row, 5).setValue(now);
+      return { ok: true, item_id: body.item_id, estado: est };
+    }
     /* ══════════ ✅ TAREAS (kanban Sin iniciar / Finalizado, alimentado desde Bandeja y Documentación) ══════════ */
     case 'usuarios_publicos': {
       // Lista de responsables asignables (usuarios activos de la plataforma) — SIN contraseñas.
