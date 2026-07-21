@@ -1688,10 +1688,22 @@ function nombreUsuario(email){
   const u=USUARIOS_PLAT.find(x=>x.email===String(email||'').toLowerCase());
   return u?u.nombre:(email||'—');
 }
+function tkAbrir(id){
+  const t=TAREAS.find(x=>x.tarea_id===id); if(!t) return;
+  if(t.origen==='Bandeja'&&t.ref_id){
+    const e=EMAILS.find(x=>x.email_id===t.ref_id);
+    if(!e){ toast('⚠️ El correo de esta tarea ya no está en la bandeja'); return; }
+    select(t.ref_id); // abre el drawer con el hilo completo y la opción de responder
+  } else if(t.origen==='Documentación'&&t.ref_id){
+    const r=SC.find(x=>x.company_id===t.ref_id);
+    if(!r){ toast('⚠️ El cliente de esta tarea ya no está en el tablero de documentación'); return; }
+    scDetail(t.ref_id); // abre el drawer del cliente con checklist, escenario y aprobación
+  } else toast('Esta tarea no tiene proceso vinculado');
+}
 function tkCard(t){
   const origen=t.origen==='Documentación'?'📦':'📥';
-  return `<div class="kb-card" draggable="true" ondragstart="tkDrag(event,'${esc(t.tarea_id)}')" ondragend="this.classList.remove('dragging')">
-    <div class="kb-title">${esc(t.titulo)}</div>
+  return `<div class="kb-card" draggable="true" ondragstart="tkDrag(event,'${esc(t.tarea_id)}')" ondragend="this.classList.remove('dragging')" onclick="tkAbrir('${esc(t.tarea_id)}')" title="Abrir el proceso vinculado (${esc(t.origen||'')})">
+    <div class="kb-title">${esc(t.titulo)} <span style="color:var(--brand-primary);font-weight:400">↗</span></div>
     <div class="kb-meta">👤 ${esc(nombreUsuario(t.responsable))}${t.cliente?' · '+esc(t.cliente):''}</div>
     <div class="kb-tags">
       <span class="tag acct">${origen} ${esc(t.origen||'')}</span>
