@@ -527,7 +527,7 @@ function handle(body) {
       const v = sh.getRange(row, 1, 1, 22).getValues()[0];
       const to = String(v[5]);
       const asuntoOrig = String(v[8]);
-      const asunto = String(v[14] || ((asuntoOrig.toLowerCase().indexOf('re:') === 0 ? '' : 'Re: ') + asuntoOrig));
+      let asunto = String(v[14] || ((asuntoOrig.toLowerCase().indexOf('re:') === 0 ? '' : 'Re: ') + asuntoOrig));
       const cuerpo = String(body.draft_final || v[16] || v[15]);
       if (to.indexOf('@') < 0) return { ok: false, error: 'la fila no tiene remitente_email válido' };
       const categoria = String(v[10] || '');
@@ -537,6 +537,15 @@ function handle(body) {
       const cc = mergeCc(String(v[21] || '') + ',' + ccCliente(ss, String(v[6] || '')), to, sender);
 
       let enHilo = false, resultado = null;
+
+      /* ══ REGLA DURA DE HILO (auditoría 21-jul-2026): toda respuesta lleva In-Reply-To/References
+         del mensaje original (leído vía DWD readonly en la cuenta que lo recibió) — así el hilo se
+         mantiene en el buzón del CLIENTE en cualquier cliente de correo, sin importar el remitente. ══ */
+      const hh = hiloHeaders(cuentaOrigen ? cuentaOrigen + '@tally.legal' : '', String(v[0] || ''));
+      if (hh && hh.subject) {
+        // Normaliza el asunto al del hilo real (requisito de la Gmail API cuando se usa threadId)
+        asunto = 'Re: ' + hh.subject.replace(/^\s*((re|fwd|rv|fw)\s*:\s*)+/i, '').trim();
+      }
 
       if (sender === 'juan@tally.legal') {
         // vía nativa: buscar el hilo en el buzón de juan@ (suele estar en CC)
@@ -557,15 +566,24 @@ function handle(body) {
             }
           }
         } catch (e) {}
-        if (!enHilo) GmailApp.sendEmail(to, asunto, cuerpo, { cc: cc, name: SENDER_NAME });
+        if (!enHilo && hh) {
+          // Fallback 1: el hilo no está en el buzón de juan@ → DWD como juan@ CON headers de hilo
+          const rj = sendViaDwd('juan@tally.legal', to, cc, asunto, cuerpo, null, null, hh);
+          if (rj.ok) enHilo = true;
+        }
+        if (!enHilo) GmailApp.sendEmail(to, asunto, cuerpo, { cc: cc, name: SENDER_NAME }); // último recurso
         resultado = { ok: true };
       } else {
-        // vía DWD: si enviamos desde la MISMA cuenta que recibió el correo,
-        // el thread_id almacenado es válido → hilo nativo perfecto
+        // vía DWD: threadId solo agrupa NUESTRO buzón y solo es válido en la cuenta que recibió;
+        // los headers de hilo (hh) son los que garantizan el hilo del lado del cliente.
         const tid = (sender === cuentaOrigen + '@tally.legal') ? threadOrigen : null;
-        resultado = sendViaDwd(sender, to, cc, asunto, cuerpo, tid);
+        resultado = sendViaDwd(sender, to, cc, asunto, cuerpo, tid, null, hh);
+        if (!resultado.ok && tid) {
+          // Si la API rechazó el threadId (p.ej. asunto distinto), reintenta sin él pero CON headers
+          resultado = sendViaDwd(sender, to, cc, asunto, cuerpo, null, null, hh);
+        }
         if (!resultado.ok) return resultado;
-        enHilo = !!tid;
+        enHilo = !!tid || !!hh;
       }
 
       if (body.draft_final) sh.getRange(row, 17).setValue(body.draft_final);
@@ -848,7 +866,7 @@ function mergeCc(ccOriginal, to, sender) {
    Requiere UNA VEZ: Propiedades del script → GOOGLE_SA_KEY = contenido completo del
    credentials.json del Service Account (el mismo de tally-gmail-mcp). */
 
-function dwdToken(userEmail) {
+function dwdToken(userEmail, scope) {
   try {
     const key = JSON.parse(PropertiesService.getScriptProperties().getProperty('GOOGLE_SA_KEY') || '{}');
     if (!key.client_email || !key.private_key) return null;
@@ -856,7 +874,7 @@ function dwdToken(userEmail) {
     const header = Utilities.base64EncodeWebSafe(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
     const claim = Utilities.base64EncodeWebSafe(JSON.stringify({
       iss: key.client_email, sub: userEmail,
-      scope: 'https://www.googleapis.com/auth/gmail.send',
+      scope: scope || 'https://www.googleapis.com/auth/gmail.send',
       aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600
     }));
     const sig = Utilities.computeRsaSha256Signature(header + '.' + claim, key.private_key);
@@ -870,11 +888,36 @@ function dwdToken(userEmail) {
   } catch (e) { return null; }
 }
 
-function sendViaDwd(from, to, cc, subject, bodyText, threadId, adjuntos) {
+/** Lee Message-ID/References/Subject del mensaje original (DWD readonly en la cuenta que lo recibió).
+ *  Es la llave del hilo RFC-2822: con In-Reply-To/References el correo se agrupa en el hilo
+ *  del CLIENTE en cualquier cliente de correo (Gmail, Outlook, Apple Mail). */
+function hiloHeaders(cuentaEmail, gmailMsgId) {
+  try {
+    if (!cuentaEmail || !gmailMsgId) return null;
+    const token = dwdToken(cuentaEmail, 'https://www.googleapis.com/auth/gmail.readonly');
+    if (!token) return null;
+    const r = UrlFetchApp.fetch('https://gmail.googleapis.com/gmail/v1/users/' + encodeURIComponent(cuentaEmail)
+      + '/messages/' + encodeURIComponent(gmailMsgId)
+      + '?format=metadata&metadataHeaders=Message-ID&metadataHeaders=References&metadataHeaders=Subject',
+      { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
+    if (r.getResponseCode() !== 200) return null;
+    const d = JSON.parse(r.getContentText());
+    const h = {};
+    ((d.payload && d.payload.headers) || []).forEach(function(x){ h[String(x.name).toLowerCase()] = x.value; });
+    if (!h['message-id']) return null;
+    return { inReplyTo: h['message-id'], references: ((h['references'] || '') + ' ' + h['message-id']).trim(), subject: h['subject'] || '' };
+  } catch (e) { return null; }
+}
+
+function sendViaDwd(from, to, cc, subject, bodyText, threadId, adjuntos, hilo) {
   const token = dwdToken(from);
   if (!token) return { ok: false, error: 'envío como ' + from + ' no disponible: falta GOOGLE_SA_KEY en Propiedades del script o DWD sin permiso' };
   let mime = 'From: ' + from + '\r\nTo: ' + to + '\r\n';
   if (cc) mime += 'Cc: ' + cc + '\r\n';
+  if (hilo && hilo.inReplyTo) {
+    mime += 'In-Reply-To: ' + hilo.inReplyTo + '\r\n';
+    mime += 'References: ' + (hilo.references || hilo.inReplyTo) + '\r\n';
+  }
   mime += 'Subject: =?UTF-8?B?' + Utilities.base64Encode(subject, Utilities.Charset.UTF_8) + '?=\r\nMIME-Version: 1.0\r\n';
   if (adjuntos && adjuntos.length) {
     const b = 'tallyops' + Date.now();
