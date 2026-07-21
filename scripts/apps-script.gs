@@ -319,6 +319,25 @@ function handle(body) {
       sh.appendRow([id, String(body.texto).trim(), est, now, now]);
       return { ok: true, item_id: id, estado: est };
     }
+    case 'kpi_item_edit': {
+      const sh = ss.getSheetByName('Roadmap_KPIs');
+      if (!sh) return { ok: false, error: 'sin pestaña Roadmap_KPIs' };
+      const row = findRow(sh, 1, body.item_id);
+      if (!row) return { ok: false, error: 'item no encontrado' };
+      if (body.texto !== undefined && String(body.texto).trim()) sh.getRange(row, 2).setValue(String(body.texto).trim());
+      if (body.estado !== undefined && ['Next Steps', 'En proceso', 'Implementado'].indexOf(String(body.estado)) >= 0) sh.getRange(row, 3).setValue(String(body.estado));
+      sh.getRange(row, 5).setValue(now);
+      return { ok: true, item_id: body.item_id };
+    }
+    case 'kpi_item_del': {
+      // Eliminación explícita desde la interfaz del roadmap (acción del usuario, con confirm previo)
+      const sh = ss.getSheetByName('Roadmap_KPIs');
+      if (!sh) return { ok: false, error: 'sin pestaña Roadmap_KPIs' };
+      const row = findRow(sh, 1, body.item_id);
+      if (!row) return { ok: false, error: 'item no encontrado' };
+      sh.deleteRow(row);
+      return { ok: true, deleted: body.item_id };
+    }
     case 'kpi_item_estado': {
       const sh = ss.getSheetByName('Roadmap_KPIs');
       if (!sh) return { ok: false, error: 'sin pestaña Roadmap_KPIs' };
