@@ -383,8 +383,13 @@ async function loadAll(){
     if(AUTH && AUTH.admin) renderClientes();
     if(document.activeElement.id!=='cfgCats') document.getElementById('cfgCats').value = CONFIG.categorias_triage || 'Documentación, Proceso, Queja y reclamo, Alerta';
     if(document.activeElement.id!=='cfgCuentas') document.getElementById('cfgCuentas').value = CONFIG.cuentas_monitoreadas || '';
-    if(!composeMode){ renderMailList(); if(selId) renderDetail(selId); }
-    renderSC(); renderLog();
+    // ⚠️ Regla anti-borrado (21-jul): el auto-refresh JAMÁS re-pinta el drawer si está abierto —
+    // re-pintarlo borra lo que el usuario está escribiendo (instrucción, draft editado, compose).
+    const drawerOpen = document.getElementById('drawerBack')?.classList.contains('open');
+    if(!composeMode && !drawerOpen){ renderMailList(); if(selId) renderDetail(selId); }
+    else if(!composeMode && drawerOpen){ renderMailList(); }
+    if(!drawerOpen) renderSC();
+    renderLog();
   }catch(e){
     document.getElementById('cfgReadStatus').textContent = '❌ sin acceso — verifica permisos del Sheet ("cualquiera con link puede ver")';
   }
@@ -499,6 +504,7 @@ function toggleFilterPop(){
 }
 function renderFilterPop(){
   const p=document.getElementById('filterPop'); if(!p) return;
+  if(p.contains(document.activeElement)) return; // no re-pintar mientras el usuario interactúa
   p.innerHTML=`
     <label>📧 Cuenta</label>
     <select id="mailCuenta" onchange="cuentaFilter=this.value;renderMailList()">
