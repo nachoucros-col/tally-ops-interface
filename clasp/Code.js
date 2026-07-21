@@ -866,7 +866,7 @@ function syncDocumentacion(ss) {
   const H = cl[0].map(String);
   const iId = H.indexOf('Company_Id'), iRfc = H.indexOf('RFC'), iName = H.indexOf('ClientName'),
         iOwner = H.indexOf('Owner'), iSusp = H.indexOf('Suspension'), iCtrl = H.indexOf('Control_facturas'),
-        iFS = H.indexOf('First Shipment'), iBanco = H.indexOf('Banco'), iEdoB = H.indexOf('Estado Banco');
+        iFS = H.indexOf('First Shipment'), iFiel = H.indexOf('Cita FIEL');
 
   const ac = dm.getSheetByName('Accesos_SellerCentral').getDataRange().getValues();
   const hA = ac[0].map(String), aId = hA.indexOf('Company_id'), aEst = hA.indexOf('EstadoAcceso'), aPay = hA.indexOf('Acceso_Payoneer');
@@ -902,18 +902,20 @@ function syncDocumentacion(ss) {
     else if (cid.indexOf('IN') === 0) tipo = 'IN';
     else { fuera++; continue; } // ML/MX fuera de alcance v1
     const rfc = String(cl[i][iRfc] || '').trim();
-    const rfcOK = rfc && rfc !== 'NO MATCH';
-    const bancoOK = String(cl[i][iBanco] || '').trim() !== '' || String(cl[i][iEdoB] || '') === 'Finalizado';
-    if (tipo === 'AZ') { if (String(cl[i][iFS] || '') !== 'Finalizado') continue; }
-    else if (!(rfcOK && bancoOK)) continue;
+    const rfcOK = !!(rfc && rfc !== 'NO MATCH');
+    const fielOK = /exitosa/i.test(String(cl[i][iFiel] || ''));
+    // Elegibilidad: AZ solo con First Shipment=Finalizado. CH/IN entran TODOS (regla Juan 21-jul):
+    // RFC y FIEL NO filtran — se muestran como indicadores preventivos en la card.
+    if (tipo === 'AZ' && String(cl[i][iFS] || '') !== 'Finalizado') continue;
 
     const acc = ACC[cid] || { estado: '', pay: '' };
     const payOK = String(acc.pay).toUpperCase() === 'Y';
     const check = [];
+    if (tipo !== 'AZ') { check.push({ k: 'rfc', ok: rfcOK, info: true }); check.push({ k: 'fiel', ok: fielOK, info: true }); }
     if (tipo === 'AZ') check.push({ k: 'sc', ok: /complet|total/i.test(acc.estado) });
     check.push(payOK ? { k: 'edo', ok: true, auto: true } : { k: 'edo', ok: !!EDO[cid] });
     if (/^s/i.test(String(cl[i][iCtrl] || ''))) check.push({ k: 'fact', ok: false });
-    const pend = check.filter(function(c){ return !c.ok; });
+    const pend = check.filter(function(c){ return !c.ok && !c.info; });
     const accion = pend.length
       ? 'Solicitar: ' + pend.map(function(c){ return { sc: 'acceso SC', edo: 'estado de cuenta', fact: 'facturas y gastos' }[c.k]; }).join(', ') + ' (' + periodo + ')'
       : '';
@@ -926,7 +928,8 @@ function syncDocumentacion(ss) {
       sc[r][14] = new Date().toISOString();
       sc[r][15] = tipo; sc[r][16] = chk;
       // E escenario, F estado, K aprobación, L/M envíos: NO se tocan
-    } else if (pend.length) {
+    } else if (pend.length || tipo !== 'AZ') {
+      // CH/IN entran SIEMPRE al tablero (aunque su checklist esté completo); AZ solo con pendientes
       const fila = [cid, String(cl[i][iName] || ''), String(cl[i][iOwner] || ''), periodo, 'Esc.1', 'En espera', '', 'A', '', accion, 'Pendiente', '', '', '', new Date().toISOString(), tipo, chk];
       sc.push(fila); IDX[cid] = sc.length - 1;
     } else { completos++; continue; }

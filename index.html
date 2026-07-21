@@ -237,7 +237,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
       <div class="page-head">
         <div>
           <h1>Documentación mensual</h1>
-          <p class="lead">Ciclo documental de TODOS los clientes elegibles: Amazon (First Shipment ✅) y China/Legacy (RFC + banco). Cada card trae su checklist según perfil: 📊 acceso SC · 🏦 estado de cuenta · 🧾 facturas y gastos. Payoneer ✅ = edo. cuenta auto-cumplido.</p>
+          <p class="lead">Ciclo documental completo: Amazon (solo con First Shipment ✅) y TODOS los China/Legacy. Cada card trae su checklist según perfil (📊 acceso SC · 🏦 estado de cuenta · 🧾 facturas y gastos) y en CH/IN los indicadores preventivos 🪪 RFC y 🔑 FIEL — si marcan ⚠️, revisa a quién envías antes de aprobar. Payoneer ✅ = edo. cuenta auto-cumplido.</p>
         </div>
         <div class="head-actions">
           <button class="chip" onclick="syncDoc()" title="Recalcula elegibilidad y checklist desde AppSheet (Clients_Load, Accesos, Estados de cuenta)">🧾 Recalcular checklist</button>
@@ -1091,7 +1091,7 @@ function removeClient(id){ cmp.clients=cmp.clients.filter(c=>c.company_id!==id);
 function checklistTexto(companyId){
   const r=SC.find(x=>x.company_id===companyId);
   if(!r) return '';
-  const pend=checklistArr(r).filter(c=>!c.ok);
+  const pend=checklistArr(r).filter(c=>!c.ok&&!c.info); // rfc/fiel son internos: jamás se piden al cliente
   const L={sc:'Grant view & edit access to your Amazon Seller Central reports for marketplaces@tally.legal (Sales, Inventory, Tax Document Library)',
            edo:'Send your bank / Payoneer statement for the period',
            fact:'Send your monthly invoices and expenses for the period'};
@@ -1441,12 +1441,18 @@ function kbColDe(r){
   return 3;
 }
 /* Checklist documental por perfil (columna Q de SC_Seguimiento, JSON) */
-const CHK_META={sc:['📊','Acceso SC'],edo:['🏦','Edo. cuenta'],fact:['🧾','Facturas']};
+const CHK_META={sc:['📊','Acceso SC'],edo:['🏦','Edo. cuenta'],fact:['🧾','Facturas'],rfc:['🪪','RFC'],fiel:['🔑','FIEL']};
 function checklistArr(r){ try{ const a=JSON.parse(r.checklist||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
-function docCompleto(r){ const c=checklistArr(r); return c.length>0 && c.every(x=>x.ok); }
+/* Completo = requisitos del ciclo ok (los indicadores informativos rfc/fiel no cuentan) */
+function docCompleto(r){ const c=checklistArr(r).filter(x=>!x.info); return c.length>0 && c.every(x=>x.ok); }
 function checklistChips(r){
   return checklistArr(r).map(c=>{
     const [ico,lbl]=CHK_META[c.k]||['❔',c.k];
+    if(c.info){ // preventivo: revisa a quién le envías — no bloquea ni entra al correo
+      return c.ok
+        ? `<span class="tag" style="background:var(--green-100);color:#1d7a3f" title="${lbl} listo">${ico} ${lbl} ✅</span>`
+        : `<span class="tag" style="background:var(--orange-100);color:#b34a17" title="⚠️ Sin ${lbl} — revisa antes de enviar información sensible">${ico} ${lbl} ⚠️</span>`;
+    }
     return `<span class="tag" style="${c.ok?'background:var(--green-100);color:#1d7a3f':'background:var(--gray-100)'}" title="${lbl}${c.auto?' — Payoneer ✅ (auto-cumplido)':''}">${ico} ${c.ok?'✅':'⬜'}</span>`;
   }).join('');
 }
@@ -1484,8 +1490,8 @@ function renderSC(){
   if(q) rows=rows.filter(r=>(r.cliente||'').toLowerCase().includes(q)||(r.company_id||'').toLowerCase().includes(q));
   const tipoF=document.getElementById('scTipo')?.value||'';
   if(tipoF) rows=rows.filter(r=>String(r.tipo_perfil||'').toUpperCase()===tipoF||(!r.tipo_perfil&&String(r.company_id||'').startsWith(tipoF)));
-  // Completos fuera del ruido: checklist todo ✅ sin actividad del ciclo → no se muestran
-  rows=rows.filter(r=>!(docCompleto(r)&&!envioEsteMes(r)&&r.estado_sop!=='Respondió'));
+  // Solo AZ completos salen del ruido; CH/IN se muestran SIEMPRE (regla Juan 21-jul)
+  rows=rows.filter(r=>!(String(r.tipo_perfil||'')==='AZ'&&docCompleto(r)&&!envioEsteMes(r)&&r.estado_sop!=='Respondió'));
   const el=document.getElementById('scBoard');
   if(!SC.length){ el.innerHTML='<p style="color:var(--gray-500)">Sin registros. El agente sincroniza la cola desde AppSheet en cada corrida.</p>'; return; }
   const cols=KB_COLS.map(c=>({...c,rows:[]}));
@@ -1581,7 +1587,7 @@ function scDetail(cid){
     <h3>${esc(r.cliente)}</h3>
     <div class="meta">${esc(r.company_id)} · 👤 ${esc(ownerDe(r.company_id)||r.owner||'—')}${r.tipo_perfil?' · '+esc(r.tipo_perfil):''}${r.periodo?' · '+esc(r.periodo):''}</div>
     ${checklistArr(r).length?`<label>Checklist documental del mes</label>
-    <div class="resumen">${checklistArr(r).map(c=>{const [ico,lbl]=CHK_META[c.k]||['❔',c.k];return `${ico} ${lbl}: ${c.ok?(c.auto?'✅ auto (Payoneer)':'✅'):'⬜ pendiente'}`;}).join('\n')}</div>`:''}
+    <div class="resumen">${checklistArr(r).map(c=>{const [ico,lbl]=CHK_META[c.k]||['❔',c.k];return c.info?`${ico} ${lbl}: ${c.ok?'✅':'⚠️ FALTA — revisa antes de enviar información'}`:`${ico} ${lbl}: ${c.ok?(c.auto?'✅ auto (Payoneer)':'✅'):'⬜ pendiente'}`;}).join('\n')}</div>`:''}
     <label>Escenario de envío</label>
     ${r.aprobacion==='Aprobado'
       ? `<div class="resumen">${esc(escNombre(r.escenario_actual))}</div>`

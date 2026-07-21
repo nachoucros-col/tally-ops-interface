@@ -8,11 +8,11 @@
 ## Elegibilidad (quién entra al ciclo)
 | Tipo | Regla de entrada | Fuente |
 |---|---|---|
-| AZ (Amazon) | First_Shipment = Finalizado | Folder_Clientes.First_Shipment |
-| CH (China) | RFC válido (≠vacío, ≠"NO MATCH") **y** banco activo | Folder_Clientes.RFC + Bancos |
-| IN (Legacy/intl) | misma regla que CH: RFC válido y banco activo | ídem |
+| AZ (Amazon) | First Shipment = Finalizado (ÚNICA regla) | Clients_Load."First Shipment" |
+| CH (China) | TODOS entran (ajuste Juan 21-jul) | — |
+| IN (Legacy/intl) | TODOS entran (ajuste Juan 21-jul) | — |
 
-Banco activo = fila en `Bancos` con Payoneer ✅ o banco definido en `Otro`.
+Para CH/IN la card muestra indicadores PREVENTIVOS (no filtran, no entran al correo): 🪪 RFC (Clients_Load.RFC ≠vacío/NO MATCH) y 🔑 FIEL (Clients_Load."Cita FIEL"=Exitosa) — ⚠️ = revisar a quién se envía información antes de aprobar.
 Exclusiones: suspendidos, sin operación, y Payoneer ✅ sin pendiente de acceso SC (auto-cumplido: ni aparece).
 
 ## Checklist por requisito
@@ -20,7 +20,7 @@ Exclusiones: suspendidos, sin operación, y Payoneer ✅ sin pendiente de acceso
 |---|---|---|
 | 📊 Acceso SC completo (view+edit) | AZ | Accesos_SellerCentral.EstadoAcceso |
 | 🏦 Estado de cuenta del mes | AZ sin Payoneer ✅ + CH + IN | Estados_cuenta (recepción del período) · Payoneer ✅ = auto-cumplido |
-| 🧾 Facturas y gastos del mes | Clientes marcados | Columna que crea Juan (FUERA de Folder_Clientes — pendiente que confirme tabla.columna; el sistema la leerá vía Config `control_facturas_fuente`) |
+| 🧾 Facturas y gastos del mes | Clientes marcados | Clients_Load.Control_facturas = Sí (confirmado por Juan 20-jul) |
 
 ## Plantillas modulares
 Esc.1/2/3 conservan el esqueleto legal (solicitud → recordatorio → ceros+complementaria regla 17) pero dejan de ser "de Amazon": bloque dinámico `[CHECKLIST]` con solo lo que le falta a ese cliente, en su idioma. Un cliente = un correo con todo lo pendiente. Notion sigue siendo fuente de verdad de las plantillas.
