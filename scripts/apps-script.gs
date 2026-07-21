@@ -309,6 +309,47 @@ function handle(body) {
       sh.appendRow(vals);
       return { ok: true, inserted: body.plantilla_id };
     }
+    /* ══════════ ✅ TAREAS (kanban Sin iniciar / Finalizado, alimentado desde Bandeja y Documentación) ══════════ */
+    case 'usuarios_publicos': {
+      // Lista de responsables asignables (usuarios activos de la plataforma) — SIN contraseñas.
+      const u = checkUser(body.auth);
+      if (!u.ok) return u;
+      const us = SpreadsheetApp.openById(USUARIOS_ID).getSheetByName('Usuarios');
+      const data = us.getDataRange().getValues();
+      const list = [];
+      for (let i = 1; i < data.length; i++) {
+        const em = String(data[i][0] || '').trim();
+        if (em && String(data[i][3]).toLowerCase() !== 'no') list.push({ email: em.toLowerCase(), nombre: String(data[i][2] || em) });
+      }
+      return { ok: true, usuarios: list };
+    }
+    case 'tarea_crear': {
+      // body: {tareas:[{titulo, responsable, origen, ref_id, cliente}], auth}
+      const u = checkUser(body.auth);
+      if (!u.ok) return u;
+      const sh = getOrCreate(ss, 'Tareas', ['tarea_id','fecha_creacion','creado_por','responsable','titulo','origen','ref_id','cliente','estado','fecha_finalizacion','ultima_actualizacion']);
+      const ids = [];
+      (body.tareas || []).forEach(function(t){
+        if (!String(t.titulo || '').trim()) return;
+        const id = 'T-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
+        sh.appendRow([id, now, u.email, String(t.responsable || '').toLowerCase(), String(t.titulo), String(t.origen || ''), String(t.ref_id || ''), String(t.cliente || ''), 'Sin iniciar', '', now]);
+        ids.push(id);
+      });
+      return { ok: true, creadas: ids.length, ids: ids };
+    }
+    case 'tarea_estado': {
+      const u2 = checkUser(body.auth);
+      if (!u2.ok) return u2;
+      const sh = ss.getSheetByName('Tareas');
+      if (!sh) return { ok: false, error: 'sin pestaña Tareas aún' };
+      const row = findRow(sh, 1, body.tarea_id);
+      if (!row) return { ok: false, error: 'tarea no encontrada' };
+      const est = body.estado === 'Finalizado' ? 'Finalizado' : 'Sin iniciar';
+      sh.getRange(row, 9).setValue(est);
+      sh.getRange(row, 10).setValue(est === 'Finalizado' ? now : '');
+      sh.getRange(row, 11).setValue(now);
+      return { ok: true, tarea_id: body.tarea_id, estado: est };
+    }
     case 'guardar_borrador': {
       // 📝 Guarda instrucción/ediciones SIN generar ni enviar — queda pendiente de confirmación
       // de otro miembro del equipo. El agente NO procesa filas en estado Borrador.
@@ -1085,6 +1126,23 @@ function resolveSender(ss, body, categoria) {
 }
 
 /** Valida credenciales de administrador (para acciones de gestión de usuarios). */
+/** Valida credenciales de CUALQUIER usuario activo de la plataforma. Devuelve {ok,email,nombre} o {ok:false}. */
+function checkUser(auth) {
+  try {
+    if (!auth || !auth.email || !auth.password) return { ok: false, error: 'sin credenciales' };
+    const us = SpreadsheetApp.openById(USUARIOS_ID).getSheetByName('Usuarios');
+    const data = us.getDataRange().getValues();
+    const email = String(auth.email).trim().toLowerCase();
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim().toLowerCase() === email && String(data[i][1]) === String(auth.password)) {
+        if (String(data[i][3]).toLowerCase() === 'no') return { ok: false, error: 'usuario desactivado' };
+        return { ok: true, email: email, nombre: String(data[i][2] || email) };
+      }
+    }
+  } catch (e) {}
+  return { ok: false, error: 'credenciales inválidas' };
+}
+
 function checkAdmin(auth) {
   try {
     if (!auth || !auth.email || !auth.password) return false;

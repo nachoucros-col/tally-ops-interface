@@ -195,6 +195,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <div class="sub">Interfaz Contable</div>
     <a href="#bandeja" class="active" data-view="bandeja">📥 Bandeja</a>
     <a href="#sc" data-view="sc">📦 Documentación</a>
+    <a href="#tareas" data-view="tareas">✅ Tareas</a>
     <a href="#log" data-view="log" style="display:none">🕐 Actividad</a>
     <a href="#clientes" data-view="clientes" id="navClientes" style="display:none">👥 Clientes</a>
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
@@ -258,6 +259,23 @@ tr:hover td{background:rgba(96,71,255,.04)}
       </div>
       <div id="scRegla17"></div>
       <div class="kb-board" id="scBoard">Cargando…</div>
+    </section>
+
+    <!-- ══ TAREAS ══ -->
+    <section class="view" id="view-tareas">
+      <div class="page-head">
+        <div>
+          <h1>Tareas</h1>
+          <p class="lead">Tareas del equipo creadas desde la Bandeja y Documentación mensual. Arrastra una card a Finalizado (o de regreso) para cambiar su estado.</p>
+        </div>
+      </div>
+      <div class="chips" style="align-items:center">
+        <input type="text" id="tkBuscar" placeholder="🔎 Buscar tarea o cliente…" oninput="renderTareas()" style="max-width:230px;width:230px">
+        <select id="tkResp" onchange="renderTareas()" style="width:auto;padding:6px 10px;font-size:13px">
+          <option value="">👤 Responsable: todos</option>
+        </select>
+      </div>
+      <div class="kb-board" id="tkBoard">Cargando…</div>
     </section>
 
     <!-- ══ LOG ══ -->
@@ -346,7 +364,7 @@ const API_TOKEN = 'tly-ops-2026-Jm9xQ4vKp7Rd3TzN8wHs';
 const COMPOSE_CATS = ['Seguimiento proceso','Seguimiento Seller Central','Cambio de plan','Profundización con cliente','Sesión de asesoría','Aviso de suspensión de actividades'];
 
 /* ═══════════════ ESTADO ═══════════════ */
-let EMAILS=[], SC=[], LOGS=[], CLIENTES=[], PLANTILLAS=[], SALIENTES=[], CONFIG={};
+let EMAILS=[], SC=[], LOGS=[], CLIENTES=[], PLANTILLAS=[], SALIENTES=[], CONFIG={}, TAREAS=[], USUARIOS_PLAT=[];
 let selId=null, selOut=null, catFilter='*', scFilter='*', composeMode=false;
 let cmp={clients:[], cat:'', tpl:'', previews:[]};
 
@@ -374,8 +392,9 @@ async function safeGviz(tab){ try{ return await gviz(tab); }catch(e){ console.wa
 
 async function loadAll(){
   try{
-    const [em,sc,lg,cl,pl,sa,cf] = await Promise.all(['Emails','SC_Seguimiento','Log','Clientes','Plantillas','Salientes','Config'].map(safeGviz));
+    const [em,sc,lg,cl,pl,sa,cf,tk] = await Promise.all(['Emails','SC_Seguimiento','Log','Clientes','Plantillas','Salientes','Config','Tareas'].map(safeGviz));
     EMAILS=em.filter(r=>r.email_id); SC=sc.filter(r=>r.company_id); LOGS=lg.filter(r=>r.timestamp);
+    TAREAS=(tk||[]).filter(r=>r.tarea_id);
     CLIENTES=cl.filter(r=>r.company_id); PLANTILLAS=pl.filter(r=>r.plantilla_id); SALIENTES=sa.filter(r=>r.saliente_id);
     CONFIG={}; cf.forEach(r=>{ if(r.key) CONFIG[r.key]=r.value; });
     document.getElementById('lastSync').textContent = new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
@@ -390,6 +409,8 @@ async function loadAll(){
     if(!composeMode && !drawerOpen){ renderMailList(); if(selId) renderDetail(selId); }
     else if(!composeMode && drawerOpen){ renderMailList(); }
     if(!drawerOpen) renderSC();
+    if(AUTH&&!USUARIOS_PLAT.length&&!window.__usrTried){ window.__usrTried=true; cargarUsuarios(); }
+    if(!drawerOpen) renderTareas();
     renderLog();
   }catch(e){
     document.getElementById('cfgReadStatus').textContent = '❌ sin acceso — verifica permisos del Sheet ("cualquiera con link puede ver")';
@@ -712,7 +733,7 @@ function renderDetail(id){
   if(!e){ el.innerHTML='<div class="empty">Correo no encontrado.</div>'; return; }
   let html = `
     <h3>${esc(e.asunto)}</h3>
-    <div class="meta">${esc(e.remitente_nombre)} &lt;${esc(e.remitente_email)}&gt; · ${esc(e.fecha_recibido)} · vía ${esc(e.cuenta)}@tally.legal${e.company_id?` · <b>${esc(e.company_id)}</b>`:''}</div>
+    <div class="meta">${esc(e.remitente_nombre)} &lt;${esc(e.remitente_email)}&gt; · ${esc(e.fecha_recibido)} · vía ${esc(e.cuenta)}@tally.legal${e.company_id?` · <b>${esc(e.company_id)}</b>`:''} · <a href="#" onclick="abrirTareas('Bandeja','${esc(e.email_id)}','${esc(e.cliente&&e.cliente!=='INTERNO'?e.cliente:(e.remitente_nombre||''))}');return false" style="color:var(--brand-primary);font-weight:500">➕ Crear tarea</a></div>
     ${e.mensaje_original?`<div class="msg-label">💬 Mensaje del cliente (texto original)</div><div class="msg-original">${esc(e.mensaje_original)}</div>`:''}
     ${renderCcOriginales(e)}
     ${renderContexto(e)}`;
@@ -1626,7 +1647,7 @@ function scDetail(cid){
   const el=document.getElementById('mailDetail');
   el.innerHTML=`
     <h3>${esc(r.cliente)}</h3>
-    <div class="meta">${esc(r.company_id)} · 👤 ${esc(ownerDe(r.company_id)||r.owner||'—')}${r.tipo_perfil?' · '+esc(r.tipo_perfil):''}${r.periodo?' · '+esc(r.periodo):''}</div>
+    <div class="meta">${esc(r.company_id)} · 👤 ${esc(ownerDe(r.company_id)||r.owner||'—')}${r.tipo_perfil?' · '+esc(r.tipo_perfil):''}${r.periodo?' · '+esc(r.periodo):''} · <a href="#" onclick="abrirTareas('Documentación','${esc(cid)}','${esc(r.cliente||'')}');return false" style="color:var(--brand-primary);font-weight:500">➕ Crear tarea</a></div>
     ${checklistArr(r).length?`<label>Checklist documental del mes</label>
     <div class="resumen">${checklistArr(r).map(c=>{const [ico,lbl]=CHK_META[c.k]||['❔',c.k];return c.info?`${ico} ${lbl}: ${c.ok?'✅':'⚠️ FALTA — revisa antes de enviar información'}`:`${ico} ${lbl}: ${c.ok?(c.auto?'✅ auto (Payoneer)':'✅'):'⬜ pendiente'}`;}).join('\n')}</div>`:''}
     <label>Escenario de envío</label>
@@ -1653,6 +1674,109 @@ async function scDecide(cid,decision){
   if(r.ok){ const row=SC.find(x=>x.company_id===cid); row.aprobacion=decision;
     toast(decision==='Aprobado'?'✅ El agente enviará el escenario desde accounting@ en su próxima corrida':'Rechazado'); renderSC(); }
   else toast('❌ '+(r.error||'error'));
+}
+
+/* ═══════════════ ✅ TAREAS (kanban 2 columnas, alimentado desde Bandeja y Documentación) ═══════════════ */
+async function cargarUsuarios(){
+  if(!AUTH) return;
+  const r=await api('usuarios_publicos',{auth:{email:AUTH.email,password:AUTH.password}});
+  if(r.ok){ USUARIOS_PLAT=r.usuarios||[]; renderTareas(); }
+}
+function nombreUsuario(email){
+  const u=USUARIOS_PLAT.find(x=>x.email===String(email||'').toLowerCase());
+  return u?u.nombre:(email||'—');
+}
+function tkCard(t){
+  const origen=t.origen==='Documentación'?'📦':'📥';
+  return `<div class="kb-card" draggable="true" ondragstart="tkDrag(event,'${esc(t.tarea_id)}')" ondragend="this.classList.remove('dragging')">
+    <div class="kb-title">${esc(t.titulo)}</div>
+    <div class="kb-meta">👤 ${esc(nombreUsuario(t.responsable))}${t.cliente?' · '+esc(t.cliente):''}</div>
+    <div class="kb-tags">
+      <span class="tag acct">${origen} ${esc(t.origen||'')}</span>
+      <span class="tag acct">${esc(fechaLarga(t.fecha_creacion).split(',')[0]||'')}</span>
+      ${t.estado==='Finalizado'?`<span class="tag st-Enviado">✅ ${esc(String(t.fecha_finalizacion).substring(0,10))}</span>`:''}
+    </div>
+    <div class="kb-tags" style="margin-top:6px"><span style="font-size:11px;color:var(--text-secondary)">creada por ${esc(nombreUsuario(t.creado_por))}</span></div>
+  </div>`;
+}
+function renderTareas(){
+  const el=document.getElementById('tkBoard'); if(!el) return;
+  const sel=document.getElementById('tkResp');
+  if(sel&&USUARIOS_PLAT.length&&sel.options.length<=1){
+    sel.innerHTML='<option value="">👤 Responsable: todos</option>'+USUARIOS_PLAT.map(u=>`<option value="${esc(u.email)}">${esc(u.nombre)}</option>`).join('');
+  }
+  let rows=[...TAREAS];
+  const q=(document.getElementById('tkBuscar')?.value||'').trim().toLowerCase();
+  if(q) rows=rows.filter(t=>(t.titulo||'').toLowerCase().includes(q)||(t.cliente||'').toLowerCase().includes(q));
+  const resp=document.getElementById('tkResp')?.value||'';
+  if(resp) rows=rows.filter(t=>String(t.responsable||'').toLowerCase()===resp);
+  const cols=[
+    {nombre:'Sin iniciar', color:'var(--orange-500)', rows:rows.filter(t=>t.estado!=='Finalizado')},
+    {nombre:'Finalizado', color:'var(--green-500)', rows:rows.filter(t=>t.estado==='Finalizado')}
+  ];
+  cols[0].rows.sort((a,b)=>(b.fecha_creacion||'').localeCompare(a.fecha_creacion||''));
+  cols[1].rows.sort((a,b)=>(b.fecha_finalizacion||'').localeCompare(a.fecha_finalizacion||''));
+  el.innerHTML=cols.map((c,i)=>`
+    <div class="kb-col" style="border-top-color:${c.color}" ondragover="kbOver(event)" ondragleave="kbLeave(event)" ondrop="tkDrop(event,${i})">
+      <div class="kb-head"><span>${c.nombre}</span><span class="kb-count">${c.rows.length}</span></div>
+      <div class="kb-cards">${c.rows.length?c.rows.map(tkCard).join(''):'<div class="kb-empty">Sin tareas aquí</div>'}</div>
+    </div>`).join('');
+}
+let TK_DRAG=null;
+function tkDrag(ev,id){ TK_DRAG=id; ev.dataTransfer.effectAllowed='move'; ev.target.classList.add('dragging'); }
+async function tkDrop(ev,col){
+  ev.preventDefault(); ev.currentTarget.classList.remove('drag-over');
+  const id=TK_DRAG; TK_DRAG=null; if(!id) return;
+  const t=TAREAS.find(x=>x.tarea_id===id); if(!t) return;
+  const nuevo=col===1?'Finalizado':'Sin iniciar';
+  const actual=t.estado==='Finalizado'?'Finalizado':'Sin iniciar';
+  if(actual===nuevo){ renderTareas(); return; }
+  const r=await api('tarea_estado',{tarea_id:id,estado:nuevo,auth:{email:AUTH.email,password:AUTH.password}});
+  if(r.ok){ t.estado=nuevo; t.fecha_finalizacion=nuevo==='Finalizado'?new Date().toISOString().slice(0,16).replace('T',' '):''; toast(nuevo==='Finalizado'?'✅ Tarea finalizada':'↩️ Tarea reabierta'); }
+  else toast('❌ '+(r.error||'error'));
+  renderTareas();
+}
+/* Modal de creación múltiple (desde el detalle de Bandeja o Documentación) */
+let TSK={origen:'',ref:'',cliente:'',filas:[]};
+function abrirTareas(origen,ref,cliente){
+  TSK={origen,ref,cliente,filas:[{responsable:'',titulo:''}]};
+  renderTskModal();
+}
+function renderTskModal(){
+  document.getElementById('kbConfirmBack')?.remove();
+  const back=document.createElement('div');
+  back.id='kbConfirmBack';
+  back.innerHTML=`<div class="kb-modal" onclick="event.stopPropagation()">
+    <h3>➕ Crear tareas${TSK.cliente?' — '+esc(TSK.cliente):''}</h3>
+    <p>Origen: ${esc(TSK.origen)}. Cada fila es una tarea con su responsable (usuarios de la plataforma).</p>
+    ${TSK.filas.map((f,i)=>`
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <select onchange="TSK.filas[${i}].responsable=this.value" style="flex:1">
+          <option value="">— responsable —</option>
+          ${USUARIOS_PLAT.map(u=>`<option value="${esc(u.email)}" ${TSK.filas[i].responsable===u.email?'selected':''}>${esc(u.nombre)}</option>`).join('')}
+        </select>
+        <input type="text" placeholder="¿Qué hay que hacer?" value="${esc(f.titulo)}" oninput="TSK.filas[${i}].titulo=this.value" style="flex:2">
+        ${TSK.filas.length>1?`<button class="mini btn-ghost" onclick="TSK.filas.splice(${i},1);renderTskModal()">✕</button>`:''}
+      </div>`).join('')}
+    <div class="btn-row" style="margin-top:4px"><button class="mini btn-ghost" onclick="TSK.filas.push({responsable:'',titulo:''});renderTskModal()">＋ Otra tarea</button></div>
+    <button class="btn btn-primary" onclick="crearTareas()">✅ Crear ${TSK.filas.length} tarea${TSK.filas.length===1?'':'s'}</button>
+    <button class="btn btn-ghost" onclick="document.getElementById('kbConfirmBack').remove()">Cancelar</button>
+  </div>`;
+  back.addEventListener('click',ev=>{ if(ev.target===back) back.remove(); });
+  document.body.appendChild(back);
+}
+async function crearTareas(){
+  const listas=TSK.filas.filter(f=>f.titulo.trim()&&f.responsable);
+  if(!listas.length){ toast('Cada tarea necesita responsable y descripción'); return; }
+  if(listas.length<TSK.filas.filter(f=>f.titulo.trim()||f.responsable).length){ toast('Hay filas incompletas — completa responsable y descripción'); return; }
+  const r=await api('tarea_crear',{tareas:listas.map(f=>({titulo:f.titulo.trim(),responsable:f.responsable,origen:TSK.origen,ref_id:TSK.ref,cliente:TSK.cliente})),auth:{email:AUTH.email,password:AUTH.password}});
+  if(r.ok){
+    document.getElementById('kbConfirmBack')?.remove();
+    const now=new Date().toISOString().slice(0,16).replace('T',' ');
+    listas.forEach((f,i)=>TAREAS.push({tarea_id:(r.ids&&r.ids[i])||('tmp-'+i),fecha_creacion:now,creado_por:AUTH.email,responsable:f.responsable,titulo:f.titulo.trim(),origen:TSK.origen,ref_id:TSK.ref,cliente:TSK.cliente,estado:'Sin iniciar',fecha_finalizacion:''}));
+    toast('✅ '+r.creadas+' tarea(s) creada(s)');
+    renderTareas();
+  } else toast('❌ '+(r.error||'error'));
 }
 
 /* ═══════════════ LOG ═══════════════ */
