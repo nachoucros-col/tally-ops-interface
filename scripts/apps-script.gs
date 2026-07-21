@@ -309,6 +309,18 @@ function handle(body) {
       sh.appendRow(vals);
       return { ok: true, inserted: body.plantilla_id };
     }
+    case 'guardar_borrador': {
+      // 📝 Guarda instrucción/ediciones SIN generar ni enviar — queda pendiente de confirmación
+      // de otro miembro del equipo. El agente NO procesa filas en estado Borrador.
+      const sh = ss.getSheetByName('Emails');
+      const row = findRow(sh, 1, body.email_id);
+      if (!row) return { ok: false, error: 'email_id no encontrado' };
+      if (body.prompt_juan !== undefined) sh.getRange(row, 14).setValue(String(body.prompt_juan)); // N
+      if (body.draft_final !== undefined) sh.getRange(row, 17).setValue(String(body.draft_final)); // Q
+      sh.getRange(row, 13).setValue('Borrador');   // M estado
+      sh.getRange(row, 21).setValue(now);          // U ultima_actualizacion
+      return { ok: true, email_id: body.email_id, estado: 'Borrador' };
+    }
     case 'sync_documentacion': {
       // 📦 Documentación mensual — elegibilidad y checklist por cliente.
       // Blueprint: docs/documentacion-mensual-blueprint.md (decidido con Juan 20-jul-2026).

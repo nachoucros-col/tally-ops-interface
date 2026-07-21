@@ -111,6 +111,7 @@ Insertar cada correo nuevo como fila en `Emails` con `estado=Nuevo`.
 
 ## FASE 2 — Redacción de drafts (FALLBACK — el flujo primario es en tiempo real)
 > Desde v6, la interfaz redacta y envía en tiempo real vía Apps Script + Claude API (acciones `generate_draft` y `send_reply`). Esta fase solo procesa lo que quedó rezagado: filas en `Prompt recibido` (ej. cuando faltaba la API key) y filas `Aprobado` sin enviar. No dupliques trabajo: si una fila ya está en `Draft listo` o `Enviado`, no la toques.
+> **Estado `Borrador` (21-jul-2026): ⛔ EL AGENTE NO LO TOCA.** Es una instrucción/draft guardado que espera confirmación de otro miembro del equipo desde la interfaz. No redactar, no enviar, no cambiar su estado — sale de Borrador solo por acción humana (Generar o Aprobar).
 Buscar filas con `estado=Prompt recibido`:
 1. Leer `prompt_juan` + el hilo completo del correo (get_thread) + contexto AppSheet del cliente si hay `company_id`.
 2. Redactar la respuesta siguiendo la instrucción de Juan. **🔒 REGLA DURA DE IDIOMA: el correo sale SIEMPRE en el idioma en que el cliente escribió su correo original, sin importar el idioma de la instrucción de Juan** (español, inglés o cualquiera). Detectar del correo original del hilo; default inglés para clientes extranjeros. Tono profesional Tally, directo, sin promesas que Juan no dio. Cerrar con la firma de Config.firma_juan.

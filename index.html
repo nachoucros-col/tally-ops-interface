@@ -81,6 +81,7 @@ h1{font-size:28px;font-weight:700;letter-spacing:-0.015em;margin-bottom:4px}
 .tag.st-Draft{background:var(--violet-100);color:#3a2bb3}
 .tag.st-Aprobado{background:var(--green-100);color:#1d7a3f}
 .tag.st-Enviado{background:var(--green-500);color:#fff}
+.tag.st-Borrador{background:var(--orange-100);color:#b34a17}
 .tag.acct{background:transparent;border:1px solid var(--gray-300);color:var(--gray-500)}
 /* Drawer flotante (detalle de correo / redacción) */
 #drawerBack{position:fixed;inset:0;background:rgba(33,33,33,.42);z-index:140;opacity:0;pointer-events:none;transition:opacity .22s}
@@ -418,8 +419,11 @@ function api(action, payload, timeoutMs){
 function countCat(cat){
   const mails=EMAILS.filter(e=>{
     if(cuentaFilter && e.cuenta!==cuentaFilter) return false;
+    if(envioFilter==='env' && e.estado!=='Enviado') return false;
+    if(envioFilter==='sin' && e.estado==='Enviado') return false;
     if(cat==='__env') return e.estado==='Enviado';
     if(e.estado==='Descartado') return false;
+    if(cat==='__brr') return e.estado==='Borrador';
     if(cat==='__pend') return e.estado==='Nuevo'||e.estado==='Draft listo';
     if(cat!=='*' && !catMatch(cat,e.categoria)) return false;
     return true;
@@ -438,9 +442,10 @@ function renderCatChips(){
   el.innerHTML = `<button class="chip" data-cat="*">Todos ${chipN('*')}</button>`
     + cats.map(c=>`<button class="chip" data-cat="${esc(c)}">${esc(c)} ${chipN(c)}</button>`).join('')
     + `<button class="chip" data-cat="__pend">⏳ Pendientes de mí ${chipN('__pend')}</button>
+       <button class="chip" data-cat="__brr">📝 Borradores ${chipN('__brr')}</button>
        <button class="chip" data-cat="__env">📤 Enviados ${chipN('__env')}</button>
        <span class="chip-sep">|</span>
-       <button class="chip" id="filterBtn" onclick="toggleFilterPop()" title="Filtros de cuenta y orden"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polygon points="22 3 2 3 10 12.5 10 19 14 21 14 12.5 22 3"/></svg> Filtros${(cuentaFilter||mailOrden!=='desc')?' <span class="fdot"></span>':''}</button>`;
+       <button class="chip" id="filterBtn" onclick="toggleFilterPop()" title="Filtros de cuenta y orden"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polygon points="22 3 2 3 10 12.5 10 19 14 21 14 12.5 22 3"/></svg> Filtros${(cuentaFilter||mailOrden!=='desc'||envioFilter)?' <span class="fdot"></span>':''}</button>`;
   el.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on', c.dataset.cat===catFilter));
   renderFilterPop();
 }
@@ -467,15 +472,19 @@ const CAT_CLASS={'Documentación':'cat-Documentación','Proceso':'cat-Proceso','
 const CAT_ALIAS={'Quejas y alertas':['Quejas y alertas','Queja y reclamo','Alerta']};
 function catMatch(cat,eCat){ const l=CAT_ALIAS[cat]; return l?l.includes(eCat):eCat===cat; }
 function catNorm(c){ return (c==='Queja y reclamo'||c==='Alerta')?'Quejas y alertas':c; }
-const ST_CLASS={'Nuevo':'st-Nuevo','Prompt recibido':'st-Prompt','Draft listo':'st-Draft','Aprobado':'st-Aprobado','Enviado':'st-Enviado','Descartado':'st-Nuevo'};
+const ST_CLASS={'Nuevo':'st-Nuevo','Prompt recibido':'st-Prompt','Draft listo':'st-Draft','Aprobado':'st-Aprobado','Enviado':'st-Enviado','Descartado':'st-Nuevo','Borrador':'st-Borrador'};
 
 let mailOrden='desc'; // 'desc' = más recientes primero · 'asc' = orden de llegada
 let cuentaFilter='';  // '' = todas las cuentas
+let envioFilter='';   // '' = todos · 'env' = enviados · 'sin' = sin enviar
 function visibleEmails(){
   return EMAILS.filter(e=>{
     if(cuentaFilter && e.cuenta!==cuentaFilter) return false;
+    if(envioFilter==='env' && e.estado!=='Enviado') return false;
+    if(envioFilter==='sin' && e.estado==='Enviado') return false;
     if(catFilter==='__env') return e.estado==='Enviado';
     if(e.estado==='Descartado') return false;
+    if(catFilter==='__brr') return e.estado==='Borrador';
     if(catFilter==='__pend') return e.estado==='Nuevo'||e.estado==='Draft listo';
     if(catFilter!=='*' && !catMatch(catFilter,e.categoria)) return false;
     return true; // los respondidos se quedan visibles con su tag verde ✓
@@ -511,12 +520,18 @@ function renderFilterPop(){
       <option value="">Todas las cuentas</option>
       ${[...new Set(EMAILS.map(e=>e.cuenta).filter(Boolean))].sort().map(c=>`<option value="${esc(c)}" ${cuentaFilter===c?'selected':''}>${esc(c)}@</option>`).join('')}
     </select>
+    <label>📨 Estado de envío</label>
+    <select id="mailEnvio" onchange="envioFilter=this.value;renderMailList()">
+      <option value="" ${envioFilter===''?'selected':''}>Todos</option>
+      <option value="env" ${envioFilter==='env'?'selected':''}>Solo enviados</option>
+      <option value="sin" ${envioFilter==='sin'?'selected':''}>Sin enviar</option>
+    </select>
     <label>🕐 Orden de llegada</label>
     <select id="mailOrden" onchange="mailOrden=this.value;renderMailList()">
       <option value="desc" ${mailOrden==='desc'?'selected':''}>Más recientes primero</option>
       <option value="asc" ${mailOrden==='asc'?'selected':''}>Más antiguos primero</option>
     </select>
-    ${(cuentaFilter||mailOrden!=='desc')?`<div class="btn-row"><button class="mini btn-ghost" onclick="cuentaFilter='';mailOrden='desc';renderMailList()">Limpiar filtros</button></div>`:''}`;
+    ${(cuentaFilter||mailOrden!=='desc'||envioFilter)?`<div class="btn-row"><button class="mini btn-ghost" onclick="cuentaFilter='';mailOrden='desc';envioFilter='';renderMailList()">Limpiar filtros</button></div>`:''}`;
 }
 document.addEventListener('click',ev=>{
   const p=document.getElementById('filterPop');
@@ -701,18 +716,20 @@ function renderDetail(id){
     ${e.mensaje_original?`<div class="msg-label">💬 Mensaje del cliente (texto original)</div><div class="msg-original">${esc(e.mensaje_original)}</div>`:''}
     ${renderCcOriginales(e)}
     ${renderContexto(e)}`;
-  if(e.estado==='Nuevo'||e.estado==='Prompt recibido'){
+  if(e.estado==='Nuevo'||e.estado==='Prompt recibido'||(e.estado==='Borrador'&&!e.draft_cuerpo)){
     html += `
     <label>Tu instrucción para la respuesta</label>
     <textarea id="promptBox" rows="5" placeholder="Ej: Dile que recibimos sus documentos y que su declaración de junio queda presentada esta semana.">${esc(e.prompt_juan||'')}</textarea>
     <div class="btn-row">
       <button class="btn btn-primary" id="genBtn" onclick="generateNow('${e.email_id}')">⚡ Generar respuesta AHORA</button>
+      <button class="btn btn-ghost" onclick="guardarBorrador('${e.email_id}')" title="Guarda la instrucción sin generar ni enviar — para que otra persona del equipo la confirme">📝 Guardar borrador</button>
       <button class="btn btn-ghost" onclick="discard('${e.email_id}')">Descartar</button>
     </div>
     <div id="genStatus"></div>
-    ${e.estado==='Prompt recibido'?`<div class="notice info">⏳ Hay una instrucción guardada sin draft. Pulsa <b>⚡ Generar respuesta AHORA</b> (o el agente la redactará en su próxima corrida horaria).</div>`:''}`;
+    ${e.estado==='Prompt recibido'?`<div class="notice info">⏳ Hay una instrucción guardada sin draft. Pulsa <b>⚡ Generar respuesta AHORA</b> (o el agente la redactará en su próxima corrida horaria).</div>`:''}
+    ${e.estado==='Borrador'?`<div class="notice warn">📝 <b>Borrador guardado — pendiente de confirmación del equipo.</b> La instrucción quedó registrada; el agente NO lo procesa hasta que alguien pulse Generar o Aprobar.</div>`:''}`;
   }
-  if(e.estado==='Draft listo'){
+  if(e.estado==='Draft listo'||(e.estado==='Borrador'&&e.draft_cuerpo)){
     html += `
     <label>Draft — edítalo directamente si lo necesitas</label>
     <div class="draft-box">
@@ -720,8 +737,10 @@ function renderDetail(id){
       <textarea id="draftBox" rows="12">${esc(e.draft_final||e.draft_cuerpo)}</textarea>
     </div>
     ${senderControl('fromSel', e.categoria)}
+    ${e.estado==='Borrador'?`<div class="notice warn">📝 <b>Borrador guardado — pendiente de confirmación del equipo.</b> Revisa el texto y aprueba, ajusta o vuelve a guardar.</div>`:''}
     <div class="btn-row">
       <button class="btn btn-approve" id="sendBtn" onclick="approveAndSend('${e.email_id}')">✅ Aprobar y ENVIAR AHORA</button>
+      <button class="btn btn-ghost" onclick="guardarBorradorDraft('${e.email_id}')" title="Guarda tus ediciones sin enviar — para que otra persona del equipo confirme">📝 Guardar borrador</button>
       <button class="btn btn-ghost" onclick="toggleNewPrompt()">↻ Modificar con nueva instrucción</button>
       <button class="btn btn-ghost" onclick="discard('${e.email_id}')">Descartar</button>
     </div>
@@ -782,6 +801,22 @@ async function approveAndSend(id){
   if(r.ok){ e.draft_final=cuerpo; e.estado='Enviado'; e.fecha_envio=new Date().toISOString().slice(0,16).replace('T',' ');
     toast('📤 Enviado a '+(r.enviado_a||e.remitente_email)+' desde '+(r.desde||from)); renderMailList(); renderDetail(id); }
   else{ if(btn) btn.disabled=false; toast('❌ '+(r.error||'error al enviar')); }
+}
+/* 📝 Borrador: guarda instrucción/ediciones SIN generar ni enviar — otro miembro del equipo confirma */
+async function guardarBorrador(id){
+  const e=EMAILS.find(x=>x.email_id===id);
+  const v=(document.getElementById('promptBox')?.value||'').trim();
+  if(!v){ toast('Escribe la instrucción antes de guardar el borrador'); return; }
+  const r=await api('guardar_borrador',{email_id:id,prompt_juan:v});
+  if(r.ok){ e.prompt_juan=v; e.estado='Borrador'; toast('📝 Borrador guardado — pendiente de confirmación del equipo'); renderMailList(); renderDetail(id); }
+  else toast('❌ '+(r.error||'error'));
+}
+async function guardarBorradorDraft(id){
+  const e=EMAILS.find(x=>x.email_id===id);
+  const cuerpo=document.getElementById('draftBox')?document.getElementById('draftBox').value:(e.draft_final||e.draft_cuerpo);
+  const r=await api('guardar_borrador',{email_id:id,draft_final:cuerpo});
+  if(r.ok){ e.draft_final=cuerpo; e.estado='Borrador'; toast('📝 Borrador guardado con tus ediciones — pendiente de confirmación'); renderMailList(); renderDetail(id); }
+  else toast('❌ '+(r.error||'error'));
 }
 async function discard(id){
   const r=await api('discard',{email_id:id});
