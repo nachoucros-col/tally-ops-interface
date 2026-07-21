@@ -409,7 +409,7 @@ async function loadAll(){
     if(!composeMode && !drawerOpen){ renderMailList(); if(selId) renderDetail(selId); }
     else if(!composeMode && drawerOpen){ renderMailList(); }
     if(!drawerOpen) renderSC();
-    if(AUTH&&!USUARIOS_PLAT.length&&!window.__usrTried){ window.__usrTried=true; cargarUsuarios(); }
+    if(AUTH&&!USUARIOS_PLAT.length) cargarUsuarios(); // reintenta cada ciclo hasta lograrlo
     if(!drawerOpen) renderTareas();
     renderLog();
   }catch(e){
@@ -1678,9 +1678,11 @@ async function scDecide(cid,decision){
 
 /* ═══════════════ ✅ TAREAS (kanban 2 columnas, alimentado desde Bandeja y Documentación) ═══════════════ */
 async function cargarUsuarios(){
-  if(!AUTH) return;
+  if(!AUTH) return false;
   const r=await api('usuarios_publicos',{auth:{email:AUTH.email,password:AUTH.password}});
-  if(r.ok){ USUARIOS_PLAT=r.usuarios||[]; renderTareas(); }
+  if(r.ok&&(r.usuarios||[]).length){ USUARIOS_PLAT=r.usuarios; renderTareas(); return true; }
+  console.warn('usuarios_publicos:', r.error||'lista vacía');
+  return false;
 }
 function nombreUsuario(email){
   const u=USUARIOS_PLAT.find(x=>x.email===String(email||'').toLowerCase());
@@ -1738,8 +1740,13 @@ async function tkDrop(ev,col){
 }
 /* Modal de creación múltiple (desde el detalle de Bandeja o Documentación) */
 let TSK={origen:'',ref:'',cliente:'',filas:[]};
-function abrirTareas(origen,ref,cliente){
+async function abrirTareas(origen,ref,cliente){
   TSK={origen,ref,cliente,filas:[{responsable:'',titulo:''}]};
+  if(!USUARIOS_PLAT.length){
+    toast('👥 Cargando usuarios de la plataforma…');
+    const ok=await cargarUsuarios();
+    if(!ok){ toast('❌ No pude traer los usuarios — revisa tu sesión (cierra y vuelve a entrar) o espera el deploy del backend'); return; }
+  }
   renderTskModal();
 }
 function renderTskModal(){
