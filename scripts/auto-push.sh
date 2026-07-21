@@ -36,16 +36,22 @@ cp scripts/appsscript.json clasp/appsscript.json 2>/dev/null
 if ! cmp -s clasp/Code.js .last-deployed.gs 2>/dev/null; then
   if command -v clasp >/dev/null 2>&1 && ! grep -q "PEGAR_AQUI" .clasp.json; then
     echo "clasp push:"
-    if clasp push -f 2>&1 | tail -1; then
+    PUSH_OUT=$(clasp push -f 2>&1); PUSH_RC=$?
+    echo "$PUSH_OUT" | tail -3
+    if [ $PUSH_RC -eq 0 ] && ! echo "$PUSH_OUT" | grep -qi "error"; then
       echo "clasp deploy:"
-      if clasp deploy -i "$DEPLOYMENT_ID" -d "auto $(date '+%Y-%m-%d %H:%M')" 2>&1 | tail -1; then
+      DEP_OUT=$(clasp deploy -i "$DEPLOYMENT_ID" -d "auto $(date '+%Y-%m-%d %H:%M')" 2>&1); DEP_RC=$?
+      echo "$DEP_OUT" | tail -3
+      if [ $DEP_RC -eq 0 ] && ! echo "$DEP_OUT" | grep -qi "error"; then
         cp clasp/Code.js .last-deployed.gs
         echo "$(date): Apps Script redesplegado" >> .autopush.log
       else
-        echo "$(date): clasp deploy FALLÓ" >> .autopush.log
+        echo "$(date): clasp deploy FALLÓ: $(echo "$DEP_OUT" | tail -1)" >> .autopush.log
+        echo "⚠️ clasp deploy FALLÓ — se reintentará en la próxima corrida"
       fi
     else
-      echo "$(date): clasp push FALLÓ (¿login vencido? corre: clasp login)" >> .autopush.log
+      echo "$(date): clasp push FALLÓ: $(echo "$PUSH_OUT" | tail -1) (¿login vencido? corre: clasp login)" >> .autopush.log
+      echo "⚠️ clasp push FALLÓ — se reintentará en la próxima corrida"
     fi
   else
     echo "clasp no disponible o .clasp.json sin scriptId"
