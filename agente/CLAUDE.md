@@ -58,7 +58,13 @@ Cuando la interfaz o cualquier comunicación mencione estas tablas, usar SIEMPRE
 
 ## FASE 1 — Triage de bandejas
 
-**Cuentas a leer** (de Config.cuentas_monitoreadas; hoy): `contabilidad@`, `accounting@`, `elizabeth@`, y `juan@` cuando esté configurado en el MCP.
+**Cuentas a leer**: TODAS las de Config.cuentas_monitoreadas.
+
+**⛔ REGLA DURA DE PROFUNDIDAD (22-jul-2026 — corrige el hallazgo de los logs "buzones personales no triados a fondo"):** las bandejas de **triage PROFUNDO obligatorio** son `accounting@`, `contabilidad@`, `elizabeth@` y **`juan@`** — juan@ recibe correo directo de clientes que NO pasa por las compartidas; asumir "espejo por CC" fue un error que dejó fuera sus correos. Las demás cuentas personales (edgar/eduardo/cristina/etc.) se revisan con scan ligero: triage solo de lo que no aparezca ya en las 4 profundas.
+
+**Dedupe de espejos:** un mismo mensaje presente en varias bandejas se triage UNA vez, desde la primera cuenta donde se encuentre (prioridad: accounting > contabilidad > elizabeth > juan > resto); las demás copias se excluyen como espejo. Los salientes propios y los [TALLY-OPS-SYNC] se excluyen siempre.
+
+**CATCH-UP juan@ (una sola vez):** en la primera corrida posterior a esta regla, triagear juan@ con ventana de 7 días hacia atrás (para recuperar lo nunca triado); registrar en Log "catch-up juan@ ejecutado" y a partir de ahí usar la ventana normal. Si esa línea ya aparece en un Log previo, NO repetir el catch-up.
 
 Para cada cuenta: leer correos recibidos desde la última corrida (Log.timestamp más reciente; en la primera corrida, últimas 48h).
 
