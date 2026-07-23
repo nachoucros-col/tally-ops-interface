@@ -52,6 +52,13 @@ if ! cmp -s clasp/Code.js .last-deployed.gs 2>/dev/null; then
     else
       echo "$(date): clasp push FALLÓ: $(echo "$PUSH_OUT" | tail -1) (¿login vencido? corre: clasp login)" >> .autopush.log
       echo "⚠️ clasp push FALLÓ — se reintentará en la próxima corrida"
+      # Alarma visible: notificación de macOS máx. 1 vez por hora mientras siga fallando
+      LAST_NOTIF=$(cat /tmp/.tally-clasp-notif 2>/dev/null || echo 0)
+      NOW_TS=$(date +%s)
+      if [ $((NOW_TS - LAST_NOTIF)) -gt 3600 ]; then
+        osascript -e 'display notification "clasp login vencido — el backend de Tally Ops NO se está desplegando. Corre: clasp login" with title "⚠️ Tally AutoPush" sound name "Basso"' 2>/dev/null
+        echo "$NOW_TS" > /tmp/.tally-clasp-notif
+      fi
     fi
   else
     echo "clasp no disponible o .clasp.json sin scriptId"
