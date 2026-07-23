@@ -309,6 +309,36 @@ function handle(body) {
       sh.appendRow(vals);
       return { ok: true, inserted: body.plantilla_id };
     }
+    /* ══════════ 🎖️ COMANDO CONTABILIDAD — micro-cascada de actividades (HTML local de Juan) ══════════ */
+    case 'cmd_item_add': {
+      if (!String(body.titulo || '').trim()) return { ok: false, error: 'titulo vacío' };
+      const sh = getOrCreate(ss, 'Comando_Items', ['item_id', 'fase', 'titulo', 'detalle', 'orden', 'estado', 'creado', 'actualizado']);
+      const id = 'CMD-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+      sh.appendRow([id, String(body.fase || 'General'), String(body.titulo).trim(), String(body.detalle || ''),
+                    Number(body.orden) || 999, ['Pendiente','En curso','Hecho'].indexOf(String(body.estado)) >= 0 ? String(body.estado) : 'Pendiente', now, now]);
+      return { ok: true, item_id: id };
+    }
+    case 'cmd_item_edit': {
+      const sh = ss.getSheetByName('Comando_Items');
+      if (!sh) return { ok: false, error: 'sin pestaña Comando_Items' };
+      const row = findRow(sh, 1, body.item_id);
+      if (!row) return { ok: false, error: 'item no encontrado' };
+      if (body.titulo !== undefined && String(body.titulo).trim()) sh.getRange(row, 3).setValue(String(body.titulo).trim());
+      if (body.detalle !== undefined) sh.getRange(row, 4).setValue(String(body.detalle));
+      if (body.fase !== undefined) sh.getRange(row, 2).setValue(String(body.fase));
+      if (body.orden !== undefined) sh.getRange(row, 5).setValue(Number(body.orden) || 999);
+      if (body.estado !== undefined && ['Pendiente','En curso','Hecho'].indexOf(String(body.estado)) >= 0) sh.getRange(row, 6).setValue(String(body.estado));
+      sh.getRange(row, 8).setValue(now);
+      return { ok: true, item_id: body.item_id };
+    }
+    case 'cmd_item_del': {
+      const sh = ss.getSheetByName('Comando_Items');
+      if (!sh) return { ok: false, error: 'sin pestaña Comando_Items' };
+      const row = findRow(sh, 1, body.item_id);
+      if (!row) return { ok: false, error: 'item no encontrado' };
+      sh.deleteRow(row);
+      return { ok: true, deleted: body.item_id };
+    }
     /* ══════════ 🗺️ ROADMAP KPIs CONTABILIDAD (dashboard.tallylegal.io/accounting) ══════════ */
     case 'kpi_item_add': {
       // body: {texto, estado: 'Next Steps'|'En proceso'|'Implementado'}
