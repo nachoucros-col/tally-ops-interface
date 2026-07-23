@@ -172,6 +172,10 @@ tr:hover td{background:rgba(96,71,255,.04)}
 .kb-card:hover{box-shadow:var(--shadow-md);transform:translateY(-2px);border-color:var(--gray-300)}
 .kb-card:active{cursor:grabbing}
 .kb-card.dragging{opacity:.45;transform:rotate(2deg) scale(.98)}
+.kb-acts{position:absolute;top:8px;right:8px;display:flex;gap:4px;opacity:0;transition:var(--transition-state)}
+.kb-card:hover .kb-acts{opacity:1}
+.kb-acts button{border:1px solid var(--border-light);background:#fff;border-radius:var(--radius-pill);width:26px;height:26px;font-size:12px;cursor:pointer;box-shadow:var(--shadow-sm);display:flex;align-items:center;justify-content:center;padding:0}
+.kb-acts button:hover{background:var(--gray-100)}
 .kb-title{font-weight:700;font-size:13.5px;line-height:1.3}
 .kb-meta{font-size:11.5px;color:var(--text-secondary);margin:3px 0 6px}
 .kb-tags{display:flex;gap:5px;flex-wrap:wrap}
@@ -1713,8 +1717,12 @@ function tkCard(t){
   const origen=t.origen==='Documentación'?'📦':t.origen==='Bandeja'?'📥':'✅';
   const clientes=String(t.clientes||t.cliente||'').split(',').map(s=>s.trim()).filter(Boolean);
   const vinculo=(t.origen==='Bandeja'||t.origen==='Documentación')&&t.ref_id;
-  return `<div class="kb-card" draggable="true" ondragstart="tkDrag(event,'${esc(t.tarea_id)}')" ondragend="this.classList.remove('dragging')" ${vinculo?`onclick="tkAbrir('${esc(t.tarea_id)}')" title="Abrir el proceso vinculado"`:''}>
-    <div class="kb-title">${esc(t.titulo)}${vinculo?' <span style="color:var(--brand-primary);font-weight:400">↗</span>':''}</div>
+  return `<div class="kb-card" style="position:relative" draggable="true" ondragstart="tkDrag(event,'${esc(t.tarea_id)}')" ondragend="this.classList.remove('dragging')" ${vinculo?`onclick="tkAbrir('${esc(t.tarea_id)}')" title="Abrir el proceso vinculado"`:''}>
+    <div class="kb-acts">
+      <button title="Editar tarea" onclick="event.stopPropagation();tkEditar('${esc(t.tarea_id)}')">✏️</button>
+      <button title="Eliminar tarea" onclick="event.stopPropagation();tkDel('${esc(t.tarea_id)}')">🗑</button>
+    </div>
+    <div class="kb-title" style="padding-right:56px">${esc(t.titulo)}${vinculo?' <span style="color:var(--brand-primary);font-weight:400">↗</span>':''}</div>
     ${t.descripcion?`<div style="font-size:12px;color:var(--text-secondary);margin:3px 0;line-height:1.4">${esc(String(t.descripcion).substring(0,180))}${String(t.descripcion).length>180?'…':''}</div>`:''}
     ${clientes.length?`<div class="kb-tags" style="margin:4px 0">${clientes.map(c=>`<span class="tag acct">${esc(c)}</span>`).join('')}</div>`:''}
     <div class="kb-tags" style="align-items:center;gap:6px;margin-top:6px">
@@ -1748,19 +1756,35 @@ async function tkEdit(id,campo,valor){
   } else toast('❌ '+(r.error||'error'));
   renderTareas();
 }
-/* Modal de creación completa (nombre, descripción, clientes con tags, owner, fecha entrega) */
-let TKN={titulo:'',desc:'',clientes:[],resp:'',fecha:''};
+/* Modal de creación/edición completa (nombre, descripción, clientes con tags, owner, fecha entrega) */
+let TKN={id:null,titulo:'',desc:'',clientes:[],resp:'',fecha:''};
 async function tkNueva(){
   if(!USUARIOS_PLAT.length){ toast('👥 Cargando usuarios…'); await cargarUsuarios(); }
-  TKN={titulo:'',desc:'',clientes:[],resp:'',fecha:''};
+  TKN={id:null,titulo:'',desc:'',clientes:[],resp:'',fecha:''};
   tkNuevaRender();
+}
+async function tkEditar(id){
+  const t=TAREAS.find(x=>x.tarea_id===id); if(!t) return;
+  if(!USUARIOS_PLAT.length){ toast('👥 Cargando usuarios…'); await cargarUsuarios(); }
+  const nombres=String(t.clientes||t.cliente||'').split(',').map(s=>s.trim()).filter(Boolean);
+  TKN={id:id,titulo:String(t.titulo||''),desc:String(t.descripcion||''),
+       clientes:nombres.map(n=>{const c=CLIENTES.find(x=>x.cliente===n);return {company_id:c?c.company_id:n,cliente:n};}),
+       resp:String(t.responsable||'').toLowerCase(),fecha:String(t.fecha_entrega||'').substring(0,10)};
+  tkNuevaRender();
+}
+async function tkDel(id){
+  const t=TAREAS.find(x=>x.tarea_id===id); if(!t) return;
+  if(!confirm(`🗑 Eliminar la tarea "${t.titulo}"?\n\nEsta acción no se puede deshacer.`)) return;
+  const r=await api('tarea_del',{tarea_id:id,auth:{email:AUTH.email,password:AUTH.password}});
+  if(r.ok){ TAREAS=TAREAS.filter(x=>x.tarea_id!==id); toast('🗑 Tarea eliminada'); renderTareas(); }
+  else toast('❌ '+(r.error||'error'));
 }
 function tkNuevaRender(){
   document.getElementById('kbConfirmBack')?.remove();
   const back=document.createElement('div');
   back.id='kbConfirmBack';
   back.innerHTML=`<div class="kb-modal" onclick="event.stopPropagation()" style="max-width:520px">
-    <h3>＋ Crear tarea</h3>
+    <h3>${TKN.id?'✏️ Editar tarea':'＋ Crear tarea'}</h3>
     <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin:10px 0 4px">Nombre de la tarea</label>
     <input type="text" id="tknTit" value="${esc(TKN.titulo)}" placeholder="Qué hay que lograr" oninput="TKN.titulo=this.value">
     <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin:10px 0 4px">Descripción</label>
@@ -1781,7 +1805,7 @@ function tkNuevaRender(){
       <input type="date" value="${esc(TKN.fecha)}" onchange="TKN.fecha=this.value" style="width:100%"></div>
     </div>
     <p style="font-size:11px;color:var(--text-secondary);margin-top:8px">🕐 La fecha de creación se sella automáticamente y queda visible en la card.</p>
-    <button class="btn btn-primary" onclick="tkNuevaCrear()">✅ Crear tarea</button>
+    <button class="btn btn-primary" onclick="tkNuevaCrear()">${TKN.id?'💾 Guardar cambios':'✅ Crear tarea'}</button>
     <button class="btn btn-ghost" onclick="document.getElementById('kbConfirmBack').remove()">Cancelar</button>
   </div>`;
   back.addEventListener('click',ev=>{ if(ev.target===back) back.remove(); });

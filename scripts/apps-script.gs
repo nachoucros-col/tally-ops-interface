@@ -430,6 +430,16 @@ function handle(body) {
       sh.getRange(row, 11).setValue(now);
       return { ok: true, tarea_id: body.tarea_id };
     }
+    case 'tarea_del': {
+      const u = checkUser(body.auth);
+      if (!u.ok) return u;
+      const sh = ss.getSheetByName('Tareas');
+      if (!sh) return { ok: false, error: 'sin pestaña Tareas' };
+      const row = findRow(sh, 1, body.tarea_id);
+      if (!row) return { ok: false, error: 'tarea no encontrada' };
+      sh.deleteRow(row);
+      return { ok: true, tarea_id: body.tarea_id, eliminada: true };
+    }
     case 'tarea_estado': {
       const u2 = checkUser(body.auth);
       if (!u2.ok) return u2;
