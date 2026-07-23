@@ -1829,6 +1829,17 @@ async function tkNuevaCrear(){
   if(!TKN.titulo.trim()){ toast('La tarea necesita nombre'); return; }
   if(!TKN.resp){ toast('Asigna un owner'); return; }
   const nombres=TKN.clientes.map(c=>c.cliente).join(', ');
+  if(TKN.id){
+    const r=await api('tarea_edit',{tarea_id:TKN.id,titulo:TKN.titulo.trim(),descripcion:TKN.desc.trim(),responsable:TKN.resp,clientes:nombres,fecha_entrega:TKN.fecha,auth:{email:AUTH.email,password:AUTH.password}});
+    if(r.ok){
+      document.getElementById('kbConfirmBack')?.remove();
+      const t=TAREAS.find(x=>x.tarea_id===TKN.id);
+      if(t){ t.titulo=TKN.titulo.trim(); t.descripcion=TKN.desc.trim(); t.responsable=TKN.resp; t.cliente=nombres; t.clientes=nombres; t.fecha_entrega=TKN.fecha; }
+      toast('✅ Tarea actualizada');
+      renderTareas();
+    } else toast('❌ '+(r.error||'error'));
+    return;
+  }
   const r=await api('tarea_crear',{tareas:[{titulo:TKN.titulo.trim(),descripcion:TKN.desc.trim(),responsable:TKN.resp,origen:'Tareas',ref_id:'',cliente:nombres,clientes:nombres,fecha_entrega:TKN.fecha}],auth:{email:AUTH.email,password:AUTH.password}});
   if(r.ok){
     document.getElementById('kbConfirmBack')?.remove();
