@@ -393,18 +393,42 @@ function handle(body) {
       return { ok: true, usuarios: list };
     }
     case 'tarea_crear': {
-      // body: {tareas:[{titulo, responsable, origen, ref_id, cliente}], auth}
+      // body: {tareas:[{titulo, descripcion, responsable, origen, ref_id, cliente, clientes, fecha_entrega}], auth}
       const u = checkUser(body.auth);
       if (!u.ok) return u;
-      const sh = getOrCreate(ss, 'Tareas', ['tarea_id','fecha_creacion','creado_por','responsable','titulo','origen','ref_id','cliente','estado','fecha_finalizacion','ultima_actualizacion']);
+      const sh = getOrCreate(ss, 'Tareas', ['tarea_id','fecha_creacion','creado_por','responsable','titulo','origen','ref_id','cliente','estado','fecha_finalizacion','ultima_actualizacion','descripcion','clientes','fecha_entrega']);
+      ensureTareasCols(sh);
       const ids = [];
       (body.tareas || []).forEach(function(t){
         if (!String(t.titulo || '').trim()) return;
         const id = 'T-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
-        sh.appendRow([id, now, u.email, String(t.responsable || '').toLowerCase(), String(t.titulo), String(t.origen || ''), String(t.ref_id || ''), String(t.cliente || ''), 'Sin iniciar', '', now]);
+        sh.appendRow([id, now, u.email, String(t.responsable || '').toLowerCase(), String(t.titulo), String(t.origen || ''), String(t.ref_id || ''), String(t.cliente || ''), 'Sin iniciar', '', now,
+                      String(t.descripcion || ''), String(t.clientes || ''), String(t.fecha_entrega || '')]);
         ids.push(id);
       });
       return { ok: true, creadas: ids.length, ids: ids };
+    }
+    case 'tarea_edit': {
+      // Edición en línea desde la lista: titulo, descripcion, responsable, fecha_entrega, estado, clientes
+      const u = checkUser(body.auth);
+      if (!u.ok) return u;
+      const sh = ss.getSheetByName('Tareas');
+      if (!sh) return { ok: false, error: 'sin pestaña Tareas' };
+      ensureTareasCols(sh);
+      const row = findRow(sh, 1, body.tarea_id);
+      if (!row) return { ok: false, error: 'tarea no encontrada' };
+      if (body.titulo !== undefined && String(body.titulo).trim()) sh.getRange(row, 5).setValue(String(body.titulo).trim());
+      if (body.responsable !== undefined) sh.getRange(row, 4).setValue(String(body.responsable).toLowerCase());
+      if (body.descripcion !== undefined) sh.getRange(row, 12).setValue(String(body.descripcion));
+      if (body.clientes !== undefined) sh.getRange(row, 13).setValue(String(body.clientes));
+      if (body.fecha_entrega !== undefined) sh.getRange(row, 14).setValue(String(body.fecha_entrega));
+      if (body.estado !== undefined) {
+        const est = body.estado === 'Finalizado' ? 'Finalizado' : 'Sin iniciar';
+        sh.getRange(row, 9).setValue(est);
+        sh.getRange(row, 10).setValue(est === 'Finalizado' ? now : '');
+      }
+      sh.getRange(row, 11).setValue(now);
+      return { ok: true, tarea_id: body.tarea_id };
     }
     case 'tarea_estado': {
       const u2 = checkUser(body.auth);
@@ -1238,6 +1262,13 @@ function resolveSender(ss, body, categoria) {
 }
 
 /** Valida credenciales de administrador (para acciones de gestión de usuarios). */
+/** Garantiza las columnas extendidas de Tareas: L descripcion, M clientes, N fecha_entrega. */
+function ensureTareasCols(sh) {
+  if (String(sh.getRange(1, 12).getValue()) !== 'descripcion') {
+    sh.getRange(1, 12, 1, 3).setValues([['descripcion', 'clientes', 'fecha_entrega']]);
+  }
+}
+
 /** Valida credenciales de CUALQUIER usuario activo de la plataforma. Devuelve {ok,email,nombre} o {ok:false}. */
 function checkUser(auth) {
   try {
