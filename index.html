@@ -266,7 +266,10 @@ tr:hover td{background:rgba(96,71,255,.04)}
       <div class="page-head">
         <div>
           <h1>Tareas</h1>
-          <p class="lead">Tareas del equipo creadas desde la Bandeja y Documentación mensual. Arrastra una card a Finalizado (o de regreso) para cambiar su estado.</p>
+          <p class="lead">Tareas del equipo — creadas aquí o desde la Bandeja y Documentación mensual. Owner, fecha de entrega y estado se editan directo en la card; también puedes arrastrarla entre columnas.</p>
+        </div>
+        <div class="head-actions">
+          <button class="compose-btn" onclick="tkNueva()">＋ Crear tarea</button>
         </div>
       </div>
       <div class="chips" style="align-items:center">
@@ -1700,18 +1703,115 @@ function tkAbrir(id){
     scDetail(t.ref_id); // abre el drawer del cliente con checklist, escenario y aprobación
   } else toast('Esta tarea no tiene proceso vinculado');
 }
+function tkFechaEntrega(t){
+  const f=String(t.fecha_entrega||'').substring(0,10);
+  const hoy=new Date().toISOString().substring(0,10);
+  const vencida=f&&f<hoy&&t.estado!=='Finalizado';
+  return `<input type="date" value="${esc(f)}" onclick="event.stopPropagation()" onchange="event.stopPropagation();tkEdit('${esc(t.tarea_id)}','fecha_entrega',this.value)" style="width:auto;padding:4px 8px;font-size:11.5px;${vencida?'border-color:#e54848;color:#b91c1c;font-weight:700':''}" title="${vencida?'⚠️ VENCIDA':'Fecha de entrega'}">`;
+}
 function tkCard(t){
-  const origen=t.origen==='Documentación'?'📦':'📥';
-  return `<div class="kb-card" draggable="true" ondragstart="tkDrag(event,'${esc(t.tarea_id)}')" ondragend="this.classList.remove('dragging')" onclick="tkAbrir('${esc(t.tarea_id)}')" title="Abrir el proceso vinculado (${esc(t.origen||'')})">
-    <div class="kb-title">${esc(t.titulo)} <span style="color:var(--brand-primary);font-weight:400">↗</span></div>
-    <div class="kb-meta">👤 ${esc(nombreUsuario(t.responsable))}${t.cliente?' · '+esc(t.cliente):''}</div>
-    <div class="kb-tags">
-      <span class="tag acct">${origen} ${esc(t.origen||'')}</span>
-      <span class="tag acct">${esc(fechaLarga(t.fecha_creacion).split(',')[0]||'')}</span>
-      ${t.estado==='Finalizado'?`<span class="tag st-Enviado">✅ ${esc(String(t.fecha_finalizacion).substring(0,10))}</span>`:''}
+  const origen=t.origen==='Documentación'?'📦':t.origen==='Bandeja'?'📥':'✅';
+  const clientes=String(t.clientes||t.cliente||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const vinculo=(t.origen==='Bandeja'||t.origen==='Documentación')&&t.ref_id;
+  return `<div class="kb-card" draggable="true" ondragstart="tkDrag(event,'${esc(t.tarea_id)}')" ondragend="this.classList.remove('dragging')" ${vinculo?`onclick="tkAbrir('${esc(t.tarea_id)}')" title="Abrir el proceso vinculado"`:''}>
+    <div class="kb-title">${esc(t.titulo)}${vinculo?' <span style="color:var(--brand-primary);font-weight:400">↗</span>':''}</div>
+    ${t.descripcion?`<div style="font-size:12px;color:var(--text-secondary);margin:3px 0;line-height:1.4">${esc(String(t.descripcion).substring(0,180))}${String(t.descripcion).length>180?'…':''}</div>`:''}
+    ${clientes.length?`<div class="kb-tags" style="margin:4px 0">${clientes.map(c=>`<span class="tag acct">${esc(c)}</span>`).join('')}</div>`:''}
+    <div class="kb-tags" style="align-items:center;gap:6px;margin-top:6px">
+      <select onclick="event.stopPropagation()" onchange="event.stopPropagation();tkEdit('${esc(t.tarea_id)}','responsable',this.value)" style="width:auto;padding:4px 8px;font-size:11.5px" title="Owner">
+        <option value="">👤 sin owner</option>
+        ${USUARIOS_PLAT.map(u=>`<option value="${esc(u.email)}" ${String(t.responsable||'').toLowerCase()===u.email?'selected':''}>${esc(u.nombre)}</option>`).join('')}
+      </select>
+      ${tkFechaEntrega(t)}
+      <select onclick="event.stopPropagation()" onchange="event.stopPropagation();tkEdit('${esc(t.tarea_id)}','estado',this.value)" style="width:auto;padding:4px 8px;font-size:11.5px" title="Estado">
+        <option ${t.estado!=='Finalizado'?'selected':''}>Sin iniciar</option>
+        <option ${t.estado==='Finalizado'?'selected':''}>Finalizado</option>
+      </select>
     </div>
-    <div class="kb-tags" style="margin-top:6px"><span style="font-size:11px;color:var(--text-secondary)">creada por ${esc(nombreUsuario(t.creado_por))}</span></div>
+    <div class="kb-tags" style="margin-top:6px">
+      <span class="tag acct">${origen} ${esc(t.origen||'Tareas')}</span>
+      <span class="tag acct" title="Fecha de creación">🕐 ${esc(fechaLarga(t.fecha_creacion).split(',')[0]||'')}</span>
+      ${t.estado==='Finalizado'?`<span class="tag st-Enviado">✅ ${esc(String(t.fecha_finalizacion).substring(0,10))}</span>`:''}
+      <span style="font-size:11px;color:var(--text-secondary)">creada por ${esc(nombreUsuario(t.creado_por))}</span>
+    </div>
   </div>`;
+}
+async function tkEdit(id,campo,valor){
+  const t=TAREAS.find(x=>x.tarea_id===id); if(!t) return;
+  const payload={tarea_id:id,auth:{email:AUTH.email,password:AUTH.password}};
+  payload[campo]=valor;
+  const r=await api('tarea_edit',payload);
+  if(r.ok){
+    t[campo]=valor;
+    if(campo==='estado') t.fecha_finalizacion=valor==='Finalizado'?new Date().toISOString().slice(0,16).replace('T',' '):'';
+    toast('✅ Tarea actualizada');
+  } else toast('❌ '+(r.error||'error'));
+  renderTareas();
+}
+/* Modal de creación completa (nombre, descripción, clientes con tags, owner, fecha entrega) */
+let TKN={titulo:'',desc:'',clientes:[],resp:'',fecha:''};
+async function tkNueva(){
+  if(!USUARIOS_PLAT.length){ toast('👥 Cargando usuarios…'); await cargarUsuarios(); }
+  TKN={titulo:'',desc:'',clientes:[],resp:'',fecha:''};
+  tkNuevaRender();
+}
+function tkNuevaRender(){
+  document.getElementById('kbConfirmBack')?.remove();
+  const back=document.createElement('div');
+  back.id='kbConfirmBack';
+  back.innerHTML=`<div class="kb-modal" onclick="event.stopPropagation()" style="max-width:520px">
+    <h3>＋ Crear tarea</h3>
+    <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin:10px 0 4px">Nombre de la tarea</label>
+    <input type="text" id="tknTit" value="${esc(TKN.titulo)}" placeholder="Qué hay que lograr" oninput="TKN.titulo=this.value">
+    <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin:10px 0 4px">Descripción</label>
+    <textarea id="tknDesc" rows="3" placeholder="Contexto, criterio de terminado, links…" oninput="TKN.desc=this.value">${esc(TKN.desc)}</textarea>
+    <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin:10px 0 4px">Clientes a los que aplica</label>
+    <div class="cli-pick">
+      <input type="text" id="tknCli" placeholder="Busca por nombre o ID… (mínimo 2 letras)" oninput="tknBuscar(this.value)" autocomplete="off">
+      <div class="cli-results" id="tknCliRes" style="display:none"></div>
+    </div>
+    <div class="sel-clients">${TKN.clientes.map((c,i)=>`<span class="chip">${esc(c.cliente)} <b onclick="TKN.clientes.splice(${i},1);tkNuevaRender()">✕</b></span>`).join('')}</div>
+    <div style="display:flex;gap:10px;margin-top:10px">
+      <div style="flex:1"><label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin-bottom:4px">Owner</label>
+      <select onchange="TKN.resp=this.value" style="width:100%">
+        <option value="">— responsable —</option>
+        ${USUARIOS_PLAT.map(u=>`<option value="${esc(u.email)}" ${TKN.resp===u.email?'selected':''}>${esc(u.nombre)}</option>`).join('')}
+      </select></div>
+      <div style="flex:1"><label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin-bottom:4px">Fecha de entrega</label>
+      <input type="date" value="${esc(TKN.fecha)}" onchange="TKN.fecha=this.value" style="width:100%"></div>
+    </div>
+    <p style="font-size:11px;color:var(--text-secondary);margin-top:8px">🕐 La fecha de creación se sella automáticamente y queda visible en la card.</p>
+    <button class="btn btn-primary" onclick="tkNuevaCrear()">✅ Crear tarea</button>
+    <button class="btn btn-ghost" onclick="document.getElementById('kbConfirmBack').remove()">Cancelar</button>
+  </div>`;
+  back.addEventListener('click',ev=>{ if(ev.target===back) back.remove(); });
+  document.body.appendChild(back);
+  document.getElementById('tknTit').focus();
+}
+function tknBuscar(q){
+  const box=document.getElementById('tknCliRes');
+  q=q.trim().toLowerCase();
+  if(q.length<2){ box.style.display='none'; return; }
+  const hits=CLIENTES.filter(c=>!TKN.clientes.some(s=>s.company_id===c.company_id)&&((c.cliente||'').toLowerCase().includes(q)||(c.company_id||'').toLowerCase().includes(q))).slice(0,10);
+  box.innerHTML=hits.length?hits.map(c=>`<div onclick='tknAdd(${JSON.stringify(c.company_id)})'>${esc(c.cliente)} <span style="color:var(--gray-500)">· ${esc(c.company_id)}</span></div>`).join(''):'<div style="color:var(--gray-500)">sin resultados</div>';
+  box.style.display='block';
+}
+function tknAdd(id){
+  const c=CLIENTES.find(x=>x.company_id===id);
+  if(c) TKN.clientes.push({company_id:c.company_id,cliente:c.cliente});
+  tkNuevaRender();
+}
+async function tkNuevaCrear(){
+  if(!TKN.titulo.trim()){ toast('La tarea necesita nombre'); return; }
+  if(!TKN.resp){ toast('Asigna un owner'); return; }
+  const nombres=TKN.clientes.map(c=>c.cliente).join(', ');
+  const r=await api('tarea_crear',{tareas:[{titulo:TKN.titulo.trim(),descripcion:TKN.desc.trim(),responsable:TKN.resp,origen:'Tareas',ref_id:'',cliente:nombres,clientes:nombres,fecha_entrega:TKN.fecha}],auth:{email:AUTH.email,password:AUTH.password}});
+  if(r.ok){
+    document.getElementById('kbConfirmBack')?.remove();
+    TAREAS.push({tarea_id:(r.ids&&r.ids[0])||'tmp',fecha_creacion:new Date().toISOString().slice(0,16).replace('T',' '),creado_por:AUTH.email,responsable:TKN.resp,titulo:TKN.titulo.trim(),descripcion:TKN.desc.trim(),origen:'Tareas',ref_id:'',cliente:nombres,clientes:nombres,fecha_entrega:TKN.fecha,estado:'Sin iniciar',fecha_finalizacion:''});
+    toast('✅ Tarea creada');
+    renderTareas();
+  } else toast('❌ '+(r.error||'error'));
 }
 function renderTareas(){
   const el=document.getElementById('tkBoard'); if(!el) return;
