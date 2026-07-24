@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Retro · Escala y Purga · Contabilidad · 09–24 jul 2026</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --violet-500:#6047ff; --violet-100:#dcdcff;
+  --orange-500:#ff8248; --orange-100:#fcddd6;
+  --cyan-500:#5ed7ff;   --cyan-100:#dcf8ff;
+  --green-500:#49d475;  --green-100:#c8e8ce;
+  --ink:#212121; --cream:#fefcf8;
+  --brand:var(--violet-500); --brand-soft:var(--violet-100);
+  --sec:#6B7280; --line:#e8e8e8;
+  --g100:rgba(33,33,33,.05);
+  --r-sm:8px; --r-md:16px; --r-lg:24px; --pill:999px;
+  --sh-sm:0 1px 3px rgba(0,0,0,.06); --sh-md:0 4px 12px rgba(0,0,0,.08);
+  --sh-xl:0 25px 50px -12px rgba(0,0,0,.15);
+  --ease:cubic-bezier(0.16,1,0.3,1); --tr:300ms var(--ease);
+  --rojo:#e54848;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);font-size:15px;line-height:1.55}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink)}
+input[type=text],input[type=date],select,textarea{border:1px solid #d4d4d4;border-radius:var(--r-md);padding:9px 12px;background:#fff}
+textarea{width:100%;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--brand);border-color:transparent}
+.wrap{max-width:1080px;margin:0 auto;padding:28px 24px 80px}
+header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+h1{font-size:26px;font-weight:700}
+h1 span{color:var(--brand)}
+.sub{color:var(--sec);font-size:13.5px;margin-top:4px}
+.nav{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 22px;position:sticky;top:0;background:var(--cream);padding:10px 0;z-index:50;border-bottom:1px solid var(--line)}
+.nav button{padding:9px 16px;border-radius:var(--pill);font-weight:700;font-size:13.5px;background:#fff;border:1px solid var(--line);transition:var(--tr)}
+.nav button:hover{background:var(--brand-soft)}
+.nav button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.nav .tmr{margin-left:auto;display:flex;align-items:center;gap:8px}
+.tmr .clock{font-weight:700;font-size:17px;min-width:64px;text-align:center;padding:6px 12px;border-radius:var(--pill);background:#fff;border:1px solid var(--line)}
+.tmr .clock.low{background:var(--rojo);color:#fff;border-color:var(--rojo)}
+.tmr button{width:34px;height:34px;border-radius:var(--pill);background:var(--brand);color:#fff;font-size:14px;font-weight:700}
+section.view{display:none;animation:fade .3s var(--ease)}
+section.view.on{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--r-md);padding:18px 20px;box-shadow:var(--sh-sm);margin-bottom:14px}
+h2{font-size:19px;margin-bottom:4px}
+h3{font-size:15px;margin-bottom:8px}
+.mins{font-size:12px;font-weight:700;color:var(--brand);text-transform:uppercase;letter-spacing:.08em}
+.lead{color:var(--sec);font-size:13.5px;margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:800px){.grid2,.grid3{grid-template-columns:1fr}}
+.stat{background:#fff;border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px;box-shadow:var(--sh-sm)}
+.stat b{font-size:24px;display:block}
+.stat span{font-size:12.5px;color:var(--sec)}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--sec);padding:8px 10px;border-bottom:2px solid var(--line)}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+.dots{display:flex;gap:6px}
+.dots button{width:30px;height:30px;border-radius:var(--pill);border:1px solid var(--line);background:#fff;font-weight:700;font-size:13px;transition:var(--tr)}
+.dots button:hover{background:var(--brand-soft)}
+.dots button.sel{background:var(--brand);color:#fff;border-color:var(--brand)}
+.dots button.sel.warn{background:var(--rojo);border-color:var(--rojo)}
+.badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:var(--pill)}
+.b-v{background:var(--violet-100)} .b-o{background:var(--orange-100)} .b-c{background:var(--cyan-100)} .b-g{background:var(--green-100)} .b-r{background:#fde2e2;color:#b91c1c}
+.fr-item{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);margin-bottom:8px;background:#fff}
+.fr-item.pre{border-left:4px solid var(--brand)}
+.fr-item .txt{flex:1;font-size:13.5px}
+.fr-item .meta{font-size:11px;color:var(--sec);margin-top:2px}
+.vote{display:flex;align-items:center;gap:4px}
+.vote button{width:28px;height:28px;border-radius:var(--pill);border:1px solid var(--line);background:#fff;font-size:13px}
+.vote button:hover{background:var(--orange-100)}
+.vote b{min-width:18px;text-align:center;font-size:14px}
+.del{color:var(--sec);font-size:13px;padding:4px}
+.del:hover{color:var(--rojo)}
+.btn{padding:10px 20px;border-radius:var(--pill);font-weight:700;font-size:14px;transition:var(--tr)}
+.btn-p{background:var(--brand);color:#fff}
+.btn-p:hover{filter:brightness(1.12)}
+.btn-g{background:#fff;border:1px solid var(--line)}
+.btn-g:hover{background:var(--g100)}
+.addrow{display:flex;gap:8px;margin-top:10px}
+.addrow input[type=text]{flex:1}
+.golden{background:var(--ink);color:#fff;border-radius:var(--r-md);padding:16px 20px;margin-bottom:14px;font-size:14px}
+.golden b{color:var(--cyan-500)}
+label.fl{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--sec);margin:12px 0 4px}
+.cmp{border:1px solid var(--line);border-radius:var(--r-md);padding:16px;background:#fff;margin-bottom:12px;border-left:5px solid var(--brand)}
+.cmp.c1{border-left-color:var(--rojo)} .cmp.c2{border-left-color:var(--orange-500)} .cmp.c3{border-left-color:var(--green-500)}
+.cmp h3{display:flex;align-items:center;gap:8px}
+.cmp .row{display:grid;grid-template-columns:1fr 180px 150px;gap:10px;margin-top:10px}
+@media(max-width:800px){.cmp .row{grid-template-columns:1fr}}
+.sug{font-size:12.5px;background:var(--g100);border-radius:var(--r-sm);padding:8px 12px;margin-top:8px;cursor:pointer;transition:var(--tr)}
+.sug:hover{background:var(--brand-soft)}
+.sug b{color:var(--brand)}
+.kpi-in{width:100%;border:1px solid transparent;background:var(--g100);border-radius:var(--r-sm);padding:6px 8px;font-size:13px}
+.kpi-in:focus{background:#fff}
+.foot{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);padding:10px 24px;display:flex;justify-content:space-between;align-items:center;z-index:60}
+.foot .hint{font-size:12px;color:var(--sec)}
+ul.clean{list-style:none}
+ul.clean li{padding:6px 0;border-bottom:1px dashed var(--line);font-size:13.5px}
+ul.clean li:last-child{border-bottom:none}
+.pill-num{display:inline-block;background:var(--brand);color:#fff;border-radius:var(--pill);width:22px;height:22px;line-height:22px;text-align:center;font-size:12px;font-weight:700;margin-right:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Retro <span>Escala y Purga</span> · Contabilidad</h1>
+      <div class="sub">Ciclo 09 – 24 julio 2026 · 60 minutos · Cristina · Eduardo · Cristian · Edgar · Facilita: Juan</div>
+    </div>
+  </header>
+
+  <div class="golden">🥇 <b>Regla de Oro:</b> aquí no existe "alguien se equivocó". Existe "el sistema permitió que un error ocurriera y avanzara sin ser detectado". Auditamos sistemas, no personas. El objetivo es salir con sistemas nuevos, no con incendios apagados.</div>
+
+  <nav class="nav" id="nav"></nav>
+
+  <!-- ══ 0 · CONTEXTO ══ -->
+  <section class="view" id="v0">
+    <div class="card"><span class="mins">Apertura · 0 min (leer antes o proyectar 60 seg)</span>
+      <h2>Qué pasó en este ciclo</h2>
+      <p class="lead">Los hechos, sin adjetivos. Esto es lo que el área movió en 15 días.</p>
+      <div class="grid3">
+        <div class="stat"><b>75</b><span>clientes conciliados a Folder_Clientes desde Slack (altas + RFC) — ahora con agente automático cada hora</span></div>
+        <div class="stat"><b>12</b><span>cuentas de correo del área conectadas y con triage profundo en 4 bandejas</span></div>
+        <div class="stat"><b>8</b><span>sesiones de coaching 1:1 documentadas con plan de crecimiento individual por persona</span></div>
+        <div class="stat"><b>4</b><span>sistemas nuevos en producción: kanban Seller Central, checklist documental automático, Tareas y Borradores</span></div>
+        <div class="stat"><b>0/24</b><span>cuentas del traspaso de Arturo completadas — vence 11-ago (16 retail + 8 FX)</span></div>
+        <div class="stat"><b>03-ago</b><span>Cristina transiciona a rol de liderazgo — su rol operativo queda por cubrir</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Sistemas que entraron en producción este ciclo</h3>
+      <ul class="clean">
+        <li>📊 <b>Kanban Seller Central</b> — solicitud inicial (01-05), recordatorio (05-10) y estrategia de ceros con envío confirmado, sello de fecha y candado anti-duplicado.</li>
+        <li>🧾 <b>Checklist documental automático</b> — por cliente y perfil (Amazon / China / Internacionales), con indicadores preventivos de RFC y FIEL.</li>
+        <li>📝 <b>Estado Borrador</b> — un correo puede quedar pendiente de confirmación de otro miembro antes de salir.</li>
+        <li>✅ <b>Sección Tareas</b> — creación con clientes, owner, fecha de entrega; edición y eliminación en la card.</li>
+        <li>🔗 <b>Hilos garantizados</b> — toda respuesta sale dentro del hilo original del cliente, desde cualquier cuenta.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ══ 1 · TERMÓMETRO ══ -->
+  <section class="view" id="v1">
+    <div class="card"><span class="mins">Bloque 1 · 10 min</span>
+      <h2>🌡️ Termómetro de Cultura</h2>
+      <p class="lead">Cada quien califica en voz alta, sin justificarse todavía. <b>Energía</b>: cómo llegas al cierre del ciclo. <b>Claridad</b>: qué tanto entiendes cómo tu trabajo diario mueve el objetivo macro (157 clientes activos, cero dependencias de una sola persona). Un 2 o menos en claridad no es un problema de la persona: es una falla del sistema de comunicación.</p>
+      <table>
+        <thead><tr><th style="width:140px">Persona</th><th>⚡ Energía (1-5)</th><th>🎯 Claridad (1-5)</th><th style="width:220px">Nota (opcional)</th></tr></thead>
+        <tbody id="termBody"></tbody>
+      </table>
+      <div id="termAvg" style="margin-top:14px"></div>
+    </div>
+    <div class="card">
+      <h3>Preguntas guía si aparece un ≤2</h3>
+      <ul class="clean">
+        <li>¿Qué información te llega tarde o no te llega?</li>
+        <li>¿Qué decisión esperaste esta quincena sin saber a quién pedírsela?</li>
+        <li>¿Sabes qué pasa con tu trabajo después de que lo entregas?</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ══ 2 · AUDITORÍA DE FRICCIÓN ══ -->
+  <section class="view" id="v2">
+    <div class="card"><span class="mins">Bloque 2 · 20 min</span>
+      <h2>🔍 Auditoría de Fricción</h2>
+      <p class="lead">No preguntamos "¿qué salió mal?" — cazamos dónde se fue el tiempo. Los ítems marcados con borde violeta los detecté yo en el ciclo; el equipo los valida con votos (👍 = "esto me dolió a mí también"), los corrige o los tumba. Agreguen los que falten.</p>
+      <h3><span class="badge b-o">🖐️ Fricción Manual</span> — ¿qué hicimos a mano que ya debería estar estandarizado?</h3>
+      <div id="frManual"></div>
+      <div class="addrow"><input type="text" id="addManual" placeholder="Agregar fricción manual…"><button class="btn btn-g" onclick="frAdd('manual')">＋</button></div>
+      <h3 style="margin-top:20px"><span class="badge b-v">🚧 Cuellos de Botella</span> — ¿qué se detuvo esperando a UNA persona?</h3>
+      <div id="frCuello"></div>
+      <div class="addrow"><input type="text" id="addCuello" placeholder="Agregar cuello de botella…"><button class="btn btn-g" onclick="frAdd('cuello')">＋</button></div>
+      <h3 style="margin-top:20px"><span class="badge b-r">💥 Prueba de Estrés ×3</span> — ¿qué se rompe si el volumen se triplica el próximo mes?</h3>
+      <div id="frEstres"></div>
+      <div class="addrow"><input type="text" id="addEstres" placeholder="Agregar deuda de sistema…"><button class="btn btn-g" onclick="frAdd('estres')">＋</button></div>
+    </div>
+  </section>
+
+  <!-- ══ 3 · DISECCIÓN ══ -->
+  <section class="view" id="v3">
+    <div class="card"><span class="mins">Bloque 3 · 15 min</span>
+      <h2>🔬 Disección del Sistema</h2>
+      <p class="lead">La autopsia del error más costoso del ciclo. Precargué mi candidato — si el equipo identifica uno más costoso, se cambia aquí mismo. La pregunta nunca es quién: es <b>qué dejó pasar el sistema y por qué no lo detectó nadie a tiempo</b>.</p>
+      <label class="fl">🩻 Síntoma (qué se vio)</label>
+      <textarea id="autSintoma" rows="2" oninput="autSave()"></textarea>
+      <label class="fl">💸 Costo (qué nos costó)</label>
+      <textarea id="autCosto" rows="2" oninput="autSave()"></textarea>
+      <label class="fl">🏗️ Falla estructural (qué permitió el sistema)</label>
+      <textarea id="autFalla" rows="3" oninput="autSave()"></textarea>
+      <label class="fl">🔧 Corrección ya aplicada</label>
+      <textarea id="autCorr" rows="2" oninput="autSave()"></textarea>
+      <label class="fl">🛡️ Guardia pendiente (¿cómo detectamos si vuelve a pasar? ¿quién lo vigila?)</label>
+      <textarea id="autGuardia" rows="2" oninput="autSave()"></textarea>
+    </div>
+  </section>
+
+  <!-- ══ 4 · COMPROMISOS 1-1-1 ══ -->
+  <section class="view" id="v4">
+    <div class="card"><span class="mins">Bloque 4 · 15 min</span>
+      <h2>🤝 Compromisos de Expansión — Regla 1-1-1</h2>
+      <p class="lead">Una retro sin entregables es una charla. Cada compromiso lleva <b>un solo owner</b> y una fecha dentro del próximo ciclo (cierra 08-ago). "El equipo" no es un owner. Abajo de cada slot hay propuestas mías — click para adoptarlas o escriban las suyas.</p>
+      <div class="cmp c1">
+        <h3><span class="pill-num">1</span>🗑️ ELIMINAR — un proceso redundante que muere hoy</h3>
+        <div class="row">
+          <input type="text" id="cmp0txt" placeholder="Qué se elimina…" oninput="cmpSave()">
+          <select id="cmp0own" onchange="cmpSave()"></select>
+          <input type="date" id="cmp0fecha" onchange="cmpSave()">
+        </div>
+        <div class="sug" onclick="cmpSug(0,'Eliminar la captura manual de altas de clientes (Slack → hoja): el agente automático ya concilia cada hora. Nadie vuelve a capturar doble.')"><b>Propuesta:</b> eliminar la captura manual de altas de clientes (Slack → hoja) — el agente automático ya la hace cada hora.</div>
+      </div>
+      <div class="cmp c2">
+        <h3><span class="pill-num">2</span>⚙️ AUTOMATIZAR / DOCUMENTAR — una rutina que deja de vivir en cabezas</h3>
+        <div class="row">
+          <input type="text" id="cmp1txt" placeholder="Qué se automatiza o documenta…" oninput="cmpSave()">
+          <select id="cmp1own" onchange="cmpSave()"></select>
+          <input type="date" id="cmp1fecha" onchange="cmpSave()">
+        </div>
+        <div class="sug" onclick="cmpSug(1,'Documentar el SOP del ciclo documental en Tally Ops (kanban 01-05 / 05-10 / ceros + checklist + borradores) para que cualquiera del equipo pueda operarlo sin preguntar.')"><b>Propuesta:</b> documentar el SOP del ciclo documental en Tally Ops para que cualquiera lo opere sin preguntar.</div>
+        <div class="sug" onclick="cmpSug(1,'Documento de rol del puesto operativo de Cristina, entregado y validado antes del 03-ago, para que su conocimiento no se vaya con la transición.')"><b>Propuesta:</b> documento de rol del puesto operativo de Cristina antes del 03-ago (su transición es en 10 días).</div>
+      </div>
+      <div class="cmp c3">
+        <h3><span class="pill-num">3</span>🧪 EXPERIMENTO — una apuesta operativa para el siguiente ciclo</h3>
+        <div class="row">
+          <input type="text" id="cmp2txt" placeholder="Qué experimentamos…" oninput="cmpSave()">
+          <select id="cmp2own" onchange="cmpSave()"></select>
+          <input type="date" id="cmp2fecha" onchange="cmpSave()">
+        </div>
+        <div class="sug" onclick="cmpSug(2,'Medir el Índice de Trabajo Reactivo durante 1 semana: registro diario simple de horas incendio vs horas plan, para tener baseline real antes de atacarlo.')"><b>Propuesta:</b> medir el Índice de Trabajo Reactivo 1 semana (registro diario simple) — hoy no tenemos baseline.</div>
+        <div class="sug" onclick="cmpSug(2,'Usar el estado Borrador en TODOS los correos sensibles del ciclo: otro miembro confirma antes del envío. Meta: cero correos detenidos esperando a una sola persona.')"><b>Propuesta:</b> ciclo completo usando Borrador + confirmación par en correos sensibles — cero dependencia de una persona.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 5 · KPIs ══ -->
+  <section class="view" id="v5">
+    <div class="card"><span class="mins">Cierre · Tablero permanente</span>
+      <h2>📏 Tablero de Eficiencia Operativa</h2>
+      <p class="lead">Estos 5 KPIs se revisan al abrir cada retro. Donde diga "sin medir", el primer paso no es adivinar: es medir este ciclo. Baseline y objetivo son editables aquí mismo.</p>
+      <table>
+        <thead><tr><th style="width:190px">KPI</th><th>Qué mide (el dolor)</th><th style="width:180px">Baseline hoy</th><th style="width:180px">Señal de éxito</th></tr></thead>
+        <tbody id="kpiBody"></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h3>🧭 Clave operativa para cerrar la sesión</h3>
+      <p style="font-size:14px">Cada tarea manual que automatizamos y cada fricción que eliminamos no es "mantenimiento": es lo que convierte a este equipo en los arquitectos del escalamiento. El sistema que construyan este ciclo es el que aguanta los 157 clientes del siguiente.</p>
+    </div>
+  </section>
+</div>
+
+<div class="foot">
+  <span class="hint" id="saveHint">💾 Todo se guarda automáticamente en este navegador</span>
+  <div style="display:flex;gap:10px">
+    <button class="btn btn-g" onclick="resetAll()">↺ Reiniciar sesión</button>
+    <button class="btn btn-p" onclick="exportar()">📋 Copiar resumen para Notion/Slack</button>
+  </div>
+</div>
+
+<script>
+const LS='retroEP_2026_07_v1';
+const GENTE=['Cristina','Eduardo','Cristian','Edgar'];
+const OWNERS=['Cristina','Eduardo','Cristian','Edgar','Juan'];
+const VIEWS=[
+  {id:'v0',lbl:'📌 El ciclo',min:0},
+  {id:'v1',lbl:'🌡️ Termómetro',min:10},
+  {id:'v2',lbl:'🔍 Fricción',min:20},
+  {id:'v3',lbl:'🔬 Disección',min:15},
+  {id:'v4',lbl:'🤝 1-1-1',min:15},
+  {id:'v5',lbl:'📏 KPIs',min:0}
+];
+const FR_PRE=[
+ {cat:'manual',txt:'Las solicitudes de estados de cuenta y facturas se armaban correo por correo hasta mitad de ciclo. El kanban con plantillas ya existe — la fricción ahora es la adopción: ¿todos lo están usando o seguimos redactando a mano?'},
+ {cat:'manual',txt:'El seguimiento de "a qué cliente ya se le pidió qué" vivía en la cabeza de cada quien o en hojas sueltas. Hoy la card sella fecha de envío — validar que nadie mantenga su registro paralelo.'},
+ {cat:'manual',txt:'Las altas de clientes (pagos en Slack → Folder_Clientes) se capturaban a mano y con RFC pendiente de cazar. El agente por hora entró el 23-jul: hay que matar el hábito de la doble captura.'},
+ {cat:'manual',txt:'El checklist documental por cliente se armaba manualmente cada mes. Ya es automático, pero depende de datos limpios (First Shipment, Payoneer, RFC) — dato sucio = checklist mentiroso.'},
+ {cat:'cuello',txt:'La aprobación de correos salientes dependía de una sola persona. El estado Borrador existe justo para confirmación entre pares: ¿quién lo ha usado esta semana?'},
+ {cat:'cuello',txt:'El despliegue del backend se cayó en silencio 2 veces este ciclo y solo una persona puede reactivarlo. Hoy ya avisa con notificación — el cuello de fondo (una sola persona) sigue.'},
+ {cat:'cuello',txt:'Traspaso de cartera de Arturo: 0/24 cuentas a 18 días del vencimiento (11-ago). El conocimiento de esas cuentas vive en una sola persona.'},
+ {cat:'cuello',txt:'Cristina pasa a liderazgo el 03-ago y su rol operativo aún no tiene documento de rol: todo lo que solo ella sabe hacer se convierte en cuello el día 4.'},
+ {cat:'estres',txt:'Clients_Load con RFCs vacíos o "NO MATCH": con el volumen ×3, el checklist automático escupiría basura a escala. La limpieza de datos es deuda, no detalle.'},
+ {cat:'estres',txt:'El triage profundo cubre 4 bandejas con dueños claros; con ×3 de volumen las demás cuentas quedan como colas sin dueño.'},
+ {cat:'estres',txt:'Capacidad por complejidad: los clientes Legacy de alta complejidad tienen el techo más bajo del área. ×3 de volumen revienta primero ahí — antes de contratar, hay que repreciar o redistribuir.'},
+ {cat:'estres',txt:'El alta automática desde Slack depende del formato exacto de los mensajes (canal, campo Empresa, prefijos). Un cambio de formato ajeno a nosotros rompe el flujo sin avisar.'}
+];
+const AUT_PRE={
+ sintoma:'Clientes recibieron respuestas fuera de su hilo original (correos sueltos, sin contexto) y hubo solicitudes de documentación duplicadas del mismo escenario en el mismo mes.',
+ costo:'Retrabajo (reexplicar contexto, disculpas), imagen de desorden frente al cliente, y riesgo de que un cliente ignore la solicitud "repetida" que sí importaba.',
+ falla:'El sistema reportaba "enviado" sin sellar fecha ni verificar hilo. Nada impedía reenviar el mismo escenario, y las respuestas podían salir como correo nuevo en lugar de respuesta al hilo. El error humano era posible, invisible y sin freno — la definición exacta de deuda de sistema.',
+ corr:'Ya en producción: sello de fecha/hora de envío en cada card, candados anti-duplicado (solo se avanza hacia adelante), e hilos garantizados con encabezados de respuesta en todas las cuentas.',
+ guardia:'Pendiente de definir HOY: ¿quién revisa semanalmente que los candados sigan funcionando y qué alerta salta si un envío sale fuera de hilo?'
+};
+const KPI_PRE=[
+ {n:'Tasa de Intervención Manual',m:'% de pasos del flujo que requieren clics, capturas o aprobaciones humanas.',b:'Alta pero bajando: 4 automatizaciones entraron este ciclo (kanban, checklist, altas, hilos).',o:'↓ constante tras cada automatización'},
+ {n:'Índice de Trabajo Reactivo',m:'% de horas semanales en incendios vs. trabajo planeado.',b:'Sin medir — candidato a experimento del ciclo.',o:'↓ menor al 15% del tiempo total'},
+ {n:'Tiempo de Ciclo (Lead Time)',m:'Días desde que inicia una solicitud documental hasta que se completa.',b:'Sin baseline formal; el kanban ya sella fechas → medible desde este ciclo.',o:'↓ ciclos cortos, consistentes, predecibles'},
+ {n:'Tasa de Retrabajo',m:'Frecuencia con la que una tarea regresa a un paso anterior por error o falta de claridad.',b:'Casos visibles del ciclo: correos fuera de hilo y solicitudes duplicadas (ya con candado).',o:'↓ reducción radical'},
+ {n:'Factor de Cuello de Botella',m:'Procesos críticos detenidos por depender de UNA persona.',b:'4 detectados: aprobación de correos, deploy, cartera Arturo, rol de Cristina.',o:'0 procesos paralizados por un individuo'}
+];
+
+let S=null;
+function fresh(){return{
+ term:Object.fromEntries(GENTE.map(g=>[g,{e:0,c:0,nota:''}])),
+ fr:FR_PRE.map((f,i)=>({id:'p'+i,cat:f.cat,txt:f.txt,votos:0,pre:true})),
+ aut:{...AUT_PRE},
+ cmp:[{txt:'',own:'',fecha:''},{txt:'',own:'',fecha:''},{txt:'',own:'',fecha:''}],
+ kpi:KPI_PRE.map(k=>({...k}))
+};}
+function load(){try{const r=localStorage.getItem(LS);S=r?JSON.parse(r):fresh();}catch(e){S=fresh();}}
+function save(){localStorage.setItem(LS,JSON.stringify(S));const h=document.getElementById('saveHint');h.textContent='💾 Guardado '+new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+/* ── nav + timer ── */
+let CUR='v0',TMR=null,TLEFT=0;
+function nav(){
+  document.getElementById('nav').innerHTML=VIEWS.map(v=>`<button class="${v.id===CUR?'on':''}" onclick="go('${v.id}')">${v.lbl}${v.min?` · ${v.min}′`:''}</button>`).join('')+
+  `<div class="tmr"><span class="clock ${TLEFT>0&&TLEFT<=60?'low':''}" id="clock">${fmt(TLEFT)}</span><button title="Iniciar timer del bloque" onclick="tStart()">▶</button><button title="Pausar" onclick="tStop()">⏸</button></div>`;
+}
+function go(id){CUR=id;document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id===id));tStop();TLEFT=(VIEWS.find(v=>v.id===id).min||0)*60;nav();}
+function fmt(s){return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');}
+function tick(){if(TLEFT>0){TLEFT--;const c=document.getElementById('clock');c.textContent=fmt(TLEFT);c.classList.toggle('low',TLEFT<=60);if(TLEFT===0){c.textContent='⏰ 00:00';}}}
+function tStart(){if(TMR)clearInterval(TMR);if(TLEFT<=0)TLEFT=(VIEWS.find(v=>v.id===CUR).min||10)*60;TMR=setInterval(tick,1000);}
+function tStop(){if(TMR){clearInterval(TMR);TMR=null;}}
+
+/* ── termómetro ── */
+function renderTerm(){
+  document.getElementById('termBody').innerHTML=GENTE.map(g=>{
+    const t=S.term[g];
+    const dots=k=>[1,2,3,4,5].map(n=>`<button class="${t[k]===n?('sel'+(n<=2?' warn':'')):''}" onclick="termSet('${g}','${k}',${n})">${n}</button>`).join('');
+    return `<tr><td><b>${g}</b></td><td><div class="dots">${dots('e')}</div></td><td><div class="dots">${dots('c')}</div></td>
+    <td><input type="text" class="kpi-in" value="${esc(t.nota)}" placeholder="—" onchange="S.term['${g}'].nota=this.value;save()"></td></tr>`;
+  }).join('');
+  const vals=k=>GENTE.map(g=>S.term[g][k]).filter(v=>v>0);
+  const avg=a=>a.length?(a.reduce((x,y)=>x+y,0)/a.length).toFixed(1):'—';
+  const alerts=GENTE.filter(g=>(S.term[g].c>0&&S.term[g].c<=2)||(S.term[g].e>0&&S.term[g].e<=2));
+  document.getElementById('termAvg').innerHTML=
+   `<span class="badge b-c">⚡ Energía promedio: ${avg(vals('e'))}</span> &nbsp;<span class="badge b-v">🎯 Claridad promedio: ${avg(vals('c'))}</span>`+
+   (alerts.length?`<div style="margin-top:10px;font-size:13.5px;color:#b91c1c"><b>🚨 Silos detectados:</b> ${alerts.join(', ')} con ≤2 — usar las preguntas guía antes de pasar al bloque 2. Esto es falla del sistema de comunicación, no de la persona.</div>`:'');
+}
+function termSet(g,k,n){S.term[g][k]=S.term[g][k]===n?0:n;save();renderTerm();}
+
+/* ── fricción ── */
+function renderFr(){
+  const box={manual:'frManual',cuello:'frCuello',estres:'frEstres'};
+  Object.keys(box).forEach(cat=>{
+    const items=S.fr.filter(f=>f.cat===cat).sort((a,b)=>b.votos-a.votos);
+    document.getElementById(box[cat]).innerHTML=items.map(f=>`<div class="fr-item ${f.pre?'pre':''}">
+      <div class="vote"><button onclick="frVote('${f.id}')">👍</button><b>${f.votos}</b></div>
+      <div class="txt">${esc(f.txt)}${f.pre?'<div class="meta">precargado por Talia — validar o tumbar</div>':''}</div>
+      <button class="del" onclick="frDel('${f.id}')">✕</button></div>`).join('')||'<p class="lead">— vacío —</p>';
+  });
+}
+function frVote(id){const f=S.fr.find(x=>x.id===id);if(f){f.votos++;save();renderFr();}}
+function frDel(id){S.fr=S.fr.filter(x=>x.id!==id);save();renderFr();}
+function frAdd(cat){
+  const inp=document.getElementById('add'+cat.charAt(0).toUpperCase()+cat.slice(1));
+  const t=inp.value.trim(); if(!t)return;
+  S.fr.push({id:'u'+Date.now(),cat,txt:t,votos:0,pre:false}); inp.value=''; save(); renderFr();
+}
+
+/* ── autopsia ── */
+function renderAut(){['Sintoma','Costo','Falla','Corr','Guardia'].forEach(k=>{document.getElementById('aut'+k).value=S.aut[k.toLowerCase()]||'';});}
+function autSave(){['Sintoma','Costo','Falla','Corr','Guardia'].forEach(k=>{S.aut[k.toLowerCase()]=document.getElementById('aut'+k).value;});save();}
+
+/* ── compromisos ── */
+function renderCmp(){
+  for(let i=0;i<3;i++){
+    const sel=document.getElementById('cmp'+i+'own');
+    sel.innerHTML='<option value="">— owner único —</option>'+OWNERS.map(o=>`<option ${S.cmp[i].own===o?'selected':''}>${o}</option>`).join('');
+    document.getElementById('cmp'+i+'txt').value=S.cmp[i].txt;
+    document.getElementById('cmp'+i+'fecha').value=S.cmp[i].fecha;
+  }
+}
+function cmpSave(){for(let i=0;i<3;i++){S.cmp[i]={txt:document.getElementById('cmp'+i+'txt').value,own:document.getElementById('cmp'+i+'own').value,fecha:document.getElementById('cmp'+i+'fecha').value};}save();}
+function cmpSug(i,txt){document.getElementById('cmp'+i+'txt').value=txt;cmpSave();}
+
+/* ── kpis ── */
+function renderKpi(){
+  document.getElementById('kpiBody').innerHTML=S.kpi.map((k,i)=>`<tr>
+    <td><b>${esc(k.n)}</b></td><td style="color:var(--sec)">${esc(k.m)}</td>
+    <td><input type="text" class="kpi-in" value="${esc(k.b)}" onchange="S.kpi[${i}].b=this.value;save()"></td>
+    <td><input type="text" class="kpi-in" value="${esc(k.o)}" onchange="S.kpi[${i}].o=this.value;save()"></td></tr>`).join('');
+}
+
+/* ── export ── */
+function exportar(){
+  const L=[];
+  L.push('# Retro Escala y Purga · Contabilidad · 09–24 jul 2026','');
+  L.push('## 🌡️ Termómetro');
+  GENTE.forEach(g=>{const t=S.term[g];L.push(`- ${g}: energía ${t.e||'–'}/5 · claridad ${t.c||'–'}/5${t.nota?' — '+t.nota:''}`);});
+  L.push('','## 🔍 Fricciones (por votos)');
+  const CATN={manual:'Manual',cuello:'Cuello de botella',estres:'Estrés ×3'};
+  S.fr.slice().sort((a,b)=>b.votos-a.votos).forEach(f=>L.push(`- [${CATN[f.cat]}] (${f.votos}👍) ${f.txt}`));
+  L.push('','## 🔬 Autopsia');
+  L.push(`- Síntoma: ${S.aut.sintoma}`,`- Costo: ${S.aut.costo}`,`- Falla estructural: ${S.aut.falla}`,`- Corrección: ${S.aut.corr}`,`- Guardia: ${S.aut.guardia}`);
+  L.push('','## 🤝 Compromisos 1-1-1');
+  ['ELIMINAR','AUTOMATIZAR/DOCUMENTAR','EXPERIMENTO'].forEach((t,i)=>{const c=S.cmp[i];L.push(`- ${t}: ${c.txt||'(sin definir)'} — owner: ${c.own||'⚠️ SIN OWNER'} — fecha: ${c.fecha||'⚠️ SIN FECHA'}`);});
+  L.push('','## 📏 KPIs de fricción');
+  S.kpi.forEach(k=>L.push(`- ${k.n}: baseline "${k.b}" → objetivo "${k.o}"`));
+  const md=L.join('\n');
+  navigator.clipboard.writeText(md).then(()=>{document.getElementById('saveHint').textContent='📋 Resumen copiado al portapapeles';})
+  .catch(()=>{prompt('Copia manual:',md);});
+}
+function resetAll(){if(confirm('¿Reiniciar toda la sesión? Se pierden calificaciones, votos y compromisos capturados.')){localStorage.removeItem(LS);load();renderAll();}}
+function renderAll(){renderTerm();renderFr();renderAut();renderCmp();renderKpi();}
+
+load();nav();go('v0');renderAll();
+</script>
+</body>
+</html>
