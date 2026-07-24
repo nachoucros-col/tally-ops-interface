@@ -129,7 +129,14 @@ ul.clean li:last-child{border-bottom:none}
         <div class="stat"><b>8</b><span>sesiones de coaching 1:1 documentadas con plan de crecimiento individual por persona</span></div>
         <div class="stat"><b>4</b><span>sistemas nuevos en producción: kanban Seller Central, checklist documental automático, Tareas y Borradores</span></div>
         <div class="stat"><b>0/24</b><span>cuentas del traspaso de Arturo completadas — vence 11-ago (16 retail + 8 FX)</span></div>
-        <div class="stat"><b>03-ago</b><span>Cristina transiciona a rol de liderazgo — su rol operativo queda por cubrir</span></div>
+        <div class="stat"><b>03-ago</b><span>Cristina inicia su licencia — Cristian González cubre su rol operativo; su nuevo rol de liderazgo rige desde ~diciembre</span></div>
+      </div>
+    </div>
+    <div class="card" style="display:flex;gap:20px;align-items:center;background:linear-gradient(135deg,#fff 60%,var(--violet-100));border-left:5px solid var(--brand)">
+      <img src="cris.png" alt="Cristina" style="width:110px;height:110px;border-radius:var(--pill);object-fit:cover;box-shadow:var(--sh-md);flex-shrink:0">
+      <div>
+        <h3 style="margin-bottom:6px">💜 Para Cris</h3>
+        <p style="font-size:15px;line-height:1.6">Cris, te vamos a extrañar, pero esperamos que tu nuevo bebé nazca fuerte, saludable y que te dé toda la felicidad del mundo 🥰… ¡Nos vemos en diciembre!</p>
       </div>
     </div>
     <div class="card">
@@ -222,7 +229,7 @@ ul.clean li:last-child{border-bottom:none}
           <input type="date" id="cmp1fecha" onchange="cmpSave()">
         </div>
         <div class="sug" onclick="cmpSug(1,'Documentar el SOP del ciclo documental en Tally Ops (kanban 01-05 / 05-10 / ceros + checklist + borradores) para que cualquiera del equipo pueda operarlo sin preguntar.')"><b>Propuesta:</b> documentar el SOP del ciclo documental en Tally Ops para que cualquiera lo opere sin preguntar.</div>
-        <div class="sug" onclick="cmpSug(1,'Documento de rol del puesto operativo de Cristina, entregado y validado antes del 03-ago, para que su conocimiento no se vaya con la transición.')"><b>Propuesta:</b> documento de rol del puesto operativo de Cristina antes del 03-ago (su transición es en 10 días).</div>
+        <div class="sug" onclick="cmpSug(1,'Documento de rol del puesto operativo de Cristina, entregado y validado antes del 03-ago, para que Cristian reciba el puesto con el conocimiento documentado y no por tradición oral.')"><b>Propuesta:</b> documento de rol del puesto operativo antes del 03-ago, para que Cristian lo reciba documentado.</div>
       </div>
       <div class="cmp c3">
         <h3><span class="pill-num">3</span>🧪 EXPERIMENTO — una apuesta operativa para el siguiente ciclo</h3>
@@ -282,7 +289,7 @@ const FR_PRE=[
  {cat:'cuello',txt:'La aprobación de correos salientes dependía de una sola persona. El estado Borrador existe justo para confirmación entre pares: ¿quién lo ha usado esta semana?'},
  {cat:'cuello',txt:'El despliegue del backend se cayó en silencio 2 veces este ciclo y solo una persona puede reactivarlo. Hoy ya avisa con notificación — el cuello de fondo (una sola persona) sigue.'},
  {cat:'cuello',txt:'Traspaso de cartera de Arturo: 0/24 cuentas a 18 días del vencimiento (11-ago). El conocimiento de esas cuentas vive en una sola persona.'},
- {cat:'cuello',txt:'Cristina pasa a liderazgo el 03-ago y su rol operativo aún no tiene documento de rol: todo lo que solo ella sabe hacer se convierte en cuello el día 4.'},
+ {cat:'cuello',txt:'Cristina sale de licencia el 03-ago y Cristian cubre su rol operativo — pero el puesto aún no tiene documento de rol: sin handover documentado, lo que solo Cristina sabe hacer se convierte en cuello el día 4.'},
  {cat:'estres',txt:'Clients_Load con RFCs vacíos o "NO MATCH": con el volumen ×3, el checklist automático escupiría basura a escala. La limpieza de datos es deuda, no detalle.'},
  {cat:'estres',txt:'El triage profundo cubre 4 bandejas con dueños claros; con ×3 de volumen las demás cuentas quedan como colas sin dueño.'},
  {cat:'estres',txt:'Capacidad por complejidad: los clientes Legacy de alta complejidad tienen el techo más bajo del área. ×3 de volumen revienta primero ahí — antes de contratar, hay que repreciar o redistribuir.'},
@@ -300,7 +307,7 @@ const KPI_PRE=[
  {n:'Índice de Trabajo Reactivo',m:'% de horas semanales en incendios vs. trabajo planeado.',b:'Sin medir — candidato a experimento del ciclo.',o:'↓ menor al 15% del tiempo total'},
  {n:'Tiempo de Ciclo (Lead Time)',m:'Días desde que inicia una solicitud documental hasta que se completa.',b:'Sin baseline formal; el kanban ya sella fechas → medible desde este ciclo.',o:'↓ ciclos cortos, consistentes, predecibles'},
  {n:'Tasa de Retrabajo',m:'Frecuencia con la que una tarea regresa a un paso anterior por error o falta de claridad.',b:'Casos visibles del ciclo: correos fuera de hilo y solicitudes duplicadas (ya con candado).',o:'↓ reducción radical'},
- {n:'Factor de Cuello de Botella',m:'Procesos críticos detenidos por depender de UNA persona.',b:'4 detectados: aprobación de correos, deploy, cartera Arturo, rol de Cristina.',o:'0 procesos paralizados por un individuo'}
+ {n:'Factor de Cuello de Botella',m:'Procesos críticos detenidos por depender de UNA persona.',b:'4 detectados: aprobación de correos, deploy, cartera Arturo, handover Cristina→Cristian.',o:'0 procesos paralizados por un individuo'}
 ];
 
 let S=null;
