@@ -705,6 +705,65 @@ function handle(body) {
       return { ok: true, enviado_a: to, cc: cc, en_hilo: enHilo, desde: sender };
     }
 
+    /* ── 🌐 RESPUESTA OS — respuestas del equipo enviadas POR FUERA de la interfaz ──
+       Recorre filas recientes de Emails, lee el hilo real vía DWD readonly en la cuenta
+       que recibió el correo, y si encuentra un mensaje de @tally.legal que NO salió de
+       la interfaz (≠ msg_id_enviado y ≠ correo original), marca estado="Respuesta OS"
+       ("Out Side") y guarda quién/cuándo/snippet en la columna X respuesta_os.
+       Las filas en Borrador conservan su estado (solo se anota la columna X). */
+    case 'detectar_os': {
+      const sh = ss.getSheetByName('Emails');
+      if (!sh) return { ok: false, error: 'sin pestaña Emails' };
+      ensureCcCol(sh);
+      const data = sh.getDataRange().getValues();
+      const max = Number(body.max || 25);
+      let revisados = 0, detectados = 0; const errs = [];
+      const tokens = {};
+      for (let i = data.length - 1; i >= 1 && revisados < max; i--) {
+        const v = data[i];
+        const estado = String(v[12] || '');
+        if (estado === 'Respuesta OS' || estado === 'Descartado') continue;
+        if (String(v[23] || '').trim()) continue;                    // ya anotada en corridas previas
+        const threadId = String(v[1] || '');
+        let cuenta = String(v[2] || '').trim();
+        if (!threadId || !cuenta) continue;
+        if (cuenta.indexOf('@') < 0) cuenta += '@tally.legal';
+        revisados++;
+        try {
+          if (!(cuenta in tokens)) tokens[cuenta] = dwdToken(cuenta, 'https://www.googleapis.com/auth/gmail.readonly');
+          const token = tokens[cuenta];
+          if (!token) { errs.push('sin token DWD para ' + cuenta); continue; }
+          const r = UrlFetchApp.fetch('https://gmail.googleapis.com/gmail/v1/users/' + encodeURIComponent(cuenta)
+            + '/threads/' + encodeURIComponent(threadId) + '?format=metadata&metadataHeaders=From&metadataHeaders=Message-ID',
+            { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
+          if (r.getResponseCode() !== 200) continue;
+          const th = JSON.parse(r.getContentText());
+          const emailIdOrig = String(v[0] || '');
+          const msgIdEnviado = String(v[18] || '');
+          let os = null;
+          (th.messages || []).forEach(function(m) {
+            const h = {};
+            ((m.payload && m.payload.headers) || []).forEach(function(x){ h[String(x.name).toLowerCase()] = x.value; });
+            const from = String(h['from'] || '').toLowerCase();
+            if (from.indexOf('@tally.legal') < 0) return;            // solo mensajes del equipo
+            if (m.id === emailIdOrig) return;                        // el correo original del cliente
+            if (msgIdEnviado && (m.id === msgIdEnviado || String(h['message-id'] || '') === msgIdEnviado)) return; // salió de la interfaz
+            if (!os || Number(m.internalDate) > Number(os.ts)) {
+              os = { ts: m.internalDate, from: h['from'] || '', snippet: String(m.snippet || '').substring(0, 300) };
+            }
+          });
+          if (os) {
+            const f = Utilities.formatDate(new Date(Number(os.ts)), 'America/Mexico_City', 'yyyy-MM-dd HH:mm');
+            sh.getRange(i + 1, 24).setValue(os.from + ' | ' + f + ' | ' + os.snippet);
+            if (estado !== 'Borrador') sh.getRange(i + 1, 13).setValue('Respuesta OS');
+            sh.getRange(i + 1, 21).setValue(now);
+            detectados++;
+          }
+        } catch (e) { errs.push(String(e).substring(0, 80)); }
+      }
+      return { ok: true, revisados: revisados, detectados: detectados, errores: errs.slice(0, 5) };
+    }
+
     /* ── Sincronización por correo de control ──
        El agente envía un correo interno (accounting@ → juan@) con asunto
        [TALLY-OPS-SYNC] y un bloque <<<JSON [...operaciones...] JSON>>>.
@@ -736,7 +795,10 @@ function handle(body) {
           th.moveToArchive(); // fuera del inbox de Juan — queda etiquetado como registro
         } catch (e) { errs.push(String(e)); }
       });
-      return { ok: true, threads: threads.length, operaciones_aplicadas: ops, errores: errs.slice(0, 5) };
+      // Barrido de respuestas fuera de la interfaz (aprovecha la corrida de cron cada 15 min)
+      let osres = null;
+      try { osres = handle({ action: 'detectar_os', max: 20 }); } catch (e) { osres = { ok: false, error: String(e) }; }
+      return { ok: true, threads: threads.length, operaciones_aplicadas: ops, errores: errs.slice(0, 5), respuesta_os: osres };
     }
 
     /* ── LOGIN de la interfaz (usuarios en Sheet privado separado) ── */
@@ -1319,10 +1381,11 @@ function checkAdmin(auth) {
   return false;
 }
 
-/** Garantiza las columnas extendidas en Emails: V cc_originales, W mensaje_original. */
+/** Garantiza las columnas extendidas en Emails: V cc_originales, W mensaje_original, X respuesta_os. */
 function ensureCcCol(sh) {
   if (!String(sh.getRange(1, 22).getValue()).trim()) sh.getRange(1, 22).setValue('cc_originales');
   if (!String(sh.getRange(1, 23).getValue()).trim()) sh.getRange(1, 23).setValue('mensaje_original');
+  if (!String(sh.getRange(1, 24).getValue()).trim()) sh.getRange(1, 24).setValue('respuesta_os');
 }
 
 function findRow(sh, keyCol, keyValue) {

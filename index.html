@@ -82,6 +82,7 @@ h1{font-size:28px;font-weight:700;letter-spacing:-0.015em;margin-bottom:4px}
 .tag.st-Aprobado{background:var(--green-100);color:#1d7a3f}
 .tag.st-Enviado{background:var(--green-500);color:#fff}
 .tag.st-Borrador{background:var(--orange-100);color:#b34a17}
+.tag.st-OS{background:var(--cyan-100);color:#0b6e8a;border:1px solid var(--cyan-500)}
 .tag.acct{background:transparent;border:1px solid var(--gray-300);color:var(--gray-500)}
 /* Drawer flotante (detalle de correo / redacción) */
 #drawerBack{position:fixed;inset:0;background:rgba(33,33,33,.42);z-index:140;opacity:0;pointer-events:none;transition:opacity .22s}
@@ -452,6 +453,7 @@ function countCat(cat){
     if(cat==='__env') return e.estado==='Enviado';
     if(e.estado==='Descartado') return false;
     if(cat==='__brr') return e.estado==='Borrador';
+    if(cat==='__os') return e.estado==='Respuesta OS'||!!e.respuesta_os;
     if(cat==='__pend') return e.estado==='Nuevo'||e.estado==='Draft listo';
     if(cat!=='*' && !catMatch(cat,e.categoria)) return false;
     return true;
@@ -471,6 +473,7 @@ function renderCatChips(){
     + cats.map(c=>`<button class="chip" data-cat="${esc(c)}">${esc(c)} ${chipN(c)}</button>`).join('')
     + `<button class="chip" data-cat="__pend">⏳ Pendientes de mí ${chipN('__pend')}</button>
        <button class="chip" data-cat="__brr">📝 Borradores ${chipN('__brr')}</button>
+       <button class="chip" data-cat="__os" title="Correos que el equipo respondió por FUERA de la interfaz (Out Side)">🌐 Respuesta OS ${chipN('__os')}</button>
        <button class="chip" data-cat="__env">📤 Enviados ${chipN('__env')}</button>
        <span class="chip-sep">|</span>
        <button class="chip" id="filterBtn" onclick="toggleFilterPop()" title="Filtros de cuenta y orden"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polygon points="22 3 2 3 10 12.5 10 19 14 21 14 12.5 22 3"/></svg> Filtros${(cuentaFilter||mailOrden!=='desc'||envioFilter)?' <span class="fdot"></span>':''}</button>`;
@@ -500,7 +503,7 @@ const CAT_CLASS={'Documentación':'cat-Documentación','Proceso':'cat-Proceso','
 const CAT_ALIAS={'Quejas y alertas':['Quejas y alertas','Queja y reclamo','Alerta']};
 function catMatch(cat,eCat){ const l=CAT_ALIAS[cat]; return l?l.includes(eCat):eCat===cat; }
 function catNorm(c){ return (c==='Queja y reclamo'||c==='Alerta')?'Quejas y alertas':c; }
-const ST_CLASS={'Nuevo':'st-Nuevo','Prompt recibido':'st-Prompt','Draft listo':'st-Draft','Aprobado':'st-Aprobado','Enviado':'st-Enviado','Descartado':'st-Nuevo','Borrador':'st-Borrador'};
+const ST_CLASS={'Nuevo':'st-Nuevo','Prompt recibido':'st-Prompt','Draft listo':'st-Draft','Aprobado':'st-Aprobado','Enviado':'st-Enviado','Descartado':'st-Nuevo','Borrador':'st-Borrador','Respuesta OS':'st-OS'};
 
 let mailOrden='desc'; // 'desc' = más recientes primero · 'asc' = orden de llegada
 let cuentaFilter='';  // '' = todas las cuentas
