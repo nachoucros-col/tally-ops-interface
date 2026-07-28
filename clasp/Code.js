@@ -381,14 +381,22 @@ function handle(body) {
     /* ══════════ ✅ TAREAS (kanban Sin iniciar / Finalizado, alimentado desde Bandeja y Documentación) ══════════ */
     case 'usuarios_publicos': {
       // Lista de responsables asignables (usuarios activos de la plataforma) — SIN contraseñas.
+      // ALIAS de nombre visible (27-jul-2026, pedido de Juan): contabilidad@ es Arturo Cerón,
+      // y ninguna "cuenta genérica" aparece como responsable.
+      const ALIAS_NOMBRE = { 'contabilidad@tally.legal': 'Arturo Cerón' };
+      const NOMBRES_OCULTOS = ['cuenta genérica', 'cuenta generica', 'genérica', 'generica'];
       const u = checkUser(body.auth);
       if (!u.ok) return u;
       const us = SpreadsheetApp.openById(USUARIOS_ID).getSheetByName('Usuarios');
       const data = us.getDataRange().getValues();
       const list = [];
       for (let i = 1; i < data.length; i++) {
-        const em = String(data[i][0] || '').trim();
-        if (em && String(data[i][3]).toLowerCase() !== 'no') list.push({ email: em.toLowerCase(), nombre: String(data[i][2] || em) });
+        const em = String(data[i][0] || '').trim().toLowerCase();
+        if (!em || String(data[i][3]).toLowerCase() === 'no') continue;
+        let nom = String(data[i][2] || em);
+        if (ALIAS_NOMBRE[em]) nom = ALIAS_NOMBRE[em];
+        else if (NOMBRES_OCULTOS.indexOf(nom.toLowerCase().trim()) !== -1) continue;
+        list.push({ email: em, nombre: nom });
       }
       return { ok: true, usuarios: list };
     }
