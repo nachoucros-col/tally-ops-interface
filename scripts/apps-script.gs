@@ -761,6 +761,77 @@ function handle(body) {
           }
         } catch (e) { errs.push(String(e).substring(0, 80)); }
       }
+
+      /* ── FASE 2: detección CRUZADA entre cuentas ──
+         Cubre el caso en que alguien respondió al cliente desde OTRA cuenta @tally.legal
+         distinta a la que recibió el correo (ese mensaje no aparece en el hilo receptor).
+         Índice: enviados recientes (in:sent, 3 días) de TODAS las cuentas monitoreadas;
+         match por destinatario (email del cliente) + asunto normalizado. */
+      try {
+        const t0 = Date.now();
+        const cfg = ss.getSheetByName('Config');
+        let cuentas = [];
+        if (cfg) {
+          const cv = cfg.getDataRange().getValues();
+          for (let c = 0; c < cv.length; c++) {
+            if (String(cv[c][0]).trim() === 'cuentas_monitoreadas') { cuentas = String(cv[c][1] || '').split(','); break; }
+          }
+        }
+        cuentas = cuentas.map(function(a){ a = String(a).trim(); if (!a) return ''; return a.indexOf('@') < 0 ? a + '@tally.legal' : a; }).filter(Boolean);
+        const normSubj = function(s){ return String(s || '').replace(/^(\s*(re|rv|fwd?|fw)\s*:)+/i, '').replace(/\s+/g, ' ').trim().toLowerCase(); };
+        // enviados recientes de cada cuenta monitoreada
+        const enviados = [];
+        cuentas.forEach(function(acc) {
+          if (Date.now() - t0 > 90000) return; // presupuesto de tiempo
+          try {
+            if (!(acc in tokens)) tokens[acc] = dwdToken(acc, 'https://www.googleapis.com/auth/gmail.readonly');
+            if (!tokens[acc]) return;
+            const lr = UrlFetchApp.fetch('https://gmail.googleapis.com/gmail/v1/users/' + encodeURIComponent(acc)
+              + '/messages?q=' + encodeURIComponent('in:sent newer_than:3d') + '&maxResults=12',
+              { headers: { Authorization: 'Bearer ' + tokens[acc] }, muteHttpExceptions: true });
+            if (lr.getResponseCode() !== 200) return;
+            ((JSON.parse(lr.getContentText()).messages) || []).forEach(function(mm) {
+              if (Date.now() - t0 > 90000) return;
+              const mr = UrlFetchApp.fetch('https://gmail.googleapis.com/gmail/v1/users/' + encodeURIComponent(acc)
+                + '/messages/' + mm.id + '?format=metadata&metadataHeaders=To&metadataHeaders=Cc&metadataHeaders=Subject&metadataHeaders=Message-ID',
+                { headers: { Authorization: 'Bearer ' + tokens[acc] }, muteHttpExceptions: true });
+              if (mr.getResponseCode() !== 200) return;
+              const md = JSON.parse(mr.getContentText());
+              const hh = {};
+              ((md.payload && md.payload.headers) || []).forEach(function(x){ hh[String(x.name).toLowerCase()] = x.value; });
+              enviados.push({ acc: acc, id: md.id, ts: md.internalDate, snippet: String(md.snippet || '').substring(0, 300),
+                              to: String((hh['to'] || '') + ',' + (hh['cc'] || '')).toLowerCase(),
+                              subj: normSubj(hh['subject']), msgIdH: String(hh['message-id'] || '') });
+            });
+          } catch (e2) {}
+        });
+        // match contra filas aún sin OS
+        if (enviados.length) {
+          const data2 = sh.getDataRange().getValues();
+          for (let i = data2.length - 1; i >= 1; i--) {
+            const v = data2[i];
+            if (String(v[23] || '').trim()) continue;
+            const estado = String(v[12] || '');
+            if (estado === 'Respuesta OS' || estado === 'Descartado') continue;
+            const cliEmail = String(v[5] || '').toLowerCase().trim();
+            const asunto = normSubj(v[8]);
+            if (!cliEmail || !asunto) continue;
+            const msgIdEnviado = String(v[18] || '');
+            for (let k = 0; k < enviados.length; k++) {
+              const sd = enviados[k];
+              if (sd.to.indexOf(cliEmail) < 0 || sd.subj !== asunto) continue;
+              if (msgIdEnviado && (sd.id === msgIdEnviado || sd.msgIdH === msgIdEnviado)) continue; // salió de la interfaz
+              const f = Utilities.formatDate(new Date(Number(sd.ts)), 'America/Mexico_City', 'yyyy-MM-dd HH:mm');
+              sh.getRange(i + 1, 24).setValue(sd.acc + ' (cuenta cruzada) | ' + f + ' | ' + sd.snippet);
+              if (estado !== 'Borrador') sh.getRange(i + 1, 13).setValue('Respuesta OS');
+              sh.getRange(i + 1, 21).setValue(now);
+              detectados++;
+              break;
+            }
+          }
+        }
+      } catch (e) { errs.push('fase2: ' + String(e).substring(0, 60)); }
+
       return { ok: true, revisados: revisados, detectados: detectados, errores: errs.slice(0, 5) };
     }
 

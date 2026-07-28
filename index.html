@@ -516,6 +516,7 @@ function visibleEmails(){
     if(catFilter==='__env') return e.estado==='Enviado';
     if(e.estado==='Descartado') return false;
     if(catFilter==='__brr') return e.estado==='Borrador';
+    if(catFilter==='__os') return e.estado==='Respuesta OS'||!!e.respuesta_os;
     if(catFilter==='__pend') return e.estado==='Nuevo'||e.estado==='Draft listo';
     if(catFilter!=='*' && !catMatch(catFilter,e.categoria)) return false;
     return true; // los respondidos se quedan visibles con su tag verde ✓
@@ -523,6 +524,18 @@ function visibleEmails(){
     const cmp=(a.fecha_recibido||'').localeCompare(b.fecha_recibido||'');
     return mailOrden==='asc'?cmp:-cmp;
   });
+}
+/* 🌐 Respuesta OS: aviso en el hilo cuando el equipo respondió por FUERA de la interfaz */
+function osNotice(e){
+  if(e.estado!=='Respuesta OS' && !e.respuesta_os) return '';
+  const p=String(e.respuesta_os||'').split(' | ');
+  const quien=p[0]||'', cuando=p[1]||'', snippet=p.slice(2).join(' | ');
+  return `<div class="notice warn" style="background:var(--cyan-100);border-color:var(--cyan-500);color:#0b6e8a;margin-bottom:14px">
+    🌐 <b>Respuesta OS (Out Side)</b> — este hilo ya fue respondido <b>por fuera de la interfaz</b>.
+    ${quien?`<br>Respondió: <b>${esc(quien)}</b>${cuando?` · ${esc(cuando)}`:''}`:''}
+    ${snippet?`<br><span style="font-style:italic">"${esc(snippet)}"</span>`:''}
+    <br><span style="font-size:12px">Verifica en Gmail antes de enviar otra respuesta desde aquí — evita duplicar la comunicación al cliente.</span>
+  </div>`;
 }
 /* Fecha larga: "9 de junio de 2026, 09:58 a.m." */
 function fechaLarga(iso){
@@ -744,6 +757,7 @@ function renderDetail(id){
   let html = `
     <h3>${esc(e.asunto)}</h3>
     <div class="meta">${esc(e.remitente_nombre)} &lt;${esc(e.remitente_email)}&gt; · ${esc(e.fecha_recibido)} · vía ${esc(e.cuenta)}@tally.legal${e.company_id?` · <b>${esc(e.company_id)}</b>`:''} · <a href="#" onclick="abrirTareas('Bandeja','${esc(e.email_id)}','${esc(e.cliente&&e.cliente!=='INTERNO'?e.cliente:(e.remitente_nombre||''))}');return false" style="color:var(--brand-primary);font-weight:500">➕ Crear tarea</a></div>
+    ${osNotice(e)}
     ${e.mensaje_original?`<div class="msg-label">💬 Mensaje del cliente (texto original)</div><div class="msg-original">${esc(e.mensaje_original)}</div>`:''}
     ${renderCcOriginales(e)}
     ${renderContexto(e)}`;
