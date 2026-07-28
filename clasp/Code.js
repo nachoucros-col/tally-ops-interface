@@ -88,6 +88,31 @@ function handle(body) {
     case 'discard':
       return setEmailFields(ss, body.email_id, { estado: 'Descartado' }, now);
 
+    /* ── Dashboard: Pulso Semanal — ítems editables por columna ──
+       body: { item_id?, columna (movio|atorado|foco), chip, chip_tipo (done|block|warn|next), titulo, texto }
+       Sin item_id crea uno nuevo; con item_id edita. Pestaña Pulso_Semanal del Ops DB. */
+    case 'pulso_set': {
+      const shP = ss.getSheetByName('Pulso_Semanal') || ss.insertSheet('Pulso_Semanal');
+      if (!String(shP.getRange(1, 1).getValue()).trim()) {
+        shP.getRange(1, 1, 1, 7).setValues([['item_id', 'columna', 'chip', 'chip_tipo', 'titulo', 'texto', 'updated']]);
+      }
+      let iidP = String(body.item_id || '').trim();
+      const nuevoP = !iidP;
+      if (nuevoP) iidP = 'pw' + Date.now().toString(36) + Math.floor(Math.random() * 90 + 10);
+      const valsP = [iidP, body.columna || 'movio', body.chip || '', body.chip_tipo || 'done', body.titulo || '', body.texto || '', now];
+      const rowP = nuevoP ? 0 : findRow(shP, 1, iidP);
+      if (rowP) shP.getRange(rowP, 1, 1, 7).setValues([valsP]); else shP.appendRow(valsP);
+      return { ok: true, item_id: iidP };
+    }
+    case 'pulso_del': {
+      const shPd = ss.getSheetByName('Pulso_Semanal');
+      if (!shPd) return { ok: false, error: 'sin pestaña Pulso_Semanal' };
+      const rowPd = findRow(shPd, 1, String(body.item_id || '').trim());
+      if (!rowPd) return { ok: false, error: 'item no encontrado' };
+      shPd.deleteRow(rowPd);
+      return { ok: true };
+    }
+
     /* ── Dashboard: Journey Top 10 — estados de tags y notas por cliente ──
        body: { company_id, cliente?, tags? (JSON string), nota? }
        Upsert por company_id en la pestaña Journey_Top10 del Ops DB. */
