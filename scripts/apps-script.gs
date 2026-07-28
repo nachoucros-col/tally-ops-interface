@@ -88,6 +88,67 @@ function handle(body) {
     case 'discard':
       return setEmailFields(ss, body.email_id, { estado: 'Descartado' }, now);
 
+    /* ── Contabilidad: registro de períodos en Clientes_por_periodo (DataModel) ──
+       body.filas = [{ company_id, periodo:'2026-4', rfc?, ventas?, iva?, isr?, retencion?, nota? }]
+       Clona NombreCliente/Constitutive de la última fila existente de la empresa.
+       Idempotente: si el PeriodID ya existe, lo salta. */
+    case 'periodo_registrar': {
+      const MESES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+      const sh = SpreadsheetApp.openById(DATAMODEL_ID).getSheetByName('Clientes_por_periodo');
+      if (!sh) return { ok: false, error: 'Clientes_por_periodo no encontrada' };
+      const data = sh.getDataRange().getValues();
+      const existentes = {};
+      const ultimaDeCompany = {};
+      for (let i = 1; i < data.length; i++) {
+        const pid = String(data[i][0] || '').trim();
+        const cid = String(data[i][1] || '').trim();
+        if (pid) existentes[pid] = true;
+        if (cid) ultimaDeCompany[cid] = i;
+      }
+      const filas = body.filas || [];
+      const detalle = [];
+      const nuevas = [];
+      filas.forEach(function (f) {
+        const cid = String(f.company_id || '').trim();
+        const per = String(f.periodo || '').trim();          // ej. '2026-4'
+        const pid = per + '_' + cid;
+        if (!cid || !per) { detalle.push({ pid: pid, ok: false, motivo: 'faltan company_id/periodo' }); return; }
+        if (existentes[pid]) { detalle.push({ pid: pid, ok: false, motivo: 'ya existe' }); return; }
+        const idx = ultimaDeCompany[cid];
+        if (idx === undefined) { detalle.push({ pid: pid, ok: false, motivo: 'company_id sin filas previas' }); return; }
+        const base = data[idx];
+        const mesNum = parseInt(per.split('-')[1], 10) || 0;
+        const anio = per.split('-')[0];
+        const ventas = Number(f.ventas || 0);
+        const iva = (f.iva === undefined || f.iva === '' || Number(f.iva) === 0) ? '' : Number(f.iva);
+        const isr = (f.isr === undefined || f.isr === '' || Number(f.isr) === 0) ? '' : Number(f.isr);
+        const ret = Number(f.retencion || 0);
+        const conDatos = ventas > 0 || iva !== '' || isr !== '' || ret > 0;
+        const row = new Array(25).fill('');
+        row[0] = pid;                                   // A PeriodID
+        row[1] = cid;                                   // B Company_id
+        row[2] = base[2];                               // C NombreCliente (clonado)
+        row[3] = base[3];                               // D Constitutive (clonado)
+        row[4] = conDatos ? 'Con datos' : 'Ceros';      // E DeclaracionTipo
+        row[5] = f.rfc || base[5] || '';                // F RFC
+        row[6] = ventas;                                // G SalesLastPeriod
+        row[7] = 'Declarado';                           // H EstadoCliente
+        row[8] = iva;                                   // I IVA_pagar
+        row[9] = isr;                                   // J ISR_pagar
+        row[11] = ret > 0 ? ret : '';                   // L PeriodoRetencion
+        row[13] = ventas;                               // N VentasList
+        row[15] = MESES[mesNum] || '';                  // P MesPeriodo
+        row[16] = anio;                                 // Q AñoPeríodo
+        row[23] = Utilities.formatDate(new Date(), 'America/Mexico_City', 'M/d/yyyy'); // X Fecha_Declaracion
+        row[24] = f.nota || 'Registro vía Tally Ops';   // Y Notas_Declaracion
+        nuevas.push(row);
+        existentes[pid] = true;
+        detalle.push({ pid: pid, ok: true });
+      });
+      if (nuevas.length) sh.getRange(sh.getLastRow() + 1, 1, nuevas.length, 25).setValues(nuevas);
+      return { ok: true, registradas: nuevas.length, saltadas: detalle.filter(function (d) { return !d.ok; }).length, detalle: detalle };
+    }
+
     /* ── Seller Central ── */
     case 'sc_decision': {
       const sh = ss.getSheetByName('SC_Seguimiento');
