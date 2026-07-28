@@ -93,60 +93,75 @@ function handle(body) {
        Clona NombreCliente/Constitutive de la última fila existente de la empresa.
        Idempotente: si el PeriodID ya existe, lo salta. */
     case 'periodo_registrar': {
-      const MESES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-      const sh = SpreadsheetApp.openById(DATAMODEL_ID).getSheetByName('Clientes_por_periodo');
-      if (!sh) return { ok: false, error: 'Clientes_por_periodo no encontrada' };
-      const data = sh.getDataRange().getValues();
-      const existentes = {};
-      const ultimaDeCompany = {};
-      for (let i = 1; i < data.length; i++) {
-        const pid = String(data[i][0] || '').trim();
-        const cid = String(data[i][1] || '').trim();
-        if (pid) existentes[pid] = true;
-        if (cid) ultimaDeCompany[cid] = i;
+      let logSh = null;
+      try { logSh = ss.getSheetByName('Log_Periodos') || ss.insertSheet('Log_Periodos'); } catch (e) {}
+      const plog = function (msg) { try { if (logSh) logSh.appendRow([new Date().toISOString(), msg]); } catch (e) {} };
+      try {
+        const MESES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        const sh = SpreadsheetApp.openById(DATAMODEL_ID).getSheetByName('Clientes_por_periodo');
+        if (!sh) { plog('ERROR: Clientes_por_periodo no encontrada'); return { ok: false, error: 'Clientes_por_periodo no encontrada' }; }
+        let filas = body.filas || [];
+        if (typeof filas === 'string') { try { filas = JSON.parse(filas.replace(/\s+/g, '')); } catch (e) { plog('ERROR parse filas string: ' + e); return { ok: false, error: 'filas string inválido' }; } }
+        plog('inicio: keys=' + Object.keys(body).join(',') + ' filas=' + filas.length);
+        const data = sh.getDataRange().getValues();
+        const existentes = {};
+        const ultimaDeCompany = {};
+        for (let i = 1; i < data.length; i++) {
+          const pid = String(data[i][0] || '').trim();
+          const cid = String(data[i][1] || '').trim();
+          if (pid) existentes[pid] = true;
+          if (cid) ultimaDeCompany[cid] = i;
+        }
+        const detalle = [];
+        let registradas = 0;
+        filas.forEach(function (f) {
+          const cid = String(f.company_id || '').replace(/\s+/g, '');
+          const per = String(f.periodo || '').replace(/\s+/g, '');   // ej. '2026-4'
+          const pid = per + '_' + cid;
+          if (!cid || !per) { detalle.push(pid + ':faltan datos'); return; }
+          if (existentes[pid]) { detalle.push(pid + ':ya existe'); return; }
+          const idx = ultimaDeCompany[cid];
+          if (idx === undefined) { detalle.push(pid + ':company sin filas previas'); return; }
+          const base = data[idx];
+          const mesNum = parseInt(per.split('-')[1], 10) || 0;
+          const anio = per.split('-')[0];
+          const ventas = Number(f.ventas || 0);
+          const iva = (f.iva === undefined || f.iva === '' || Number(f.iva) === 0) ? '' : Number(f.iva);
+          const isr = (f.isr === undefined || f.isr === '' || Number(f.isr) === 0) ? '' : Number(f.isr);
+          const ret = Number(f.retencion || 0);
+          const conDatos = ventas > 0 || iva !== '' || isr !== '' || ret > 0;
+          const row = new Array(25).fill('');
+          row[0] = pid;                                   // A PeriodID
+          row[1] = cid;                                   // B Company_id
+          row[2] = base[2];                               // C NombreCliente (clonado)
+          row[3] = base[3];                               // D Constitutive (clonado)
+          row[4] = conDatos ? 'Con datos' : 'Ceros';      // E DeclaracionTipo
+          row[5] = String(f.rfc || base[5] || '').replace(/\s+/g, ''); // F RFC
+          row[6] = ventas;                                // G SalesLastPeriod
+          row[7] = 'Declarado';                           // H EstadoCliente
+          row[8] = iva;                                   // I IVA_pagar
+          row[9] = isr;                                   // J ISR_pagar
+          row[11] = ret > 0 ? ret : '';                   // L PeriodoRetencion
+          row[13] = ventas;                               // N VentasList
+          row[15] = MESES[mesNum] || '';                  // P MesPeriodo
+          row[16] = anio;                                 // Q AñoPeríodo
+          row[23] = Utilities.formatDate(new Date(), 'America/Mexico_City', 'M/d/yyyy'); // X Fecha_Declaracion
+          row[24] = f.nota || 'Registro vía Tally Ops';   // Y Notas_Declaracion
+          try {
+            sh.appendRow(row);                            // appendRow expande la grilla si hace falta
+            existentes[pid] = true;
+            registradas++;
+            detalle.push(pid + ':OK');
+          } catch (e) {
+            detalle.push(pid + ':ERROR ' + e);
+          }
+        });
+        plog('fin: registradas=' + registradas + ' | ' + detalle.join(' ; '));
+        return { ok: true, registradas: registradas, detalle: detalle };
+      } catch (e) {
+        plog('EXCEPCION: ' + e);
+        return { ok: false, error: String(e) };
       }
-      const filas = body.filas || [];
-      const detalle = [];
-      const nuevas = [];
-      filas.forEach(function (f) {
-        const cid = String(f.company_id || '').trim();
-        const per = String(f.periodo || '').trim();          // ej. '2026-4'
-        const pid = per + '_' + cid;
-        if (!cid || !per) { detalle.push({ pid: pid, ok: false, motivo: 'faltan company_id/periodo' }); return; }
-        if (existentes[pid]) { detalle.push({ pid: pid, ok: false, motivo: 'ya existe' }); return; }
-        const idx = ultimaDeCompany[cid];
-        if (idx === undefined) { detalle.push({ pid: pid, ok: false, motivo: 'company_id sin filas previas' }); return; }
-        const base = data[idx];
-        const mesNum = parseInt(per.split('-')[1], 10) || 0;
-        const anio = per.split('-')[0];
-        const ventas = Number(f.ventas || 0);
-        const iva = (f.iva === undefined || f.iva === '' || Number(f.iva) === 0) ? '' : Number(f.iva);
-        const isr = (f.isr === undefined || f.isr === '' || Number(f.isr) === 0) ? '' : Number(f.isr);
-        const ret = Number(f.retencion || 0);
-        const conDatos = ventas > 0 || iva !== '' || isr !== '' || ret > 0;
-        const row = new Array(25).fill('');
-        row[0] = pid;                                   // A PeriodID
-        row[1] = cid;                                   // B Company_id
-        row[2] = base[2];                               // C NombreCliente (clonado)
-        row[3] = base[3];                               // D Constitutive (clonado)
-        row[4] = conDatos ? 'Con datos' : 'Ceros';      // E DeclaracionTipo
-        row[5] = f.rfc || base[5] || '';                // F RFC
-        row[6] = ventas;                                // G SalesLastPeriod
-        row[7] = 'Declarado';                           // H EstadoCliente
-        row[8] = iva;                                   // I IVA_pagar
-        row[9] = isr;                                   // J ISR_pagar
-        row[11] = ret > 0 ? ret : '';                   // L PeriodoRetencion
-        row[13] = ventas;                               // N VentasList
-        row[15] = MESES[mesNum] || '';                  // P MesPeriodo
-        row[16] = anio;                                 // Q AñoPeríodo
-        row[23] = Utilities.formatDate(new Date(), 'America/Mexico_City', 'M/d/yyyy'); // X Fecha_Declaracion
-        row[24] = f.nota || 'Registro vía Tally Ops';   // Y Notas_Declaracion
-        nuevas.push(row);
-        existentes[pid] = true;
-        detalle.push({ pid: pid, ok: true });
-      });
-      if (nuevas.length) sh.getRange(sh.getLastRow() + 1, 1, nuevas.length, 25).setValues(nuevas);
-      return { ok: true, registradas: nuevas.length, saltadas: detalle.filter(function (d) { return !d.ok; }).length, detalle: detalle };
     }
 
     /* ── Seller Central ── */
