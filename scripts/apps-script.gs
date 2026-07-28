@@ -88,6 +88,28 @@ function handle(body) {
     case 'discard':
       return setEmailFields(ss, body.email_id, { estado: 'Descartado' }, now);
 
+    /* ── Dashboard: Journey Top 10 — estados de tags y notas por cliente ──
+       body: { company_id, cliente?, tags? (JSON string), nota? }
+       Upsert por company_id en la pestaña Journey_Top10 del Ops DB. */
+    case 'journey_set': {
+      const shJ = ss.getSheetByName('Journey_Top10') || ss.insertSheet('Journey_Top10');
+      if (!String(shJ.getRange(1, 1).getValue()).trim()) {
+        shJ.getRange(1, 1, 1, 5).setValues([['company_id', 'cliente', 'tags', 'nota', 'updated']]);
+      }
+      const cidJ = String(body.company_id || '').trim();
+      if (!cidJ) return { ok: false, error: 'company_id requerido' };
+      const rowJ = findRow(shJ, 1, cidJ);
+      if (rowJ) {
+        if (body.cliente !== undefined) shJ.getRange(rowJ, 2).setValue(body.cliente);
+        if (body.tags !== undefined) shJ.getRange(rowJ, 3).setValue(body.tags);
+        if (body.nota !== undefined) shJ.getRange(rowJ, 4).setValue(body.nota);
+        shJ.getRange(rowJ, 5).setValue(now);
+      } else {
+        shJ.appendRow([cidJ, body.cliente || '', body.tags || '', body.nota || '', now]);
+      }
+      return { ok: true, company_id: cidJ };
+    }
+
     /* ── Contabilidad: registro de períodos en Clientes_por_periodo (DataModel) ──
        body.filas = [{ company_id, periodo:'2026-4', rfc?, ventas?, iva?, isr?, retencion?, nota? }]
        Clona NombreCliente/Constitutive de la última fila existente de la empresa.
