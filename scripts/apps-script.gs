@@ -70,6 +70,27 @@ function doPost(e) {
   }
 }
 
+/* ── Cliente Anthropic con reintentos ──
+   529/429/5xx son saturación temporal de Anthropic, no errores del sistema:
+   3 intentos con espera creciente (0s, 2.5s, 8s) antes de rendirse. */
+function claudeApi(key, payloadObj) {
+  const opts = {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    payload: JSON.stringify(payloadObj)
+  };
+  const esperas = [0, 2500, 8000];
+  let resp = null;
+  for (let i = 0; i < esperas.length; i++) {
+    if (esperas[i]) Utilities.sleep(esperas[i]);
+    resp = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', opts);
+    const c = resp.getResponseCode();
+    if (c === 200) return resp;
+    if (c !== 429 && c !== 500 && c !== 502 && c !== 503 && c !== 529) return resp; // no reintentable
+  }
+  return resp;
+}
+
 /* ══════════════ RUTEO DE ACCIONES ══════════════ */
 
 function handle(body) {
@@ -676,13 +697,9 @@ function handle(body) {
         '\n\nINSTRUCCIÓN DE JUAN PARA LA RESPUESTA:\n' + (body.prompt || promptJuan) +
         '\n\nFIRMA A USAR AL FINAL:\n' + firma;
 
-      const resp = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
-        method: 'post', contentType: 'application/json', muteHttpExceptions: true,
-        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-        payload: JSON.stringify({ model: model, max_tokens: 1200, system: system, messages: [{ role: 'user', content: user }] })
-      });
+      const resp = claudeApi(key, { model: model, max_tokens: 1200, system: system, messages: [{ role: 'user', content: user }] });
       const code = resp.getResponseCode();
-      if (code !== 200) return { ok: false, error: 'Claude API ' + code + ': ' + resp.getContentText().slice(0, 200) };
+      if (code !== 200) return { ok: false, error: 'Claude API ' + code + ((code === 529 || code === 429) ? ' — Anthropic saturado (reintenté 3 veces). Espera 1-2 min y vuelve a generar.' : '') + ': ' + resp.getContentText().slice(0, 200) };
       // La respuesta puede traer varios bloques (p.ej. razonamiento); tomar el bloque de TEXTO
       const blocks = (JSON.parse(resp.getContentText()).content) || [];
       const textBlock = blocks.filter(function(b){ return b && b.type === 'text' && b.text; })[0];
@@ -724,13 +741,9 @@ function handle(body) {
         '\n\nOBJETIVO Y CONTEXTO DEL CORREO (instrucción de Juan):\n' + (body.prompt || '') +
         '\n\nFIRMA A USAR AL FINAL:\n' + firma;
 
-      const resp = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
-        method: 'post', contentType: 'application/json', muteHttpExceptions: true,
-        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-        payload: JSON.stringify({ model: model, max_tokens: 1200, system: system, messages: [{ role: 'user', content: user }] })
-      });
+      const resp = claudeApi(key, { model: model, max_tokens: 1200, system: system, messages: [{ role: 'user', content: user }] });
       const code = resp.getResponseCode();
-      if (code !== 200) return { ok: false, error: 'Claude API ' + code + ': ' + resp.getContentText().slice(0, 200) };
+      if (code !== 200) return { ok: false, error: 'Claude API ' + code + ((code === 529 || code === 429) ? ' — Anthropic saturado (reintenté 3 veces). Espera 1-2 min y vuelve a generar.' : '') + ': ' + resp.getContentText().slice(0, 200) };
       const blocks = (JSON.parse(resp.getContentText()).content) || [];
       const tb = blocks.filter(function(b){ return b && b.type === 'text' && b.text; })[0];
       if (!tb) return { ok: false, error: 'respuesta sin bloque de texto' };
@@ -743,13 +756,9 @@ function handle(body) {
       const key = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
       if (!key) return { ok: false, error: 'SIN_API_KEY' };
       const idioma = String(body.idioma || 'es') === 'es' ? 'español' : 'inglés';
-      const resp = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
-        method: 'post', contentType: 'application/json', muteHttpExceptions: true,
-        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-        payload: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 1500,
+      const resp = claudeApi(key, { model: 'claude-haiku-4-5-20251001', max_tokens: 1500,
           system: 'Traduce el correo al ' + idioma + ' manteniendo EXACTOS: tono profesional, formato, saltos de línea, variables {{...}}, campos [...] y direcciones de correo. FORMATO DE SALIDA: primera línea "ASUNTO: <asunto traducido>", línea en blanco, luego el cuerpo. Nada más.',
-          messages: [{ role: 'user', content: 'ASUNTO: ' + (body.subject || '') + '\n\n' + (body.body_text || '') }] })
-      });
+          messages: [{ role: 'user', content: 'ASUNTO: ' + (body.subject || '') + '\n\n' + (body.body_text || '') }] });
       if (resp.getResponseCode() !== 200) return { ok: false, error: 'Claude API ' + resp.getResponseCode() };
       const blocks2 = (JSON.parse(resp.getContentText()).content) || [];
       const tb2 = blocks2.filter(function(b){ return b && b.type === 'text' && b.text; })[0];
@@ -762,13 +771,9 @@ function handle(body) {
       // Wizard de plantillas nuevas: la IA interpreta las variables [.] y propone el match
       const key = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
       if (!key) return { ok: false, error: 'SIN_API_KEY' };
-      const resp = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
-        method: 'post', contentType: 'application/json', muteHttpExceptions: true,
-        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-        payload: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 1200,
+      const resp = claudeApi(key, { model: 'claude-sonnet-5', max_tokens: 1200,
           system: 'Analizas variables de una plantilla de correo de Tally (contabilidad marketplaces México). Variables del SISTEMA disponibles (se llenan solas por cliente): {{contact_name}} nombre del contacto, {{company_name}} nombre de la empresa, {{period}} período fiscal (mes anterior), {{owner_name}} owner interno del cliente, {{firma}} firma del remitente. Para cada variable [entre corchetes] de la plantilla decide: tipo "sistema" (equivale a una variable del sistema — indica cuál), tipo "manual" (dato puntual que el usuario debe escribir al enviar, ej. fechas, montos acordados, temas), tipo "appsheet" (dato de texto que vive en las tablas del negocio: ventas, IVA/ISR, accesos, declaraciones — indica Tabla.Columna probable de: Clients_Load, Clientes_por_periodo, Accesos_SellerCentral, WeeklyPlan, Estados_cuenta, Reportes_de_venta), o tipo "documento" (la variable pide ADJUNTAR un archivo del cliente — indica Tabla.Columna de archivo entre: declaracion_periodo.Documento, Reportes_de_venta.Archivo, Retenciones_por_periodo.URLRetencion, Estados_cuenta.UrlVentas, Inventario_por_periodo.URLInventario, diot_periodo.Documento). Responde SOLO un JSON array: [{"var":"[nombre]","tipo":"sistema|manual|appsheet","match":"{{variable}} o Tabla.Columna o vacío","razon":"breve"}]',
-          messages: [{ role: 'user', content: 'ASUNTO: ' + (body.subject || '') + '\n\nCUERPO:\n' + (body.body_text || '') }] })
-      });
+          messages: [{ role: 'user', content: 'ASUNTO: ' + (body.subject || '') + '\n\nCUERPO:\n' + (body.body_text || '') }] });
       if (resp.getResponseCode() !== 200) return { ok: false, error: 'Claude API ' + resp.getResponseCode() };
       const blocks3 = (JSON.parse(resp.getContentText()).content) || [];
       const tb3 = blocks3.filter(function(b){ return b && b.type === 'text' && b.text; })[0];
