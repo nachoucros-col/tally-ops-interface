@@ -450,6 +450,8 @@ function countCat(cat){
     if(cuentaFilter && e.cuenta!==cuentaFilter) return false;
     if(envioFilter==='env' && e.estado!=='Enviado') return false;
     if(envioFilter==='sin' && e.estado==='Enviado') return false;
+    if(osFilter==='os' && !(e.estado==='Respuesta OS'||e.respuesta_os)) return false;
+    if(osFilter==='no' && (e.estado==='Respuesta OS'||e.respuesta_os)) return false;
     if(cat==='__env') return e.estado==='Enviado';
     if(e.estado==='Descartado') return false;
     if(cat==='__brr') return e.estado==='Borrador';
@@ -476,7 +478,7 @@ function renderCatChips(){
        <button class="chip" data-cat="__os" title="Correos que el equipo respondió por FUERA de la interfaz (Out Side)">🌐 Respuesta OS ${chipN('__os')}</button>
        <button class="chip" data-cat="__env">📤 Enviados ${chipN('__env')}</button>
        <span class="chip-sep">|</span>
-       <button class="chip" id="filterBtn" onclick="toggleFilterPop()" title="Filtros de cuenta y orden"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polygon points="22 3 2 3 10 12.5 10 19 14 21 14 12.5 22 3"/></svg> Filtros${(cuentaFilter||mailOrden!=='desc'||envioFilter)?' <span class="fdot"></span>':''}</button>`;
+       <button class="chip" id="filterBtn" onclick="toggleFilterPop()" title="Filtros de cuenta y orden"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polygon points="22 3 2 3 10 12.5 10 19 14 21 14 12.5 22 3"/></svg> Filtros${(cuentaFilter||mailOrden!=='desc'||envioFilter||osFilter)?' <span class="fdot"></span>':''}</button>`;
   el.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on', c.dataset.cat===catFilter));
   renderFilterPop();
 }
@@ -508,11 +510,15 @@ const ST_CLASS={'Nuevo':'st-Nuevo','Prompt recibido':'st-Prompt','Draft listo':'
 let mailOrden='desc'; // 'desc' = más recientes primero · 'asc' = orden de llegada
 let cuentaFilter='';  // '' = todas las cuentas
 let envioFilter='';   // '' = todos · 'env' = enviados · 'sin' = sin enviar
+let osFilter='';      // '' = todos · 'os' = solo Respuesta OS · 'no' = sin Respuesta OS
+function esOS(e){ return e.estado==='Respuesta OS'||!!e.respuesta_os; }
 function visibleEmails(){
   return EMAILS.filter(e=>{
     if(cuentaFilter && e.cuenta!==cuentaFilter) return false;
     if(envioFilter==='env' && e.estado!=='Enviado') return false;
     if(envioFilter==='sin' && e.estado==='Enviado') return false;
+    if(osFilter==='os' && !esOS(e)) return false;
+    if(osFilter==='no' && esOS(e)) return false;
     if(catFilter==='__env') return e.estado==='Enviado';
     if(e.estado==='Descartado') return false;
     if(catFilter==='__brr') return e.estado==='Borrador';
@@ -570,12 +576,18 @@ function renderFilterPop(){
       <option value="env" ${envioFilter==='env'?'selected':''}>Solo enviados</option>
       <option value="sin" ${envioFilter==='sin'?'selected':''}>Sin enviar</option>
     </select>
+    <label>🌐 Respuesta OS</label>
+    <select id="mailOS" onchange="osFilter=this.value;renderMailList()">
+      <option value="" ${osFilter===''?'selected':''}>Todos</option>
+      <option value="os" ${osFilter==='os'?'selected':''}>Solo Respuesta OS</option>
+      <option value="no" ${osFilter==='no'?'selected':''}>Sin Respuesta OS</option>
+    </select>
     <label>🕐 Orden de llegada</label>
     <select id="mailOrden" onchange="mailOrden=this.value;renderMailList()">
       <option value="desc" ${mailOrden==='desc'?'selected':''}>Más recientes primero</option>
       <option value="asc" ${mailOrden==='asc'?'selected':''}>Más antiguos primero</option>
     </select>
-    ${(cuentaFilter||mailOrden!=='desc'||envioFilter)?`<div class="btn-row"><button class="mini btn-ghost" onclick="cuentaFilter='';mailOrden='desc';envioFilter='';renderMailList()">Limpiar filtros</button></div>`:''}`;
+    ${(cuentaFilter||mailOrden!=='desc'||envioFilter||osFilter)?`<div class="btn-row"><button class="mini btn-ghost" onclick="cuentaFilter='';mailOrden='desc';envioFilter='';osFilter='';renderMailList()">Limpiar filtros</button></div>`:''}`;
 }
 document.addEventListener('click',ev=>{
   const p=document.getElementById('filterPop');
@@ -1730,6 +1742,8 @@ function tkFechaEntrega(t){
   const vencida=f&&f<hoy&&t.estado!=='Finalizado';
   return `<input type="date" value="${esc(f)}" onclick="event.stopPropagation()" onchange="event.stopPropagation();tkEdit('${esc(t.tarea_id)}','fecha_entrega',this.value)" style="width:auto;padding:4px 8px;font-size:11.5px;${vencida?'border-color:#e54848;color:#b91c1c;font-weight:700':''}" title="${vencida?'⚠️ VENCIDA':'Fecha de entrega'}">`;
 }
+const TK_ESTADOS=['Sin iniciar','En proceso','Bloqueado','Finalizado'];
+function tkNorm(t){ return TK_ESTADOS.includes(t.estado)?t.estado:'Sin iniciar'; }
 function tkCard(t){
   const origen=t.origen==='Documentación'?'📦':t.origen==='Bandeja'?'📥':'✅';
   const clientes=String(t.clientes||t.cliente||'').split(',').map(s=>s.trim()).filter(Boolean);
@@ -1895,11 +1909,14 @@ async function tkDrop(ev,col){
   ev.preventDefault(); ev.currentTarget.classList.remove('drag-over');
   const id=TK_DRAG; TK_DRAG=null; if(!id) return;
   const t=TAREAS.find(x=>x.tarea_id===id); if(!t) return;
-  const nuevo=col===1?'Finalizado':'Sin iniciar';
-  const actual=t.estado==='Finalizado'?'Finalizado':'Sin iniciar';
+  const nuevo=TK_ESTADOS[col]||'Sin iniciar';
+  const actual=tkNorm(t);
   if(actual===nuevo){ renderTareas(); return; }
   const r=await api('tarea_estado',{tarea_id:id,estado:nuevo,auth:{email:AUTH.email,password:AUTH.password}});
-  if(r.ok){ t.estado=nuevo; t.fecha_finalizacion=nuevo==='Finalizado'?new Date().toISOString().slice(0,16).replace('T',' '):''; toast(nuevo==='Finalizado'?'✅ Tarea finalizada':'↩️ Tarea reabierta'); }
+  if(r.ok){
+    t.estado=nuevo; t.fecha_finalizacion=nuevo==='Finalizado'?new Date().toISOString().slice(0,16).replace('T',' '):'';
+    toast(nuevo==='Finalizado'?'✅ Tarea finalizada':nuevo==='Bloqueado'?'⛔ Tarea bloqueada':nuevo==='En proceso'?'🚧 Tarea en proceso':'↩️ Tarea reabierta');
+  }
   else toast('❌ '+(r.error||'error'));
   renderTareas();
 }

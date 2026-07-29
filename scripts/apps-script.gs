@@ -88,6 +88,32 @@ function handle(body) {
     case 'discard':
       return setEmailFields(ss, body.email_id, { estado: 'Descartado' }, now);
 
+    /* ── Tareas: auto-bloqueo por vencimiento ──
+       Toda tarea 'Sin iniciar' o 'En proceso' cuya fecha_entrega ya pasó se mueve
+       a 'Bloqueado'. Corre dentro de sync_inbox (cron 15 min); también invocable directo. */
+    case 'tareas_auto_bloqueo': {
+      const shT = ss.getSheetByName('Tareas');
+      if (!shT) return { ok: true, bloqueadas: 0 };
+      const dataT = shT.getDataRange().getValues();
+      const hoyT = Utilities.formatDate(new Date(), 'America/Mexico_City', 'yyyy-MM-dd');
+      let nB = 0;
+      for (let i = 1; i < dataT.length; i++) {
+        const estT = String(dataT[i][8] || '').trim();          // col 9 estado
+        if (estT !== 'Sin iniciar' && estT !== 'En proceso' && estT !== '') continue;
+        const feRaw = dataT[i][13];                              // col 14 fecha_entrega
+        if (!feRaw) continue;
+        const fe = (feRaw instanceof Date)
+          ? Utilities.formatDate(feRaw, 'America/Mexico_City', 'yyyy-MM-dd')
+          : String(feRaw).substring(0, 10);
+        if (fe && fe < hoyT) {
+          shT.getRange(i + 1, 9).setValue('Bloqueado');
+          shT.getRange(i + 1, 11).setValue(now);                 // ultima_actualizacion
+          nB++;
+        }
+      }
+      return { ok: true, bloqueadas: nB };
+    }
+
     /* ── Dashboard: Pulso Semanal — ítems editables por columna ──
        body: { item_id?, columna (movio|atorado|foco), chip, chip_tipo (done|block|warn|next), titulo, texto }
        Sin item_id crea uno nuevo; con item_id edita. Pestaña Pulso_Semanal del Ops DB. */
@@ -992,7 +1018,10 @@ function handle(body) {
       // Barrido de respuestas fuera de la interfaz (aprovecha la corrida de cron cada 15 min)
       let osres = null;
       try { osres = handle({ action: 'detectar_os', max: 20 }); } catch (e) { osres = { ok: false, error: String(e) }; }
-      return { ok: true, threads: threads.length, operaciones_aplicadas: ops, errores: errs.slice(0, 5), respuesta_os: osres };
+      // Auto-bloqueo de tareas vencidas (misma corrida de 15 min)
+      let tkres = null;
+      try { tkres = handle({ action: 'tareas_auto_bloqueo' }); } catch (e) { tkres = { ok: false, error: String(e) }; }
+      return { ok: true, threads: threads.length, operaciones_aplicadas: ops, errores: errs.slice(0, 5), respuesta_os: osres, tareas_bloqueadas: tkres };
     }
 
     /* ── LOGIN de la interfaz (usuarios en Sheet privado separado) ── */
