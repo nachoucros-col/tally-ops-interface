@@ -3,6 +3,10 @@
 
 [build]
   publish = "."
+  # Ahorro de builds: solo construir cuando cambian archivos que el navegador realmente sirve.
+  # Cambios de backend (scripts/apps-script.gs, clasp/, agente/, docs/) NO gastan build minutes:
+  # Netlify corre este comando; si no hay diff en estos paths, marca el deploy como "Skipped" (gratis).
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- index.html retro-julio.html netlify.toml '*.png'"
 
 [[headers]]
   for = "/*"
