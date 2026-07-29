@@ -199,7 +199,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <div class="logo">Tally <span>Ops</span></div>
     <div class="sub">Interfaz Contable</div>
     <a href="#bandeja" class="active" data-view="bandeja">📥 Bandeja</a>
-    <a href="#sc" data-view="sc">📦 Documentación</a>
+    <a href="#sc" data-view="sc" style="display:none">📦 Documentación</a><!-- oculto por orden de Juan 29-jul-2026, hasta nueva orden -->
     <a href="#tareas" data-view="tareas">✅ Tareas</a>
     <a href="#log" data-view="log" style="display:none">🕐 Actividad</a>
     <a href="#clientes" data-view="clientes" id="navClientes" style="display:none">👥 Clientes</a>
@@ -1749,8 +1749,7 @@ function tkCard(t){
       </select>
       ${tkFechaEntrega(t)}
       <select onclick="event.stopPropagation()" onchange="event.stopPropagation();tkEdit('${esc(t.tarea_id)}','estado',this.value)" style="width:auto;padding:4px 8px;font-size:11.5px" title="Estado">
-        <option ${t.estado!=='Finalizado'?'selected':''}>Sin iniciar</option>
-        <option ${t.estado==='Finalizado'?'selected':''}>Finalizado</option>
+        ${TK_ESTADOS.map(e=>`<option ${tkNorm(t)===e?'selected':''}>${e}</option>`).join('')}
       </select>
     </div>
     <div class="kb-tags" style="margin-top:6px">
@@ -1876,12 +1875,14 @@ function renderTareas(){
   if(q) rows=rows.filter(t=>(t.titulo||'').toLowerCase().includes(q)||(t.cliente||'').toLowerCase().includes(q));
   const resp=document.getElementById('tkResp')?.value||'';
   if(resp) rows=rows.filter(t=>String(t.responsable||'').toLowerCase()===resp);
-  const cols=[
-    {nombre:'Sin iniciar', color:'var(--orange-500)', rows:rows.filter(t=>t.estado!=='Finalizado')},
-    {nombre:'Finalizado', color:'var(--green-500)', rows:rows.filter(t=>t.estado==='Finalizado')}
-  ];
-  cols[0].rows.sort((a,b)=>(b.fecha_creacion||'').localeCompare(a.fecha_creacion||''));
-  cols[1].rows.sort((a,b)=>(b.fecha_finalizacion||'').localeCompare(a.fecha_finalizacion||''));
+  const cols=TK_ESTADOS.map(e=>({
+    nombre:e,
+    color:e==='Sin iniciar'?'var(--orange-500)':e==='En proceso'?'var(--brand-primary)':e==='Bloqueado'?'#e54848':'var(--green-500)',
+    rows:rows.filter(t=>tkNorm(t)===e)
+  }));
+  cols.forEach(c=>c.rows.sort((a,b)=>c.nombre==='Finalizado'
+    ?(b.fecha_finalizacion||'').localeCompare(a.fecha_finalizacion||'')
+    :(b.fecha_creacion||'').localeCompare(a.fecha_creacion||'')));
   el.innerHTML=cols.map((c,i)=>`
     <div class="kb-col" style="border-top-color:${c.color}" ondragover="kbOver(event)" ondragleave="kbLeave(event)" ondrop="tkDrop(event,${i})">
       <div class="kb-head"><span>${c.nombre}</span><span class="kb-count">${c.rows.length}</span></div>
