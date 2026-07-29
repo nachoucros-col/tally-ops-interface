@@ -534,6 +534,7 @@ function handle(body) {
       // y ninguna "cuenta genérica" aparece como responsable.
       const ALIAS_NOMBRE = { 'contabilidad@tally.legal': 'Arturo Cerón' };
       const NOMBRES_OCULTOS = ['cuenta genérica', 'cuenta generica', 'genérica', 'generica'];
+      const EMAILS_OCULTOS = ['elizabeth@tally.legal']; // salió de Tally 29-jul-2026 — fuera del selector de responsables, hasta nueva orden
       const u = checkUser(body.auth);
       if (!u.ok) return u;
       const us = SpreadsheetApp.openById(USUARIOS_ID).getSheetByName('Usuarios');
@@ -543,6 +544,7 @@ function handle(body) {
         const em = String(data[i][0] || '').trim().toLowerCase();
         if (!em || String(data[i][3]).toLowerCase() === 'no') continue;
         let nom = String(data[i][2] || em);
+        if (EMAILS_OCULTOS.indexOf(em) !== -1) continue;
         if (ALIAS_NOMBRE[em]) nom = ALIAS_NOMBRE[em];
         else if (NOMBRES_OCULTOS.indexOf(nom.toLowerCase().trim()) !== -1) continue;
         list.push({ email: em, nombre: nom });
