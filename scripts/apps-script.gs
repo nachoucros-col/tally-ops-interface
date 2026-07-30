@@ -109,6 +109,56 @@ function handle(body) {
     case 'discard':
       return setEmailFields(ss, body.email_id, { estado: 'Descartado' }, now);
 
+    /* ── Dashboard: presencia documental por período (SOP Auditoría p2–p11) ──
+       body.periodo = 'YYYY-MM'. Un documento EXISTE si su tabla destino tiene fila
+       con el mismo PeriodID (regla del SOP 319325ede0a380f3afd0c83e2e3ed59a).
+       Devuelve, por tipo de documento, los company_ids con documento en el período. */
+    case 'docs_presencia': {
+      const dmD = SpreadsheetApp.openById(DATAMODEL_ID);
+      const perD = String(body.periodo || '').trim();
+      const mD = perD.match(/^(\d{4})-(\d{1,2})$/);
+      if (!mD) return { ok: false, error: 'periodo inválido (usa YYYY-MM)' };
+      const varD = [mD[1] + '-' + parseInt(mD[2], 10), mD[1] + '-' + String(parseInt(mD[2], 10)).padStart(2, '0')]; // '2026-6' y '2026-06'
+      const TABS_D = {
+        decl: ['declaracion_periodo'],
+        edo:  ['Estados_cuenta', 'Estados_cuentas'],
+        diot: ['diot_periodo'],
+        vtas: ['Reportes_de_venta', 'Reportes_de_ventas'],
+        ret:  ['Retenciones_por_periodo', 'Retenciones_por_periodos'],
+        inv:  ['Inventario_por_periodo', 'inventario_por_periodo', 'Inventario_por_periodos']
+      };
+      const presD = {};
+      const debugD = {};
+      Object.keys(TABS_D).forEach(function (k) {
+        presD[k] = [];
+        let shD = null;
+        for (let n = 0; n < TABS_D[k].length && !shD; n++) shD = dmD.getSheetByName(TABS_D[k][n]);
+        if (!shD) { debugD[k] = 'tab no encontrada'; return; }
+        const dataD = shD.getDataRange().getValues();
+        if (dataD.length < 2) { debugD[k] = 'sin filas'; return; }
+        const headD = dataD[0].map(function (x) { return String(x).toLowerCase().replace(/[\s_]/g, ''); });
+        const iPid = headD.indexOf('periodid');
+        let iCid = headD.indexOf('companyid'); if (iCid < 0) iCid = headD.indexOf('company');
+        const setD = {};
+        for (let i = 1; i < dataD.length; i++) {
+          let cid = '';
+          if (iPid >= 0) {
+            const pid = String(dataD[i][iPid] || '').trim();     // ej. '2026-6_AZ006510'
+            const us = pid.indexOf('_');
+            if (us < 0) continue;
+            const perPid = pid.substring(0, us);
+            if (perPid !== varD[0] && perPid !== varD[1]) continue;
+            cid = pid.substring(us + 1).trim();
+          } else continue;                                        // sin PeriodID no hay match confiable (regla SOP)
+          if (!cid && iCid >= 0) cid = String(dataD[i][iCid] || '').trim();
+          if (cid) setD[cid] = true;
+        }
+        presD[k] = Object.keys(setD);
+        debugD[k] = shD.getName() + ': ' + presD[k].length + ' con doc';
+      });
+      return { ok: true, periodo: perD, presencia: presD, detalle: debugD };
+    }
+
     /* ── Tareas: auto-bloqueo por vencimiento ──
        Toda tarea 'Sin iniciar' o 'En proceso' cuya fecha_entrega ya pasó se mueve
        a 'Bloqueado'. Corre dentro de sync_inbox (cron 15 min); también invocable directo. */
