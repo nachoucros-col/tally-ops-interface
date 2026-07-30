@@ -109,6 +109,28 @@ function handle(body) {
     case 'discard':
       return setEmailFields(ss, body.email_id, { estado: 'Descartado' }, now);
 
+    /* ── Mantenimiento: compactar Clientes_por_periodo (elimina filas 100% vacías) ──
+       Las filas fantasma infladas por getLastRow() ralentizan el proxy del dashboard. */
+    case 'cxp_compactar': {
+      const shC = SpreadsheetApp.openById(DATAMODEL_ID).getSheetByName('Clientes_por_periodo');
+      if (!shC) return { ok: false, error: 'Clientes_por_periodo no encontrada' };
+      const dataC = shC.getDataRange().getValues();
+      const vaciasC = [];
+      for (let i = 1; i < dataC.length; i++) {
+        if (dataC[i].every(function (v) { return v === '' || v === null; })) vaciasC.push(i + 1);
+      }
+      // borrar de abajo hacia arriba, agrupando rangos contiguos
+      let borradasC = 0;
+      for (let i = vaciasC.length - 1; i >= 0;) {
+        let fin = i;
+        while (i > 0 && vaciasC[i - 1] === vaciasC[i] - 1) i--;
+        shC.deleteRows(vaciasC[i], vaciasC[fin] - vaciasC[i] + 1);
+        borradasC += vaciasC[fin] - vaciasC[i] + 1;
+        i--;
+      }
+      return { ok: true, filas_vacias_eliminadas: borradasC, filas_restantes: shC.getLastRow() };
+    }
+
     /* ── Dashboard: presencia documental por período (SOP Auditoría p2–p11) ──
        body.periodo = 'YYYY-MM'. Un documento EXISTE si su tabla destino tiene fila
        con el mismo PeriodID (regla del SOP 319325ede0a380f3afd0c83e2e3ed59a).
