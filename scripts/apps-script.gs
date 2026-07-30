@@ -203,14 +203,12 @@ function handle(body) {
               break;
             }
           }
-          // 2) fallback/confirmación por MesPeriodo + AñoPeríodo
-          if (!cid && !enPeriodo && iMes >= 0 && iAnio >= 0) {
+          // 2) vía alterna por MesPeriodo + AñoPeríodo (unión: vale cualquiera de las dos;
+          //    hay filas con PeriodID mal capturado pero Mes/Año correctos — visto 30-jul)
+          if (!enPeriodo && iMes >= 0 && iAnio >= 0) {
             const mesTxt = normD(fila[iMes]);
             const anioTxt = String(fila[iAnio] || '').trim();
-            if (mesTxt === mesNombreD && anioTxt === anioD) {
-              enPeriodo = true;
-              if (iProv >= 0) cid = String(fila[iProv] || '').trim();
-            }
+            if (mesTxt === mesNombreD && anioTxt === anioD) enPeriodo = true;
           }
           if (!enPeriodo) continue;
           if (!cid && iProv >= 0) cid = String(fila[iProv] || '').trim();
