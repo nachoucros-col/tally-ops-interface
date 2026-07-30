@@ -136,11 +136,23 @@ function handle(body) {
        con el mismo PeriodID (regla del SOP 319325ede0a380f3afd0c83e2e3ed59a).
        Devuelve, por tipo de documento, los company_ids con documento en el período. */
     case 'docs_presencia': {
-      const dmD = SpreadsheetApp.openById(DATAMODEL_ID);
+      // body.periodo = 'YYYY-MM'. Regla SOP p2-p11: documento cargado = fila de la tabla
+      // destino en ese período (con su archivo). Esquemas REALES verificados 30-jul-2026:
+      // la columna tipo PeriodID puede llamarse company_id/Company_id y trae '2026-3_AZ...'
+      // o '2026-03_AZ...'; el período también viene en MesPeriodo+AñoPeríodo. El archivo
+      // vive en columnas tipo Documento/UrlVentas/URLRetencion/Archivo.
       const perD = String(body.periodo || '').trim();
       const mD = perD.match(/^(\d{4})-(\d{1,2})$/);
       if (!mD) return { ok: false, error: 'periodo inválido (usa YYYY-MM)' };
-      const varD = [mD[1] + '-' + parseInt(mD[2], 10), mD[1] + '-' + String(parseInt(mD[2], 10)).padStart(2, '0')]; // '2026-6' y '2026-06'
+      const anioD = mD[1], mesND = parseInt(mD[2], 10);
+      const varD = [anioD + '-' + mesND, anioD + '-' + String(mesND).padStart(2, '0')];
+      const MESES_D = ['', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+      const mesNombreD = MESES_D[mesND];
+      const normD = function (x) {
+        return String(x || '').toLowerCase().replace(/[\s_]/g, '')
+          .replace(/[áàä]/g, 'a').replace(/[éèë]/g, 'e').replace(/[íìï]/g, 'i')
+          .replace(/[óòö]/g, 'o').replace(/[úùü]/g, 'u').replace(/ñ/g, 'n');
+      };
       const TABS_D = {
         decl: ['declaracion_periodo'],
         edo:  ['Estados_cuenta', 'Estados_cuentas'],
@@ -149,34 +161,66 @@ function handle(body) {
         ret:  ['Retenciones_por_periodo', 'Retenciones_por_periodos'],
         inv:  ['Inventario_por_periodo', 'inventario_por_periodo', 'Inventario_por_periodos']
       };
+      const abrirTabD = function (nombres) {
+        const libros = [DATAMODEL_ID, REPORTES_ID];
+        for (let b = 0; b < libros.length; b++) {
+          let libro = null;
+          try { libro = SpreadsheetApp.openById(libros[b]); } catch (e) { continue; }
+          for (let n = 0; n < nombres.length; n++) {
+            const sh = libro.getSheetByName(nombres[n]);
+            if (sh) return sh;
+          }
+        }
+        return null;
+      };
       const presD = {};
       const debugD = {};
       Object.keys(TABS_D).forEach(function (k) {
         presD[k] = [];
-        let shD = null;
-        for (let n = 0; n < TABS_D[k].length && !shD; n++) shD = dmD.getSheetByName(TABS_D[k][n]);
-        if (!shD) { debugD[k] = 'tab no encontrada'; return; }
+        const shD = abrirTabD(TABS_D[k]);
+        if (!shD) { debugD[k] = 'tab no encontrada en DataModel ni Reportes'; return; }
         const dataD = shD.getDataRange().getValues();
-        if (dataD.length < 2) { debugD[k] = 'sin filas'; return; }
-        const headD = dataD[0].map(function (x) { return String(x).toLowerCase().replace(/[\s_]/g, ''); });
-        const iPid = headD.indexOf('periodid');
-        let iCid = headD.indexOf('companyid'); if (iCid < 0) iCid = headD.indexOf('company');
+        if (dataD.length < 2) { debugD[k] = shD.getName() + ': sin filas'; return; }
+        const headD = dataD[0].map(normD);
+        // columnas de interés
+        let iMes = headD.indexOf('mesperiodo');
+        let iAnio = headD.indexOf('anoperiodo');
+        let iProv = headD.indexOf('idprov');
+        let iDoc = -1;
+        for (let h = 0; h < headD.length; h++) {
+          if (/documento|url|archivo/.test(headD[h])) { iDoc = h; break; }
+        }
         const setD = {};
         for (let i = 1; i < dataD.length; i++) {
-          let cid = '';
-          if (iPid >= 0) {
-            const pid = String(dataD[i][iPid] || '').trim();     // ej. '2026-6_AZ006510'
-            const us = pid.indexOf('_');
-            if (us < 0) continue;
-            const perPid = pid.substring(0, us);
-            if (perPid !== varD[0] && perPid !== varD[1]) continue;
-            cid = pid.substring(us + 1).trim();
-          } else continue;                                        // sin PeriodID no hay match confiable (regla SOP)
-          if (!cid && iCid >= 0) cid = String(dataD[i][iCid] || '').trim();
-          if (cid) setD[cid] = true;
+          const fila = dataD[i];
+          // 1) período + company desde cualquier celda con patrón 'YYYY-M_ID' (primeras 4 columnas)
+          let cid = '', enPeriodo = false;
+          for (let cCol = 0; cCol < Math.min(4, fila.length); cCol++) {
+            const mm = String(fila[cCol] || '').trim().match(/^(\d{4}-\d{1,2})_(.+)$/);
+            if (mm) {
+              cid = mm[2].trim();
+              enPeriodo = (mm[1] === varD[0] || mm[1] === varD[1]);
+              break;
+            }
+          }
+          // 2) fallback/confirmación por MesPeriodo + AñoPeríodo
+          if (!cid && !enPeriodo && iMes >= 0 && iAnio >= 0) {
+            const mesTxt = normD(fila[iMes]);
+            const anioTxt = String(fila[iAnio] || '').trim();
+            if (mesTxt === mesNombreD && anioTxt === anioD) {
+              enPeriodo = true;
+              if (iProv >= 0) cid = String(fila[iProv] || '').trim();
+            }
+          }
+          if (!enPeriodo) continue;
+          if (!cid && iProv >= 0) cid = String(fila[iProv] || '').trim();
+          if (!cid) continue;
+          // 3) documento cargado: si la tabla tiene columna de archivo, exigirla no vacía
+          if (iDoc >= 0 && String(fila[iDoc] || '').trim() === '') continue;
+          setD[cid] = true;
         }
         presD[k] = Object.keys(setD);
-        debugD[k] = shD.getName() + ': ' + presD[k].length + ' con doc';
+        debugD[k] = shD.getName() + ': ' + presD[k].length + ' con doc en ' + perD;
       });
       return { ok: true, periodo: perD, presencia: presD, detalle: debugD };
     }
