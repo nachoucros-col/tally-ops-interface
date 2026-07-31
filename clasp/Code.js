@@ -220,7 +220,63 @@ function handle(body) {
         presD[k] = Object.keys(setD);
         debugD[k] = shD.getName() + ': ' + presD[k].length + ' con doc en ' + perD;
       });
-      return { ok: true, periodo: perD, presencia: presD, detalle: debugD };
+      // ── Universo del período: SOLO clientes con operación (DeclaracionTipo='Con datos') ──
+      // Se lee directo del Sheet (no del proxy GViz, que omite columnas) e incluye owner
+      // y nombre desde Clients_Load para que el dashboard no tenga que cruzar nada.
+      const univD = [];
+      let cerosD = 0;
+      try {
+        const shCpp = SpreadsheetApp.openById(DATAMODEL_ID).getSheetByName('Clientes_por_periodo');
+        const shCl = SpreadsheetApp.openById(DATAMODEL_ID).getSheetByName('Clients_Load');
+        const ownerMapD = {}, nombreMapD = {}, suspMapD = {};
+        if (shCl) {
+          const dCl = shCl.getDataRange().getValues();
+          const hCl = dCl[0].map(normD);
+          const iId = hCl.indexOf('companyid'), iOw = hCl.indexOf('owner');
+          const iNm = hCl.indexOf('clientname'), iSu = hCl.indexOf('suspension');
+          for (let i = 1; i < dCl.length; i++) {
+            const idc = String(dCl[i][iId] || '').trim(); if (!idc) continue;
+            ownerMapD[idc] = iOw >= 0 ? String(dCl[i][iOw] || '').trim() : '';
+            nombreMapD[idc] = iNm >= 0 ? String(dCl[i][iNm] || '').trim() : '';
+            suspMapD[idc] = iSu >= 0 ? String(dCl[i][iSu] || '').trim() : '';
+          }
+        }
+        if (shCpp) {
+          const dCpp = shCpp.getDataRange().getValues();
+          const hCpp = dCpp[0].map(normD);
+          const jPid = hCpp.indexOf('periodid'), jCid = hCpp.indexOf('companyid');
+          const jTipo = hCpp.indexOf('declaraciontipo'), jEst = hCpp.indexOf('estadocliente');
+          const jMes = hCpp.indexOf('mesperiodo'), jAnio = hCpp.indexOf('anoperiodo');
+          const vistosD = {};
+          for (let i = 1; i < dCpp.length; i++) {
+            const fila = dCpp[i];
+            // período: por PeriodID normalizado o por Mes+Año
+            let enPer = false;
+            if (jPid >= 0) {
+              const mp = String(fila[jPid] || '').trim().match(/^(\d{4})-0?(\d{1,2})_/);
+              if (mp && mp[1] === anioD && parseInt(mp[2], 10) === mesND) enPer = true;
+            }
+            if (!enPer && jMes >= 0 && jAnio >= 0) {
+              if (normD(fila[jMes]) === mesNombreD && String(fila[jAnio] || '').trim() === anioD) enPer = true;
+            }
+            if (!enPer) continue;
+            const cidU = jCid >= 0 ? String(fila[jCid] || '').trim() : '';
+            if (!cidU || vistosD[cidU]) continue;
+            const tipoU = jTipo >= 0 ? String(fila[jTipo] || '').trim() : '';
+            if (tipoU !== 'Con datos') { cerosD++; continue; }   // sin operación → fuera
+            vistosD[cidU] = true;
+            univD.push({
+              cid: cidU,
+              estado: jEst >= 0 ? (String(fila[jEst] || '').trim() || 'Sin estado') : 'Sin estado',
+              owner: ownerMapD[cidU] || '',
+              nombre: nombreMapD[cidU] || '',
+              suspension: suspMapD[cidU] || ''
+            });
+          }
+        }
+      } catch (e) { debugD.universo = 'ERROR: ' + e; }
+      debugD.universo_con_datos = univD.length + ' clientes (excluidos ' + cerosD + ' en ceros/sin tipo)';
+      return { ok: true, periodo: perD, presencia: presD, universo: univD, excluidos_ceros: cerosD, detalle: debugD };
     }
 
     /* ── Tareas: auto-bloqueo por vencimiento ──
