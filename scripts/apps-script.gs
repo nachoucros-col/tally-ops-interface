@@ -135,6 +135,76 @@ function handle(body) {
        body.periodo = 'YYYY-MM'. Un documento EXISTE si su tabla destino tiene fila
        con el mismo PeriodID (regla del SOP 319325ede0a380f3afd0c83e2e3ed59a).
        Devuelve, por tipo de documento, los company_ids con documento en el período. */
+    case 'cxp_universo': {
+      // Acción LIGERA (2 hojas): universo del período = clientes con DeclaracionTipo='Con datos',
+      // con estado + owner + nombre. Separada de docs_presencia para no exceder el límite
+      // de ejecución del webapp (esa lee 6 tablas y hacía timeout → el dashboard caía al proxy).
+      const perU = String(body.periodo || '').trim();
+      const mU = perU.match(/^(\d{4})-(\d{1,2})$/);
+      if (!mU) return { ok: false, error: 'periodo inválido (usa YYYY-MM)' };
+      const anioU = mU[1], mesNU = parseInt(mU[2], 10);
+      const MESES_U = ['', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+      const mesNomU = MESES_U[mesNU];
+      const normU = function (x) {
+        return String(x || '').toLowerCase().replace(/[\s_]/g, '')
+          .replace(/[áàä]/g, 'a').replace(/[éèë]/g, 'e').replace(/[íìï]/g, 'i')
+          .replace(/[óòö]/g, 'o').replace(/[úùü]/g, 'u').replace(/ñ/g, 'n');
+      };
+      const dmU = SpreadsheetApp.openById(DATAMODEL_ID);
+      const shCppU = dmU.getSheetByName('Clientes_por_periodo');
+      if (!shCppU) return { ok: false, error: 'Clientes_por_periodo no encontrada' };
+      // owner/nombre desde Clients_Load (solo 4 columnas para ser liviano)
+      const ownerU = {}, nombreU = {}, suspU = {};
+      const shClU = dmU.getSheetByName('Clients_Load');
+      if (shClU) {
+        const dClU = shClU.getDataRange().getValues();
+        const hClU = dClU[0].map(normU);
+        const iIdU = hClU.indexOf('companyid'), iOwU = hClU.indexOf('owner');
+        const iNmU = hClU.indexOf('clientname'), iSuU = hClU.indexOf('suspension');
+        for (let i = 1; i < dClU.length; i++) {
+          const idc = String(dClU[i][iIdU] || '').trim(); if (!idc) continue;
+          if (iOwU >= 0) ownerU[idc] = String(dClU[i][iOwU] || '').trim();
+          if (iNmU >= 0) nombreU[idc] = String(dClU[i][iNmU] || '').trim();
+          if (iSuU >= 0) suspU[idc] = String(dClU[i][iSuU] || '').trim();
+        }
+      }
+      const dCppU = shCppU.getDataRange().getValues();
+      const hCppU = dCppU[0].map(normU);
+      const kPid = hCppU.indexOf('periodid'), kCid = hCppU.indexOf('companyid');
+      const kTipo = hCppU.indexOf('declaraciontipo'), kEst = hCppU.indexOf('estadocliente');
+      const kMes = hCppU.indexOf('mesperiodo'), kAnio = hCppU.indexOf('anoperiodo');
+      if (kTipo < 0) return { ok: false, error: 'columna DeclaracionTipo no encontrada. Headers: ' + hCppU.join(',') };
+      const listaU = [];
+      const vistosU = {};
+      let cerosU = 0, enPerTotalU = 0;
+      for (let i = 1; i < dCppU.length; i++) {
+        const f = dCppU[i];
+        let enPer = false;
+        if (kPid >= 0) {
+          const mp = String(f[kPid] || '').trim().match(/^(\d{4})-0?(\d{1,2})_/);
+          if (mp && mp[1] === anioU && parseInt(mp[2], 10) === mesNU) enPer = true;
+        }
+        if (!enPer && kMes >= 0 && kAnio >= 0) {
+          if (normU(f[kMes]) === mesNomU && String(f[kAnio] || '').trim() === anioU) enPer = true;
+        }
+        if (!enPer) continue;
+        enPerTotalU++;
+        const cidU = kCid >= 0 ? String(f[kCid] || '').trim() : '';
+        if (!cidU || vistosU[cidU]) continue;
+        if (String(f[kTipo] || '').trim() !== 'Con datos') { cerosU++; continue; }
+        vistosU[cidU] = true;
+        listaU.push({
+          cid: cidU,
+          estado: kEst >= 0 ? (String(f[kEst] || '').trim() || 'Sin estado') : 'Sin estado',
+          owner: ownerU[cidU] || '',
+          nombre: nombreU[cidU] || '',
+          suspension: suspU[cidU] || ''
+        });
+      }
+      return { ok: true, periodo: perU, universo: listaU, excluidos_ceros: cerosU,
+               filas_en_periodo: enPerTotalU, col_tipo_idx: kTipo };
+    }
+
     case 'docs_presencia': {
       // body.periodo = 'YYYY-MM'. Regla SOP p2-p11: documento cargado = fila de la tabla
       // destino en ese período (con su archivo). Esquemas REALES verificados 30-jul-2026:
