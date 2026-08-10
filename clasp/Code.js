@@ -375,6 +375,43 @@ function handle(body) {
       return { ok: true, bloqueadas: nB };
     }
 
+    /* ── WeeklyPlan: restaurar la columna Week con su valor original ──
+       Contexto (10-ago-2026): la migración masiva de owner Cristina→Cristian por la API de
+       AppSheet disparó el recálculo de `Week`, que quedó en la semana corriente (33) en las
+       360 filas editadas. `Week` NO es escribible por la API — AppSheet la reescribe en cada
+       guardado — así que la restauración se hace directo sobre la Sheet, que no dispara
+       fórmulas de la app.
+       Parámetro: map = "task_id:week,task_id:week,..." (idempotente, se puede llamar por lotes) */
+    case 'wp_week_set': {
+      const shW = hojaDeTabla('WeeklyPlan');
+      if (!shW) return { ok: false, error: 'no se encontró la hoja WeeklyPlan' };
+      const mapW = String(body.map || '').trim();
+      if (!mapW) return { ok: false, error: 'falta el parámetro map' };
+      const paresW = {};
+      mapW.split(',').forEach(function (kv) {
+        const t = String(kv).split(':');
+        if (t.length === 2 && t[0].trim() && t[1].trim()) paresW[t[0].trim()] = t[1].trim();
+      });
+      const valsW = shW.getDataRange().getValues();
+      const hdrW = valsW[0].map(function (h) { return String(h == null ? '' : h).trim(); });
+      const cWeek = hdrW.indexOf('Week');
+      const cTask = hdrW.indexOf('task_id');
+      if (cWeek < 0 || cTask < 0) return { ok: false, error: 'faltan columnas Week/task_id', headers: hdrW };
+      let nW = 0, igualW = 0;
+      const vistosW = {};
+      for (let i = 1; i < valsW.length; i++) {
+        const tid = String(valsW[i][cTask] == null ? '' : valsW[i][cTask]).trim();
+        if (!tid || !(tid in paresW)) continue;
+        vistosW[tid] = 1;
+        const actual = String(valsW[i][cWeek] == null ? '' : valsW[i][cWeek]).trim();
+        if (actual === paresW[tid]) { igualW++; continue; }
+        shW.getRange(i + 1, cWeek + 1).setValue(paresW[tid]);
+        nW++;
+      }
+      const faltanW = Object.keys(paresW).filter(function (k) { return !vistosW[k]; });
+      return { ok: true, restauradas: nW, ya_correctas: igualW, recibidas: Object.keys(paresW).length, no_encontrados: faltanW };
+    }
+
     /* ── Dashboard: Pulso Semanal — ítems editables por columna ──
        body: { item_id?, columna (movio|atorado|foco), chip, chip_tipo (done|block|warn|next), titulo, texto }
        Sin item_id crea uno nuevo; con item_id edita. Pestaña Pulso_Semanal del Ops DB. */
