@@ -1877,6 +1877,7 @@ function ownerEmail(ss, companyId) {
     // mande CC a una cuenta que ya no atiende clientes.
     const DEFAULTS = { 'eduardo': 'eduardo@tally.legal', 'cristian': 'cristian@tally.legal',
                        'cristina': 'cristian@tally.legal',
+                       'ivette': 'ivette@tally.legal', // cartera China (IDs con prefijo CH), desde 10-ago-2026
                        'edgar': 'edgar.martinez@tally.legal', 'arturo': 'arturo@tally.legal' };
     const cfg = ss.getSheetByName('Config');
     const r = findRow(cfg, 1, 'owners_emails');

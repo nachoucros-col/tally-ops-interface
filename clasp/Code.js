@@ -882,7 +882,11 @@ function handle(body) {
       // y ninguna "cuenta genérica" aparece como responsable.
       const ALIAS_NOMBRE = { 'contabilidad@tally.legal': 'Arturo Cerón' };
       const NOMBRES_OCULTOS = ['cuenta genérica', 'cuenta generica', 'genérica', 'generica'];
-      const EMAILS_OCULTOS = ['elizabeth@tally.legal']; // salió de Tally 29-jul-2026 — fuera del selector de responsables, hasta nueva orden
+      // Personas que salieron: fuera del selector de responsables, sin borrar su histórico.
+      const EMAILS_OCULTOS = [
+        'elizabeth@tally.legal', // salió 29-jul-2026
+        'cristina@tally.legal'   // salió 10-ago-2026; su cartera pasó a Cristian
+      ];
       const u = checkUser(body.auth);
       if (!u.ok) return u;
       const us = SpreadsheetApp.openById(USUARIOS_ID).getSheetByName('Usuarios');
@@ -899,6 +903,33 @@ function handle(body) {
       }
       return { ok: true, usuarios: list };
     }
+    /* ── Alta/edición de usuarios de la plataforma (Sheet privado) ──
+       body: { email, nombre?, rol?, password?, activo? }
+       Upsert por email. Sin password en un alta nueva se asigna la genérica del equipo,
+       que el usuario cambia en su primer acceso. */
+    case 'usuario_upsert': {
+      if (USUARIOS_ID.indexOf('PEGAR') === 0) return { ok: false, error: 'USUARIOS_ID sin configurar' };
+      const emU = String(body.email || '').trim().toLowerCase();
+      if (!emU || emU.indexOf('@') < 0) return { ok: false, error: 'email requerido' };
+      const ussU = SpreadsheetApp.openById(USUARIOS_ID);
+      let shU = ussU.getSheetByName('Usuarios');
+      if (!shU) return { ok: false, error: 'sin pestaña Usuarios — corre init_usuarios' };
+      const datU = shU.getDataRange().getValues();
+      let filaU = 0;
+      for (let i = 1; i < datU.length; i++) {
+        if (String(datU[i][0] || '').trim().toLowerCase() === emU) { filaU = i + 1; break; }
+      }
+      if (filaU) {
+        if (body.nombre !== undefined) shU.getRange(filaU, 3).setValue(body.nombre);
+        if (body.activo !== undefined) shU.getRange(filaU, 4).setValue(body.activo);
+        if (body.rol !== undefined) shU.getRange(filaU, 6).setValue(body.rol);
+        if (body.password !== undefined) shU.getRange(filaU, 2).setValue(body.password);
+        return { ok: true, accion: 'actualizado', email: emU, fila: filaU };
+      }
+      shU.appendRow([emU, body.password || 'Tally2026!', body.nombre || emU, body.activo || 'si', '', body.rol || 'usuario']);
+      return { ok: true, accion: 'creado', email: emU };
+    }
+
     case 'tarea_crear': {
       // body: {tareas:[{titulo, descripcion, responsable, origen, ref_id, cliente, clientes, fecha_entrega}], auth}
       const u = checkUser(body.auth);
