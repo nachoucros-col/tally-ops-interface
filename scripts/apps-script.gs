@@ -1752,7 +1752,11 @@ function ownerEmail(ss, companyId) {
     if (!row) return '';
     const owner = String(cl.getRange(row, 3).getValue() || '').trim().toLowerCase();
     if (!owner) return '';
-    const DEFAULTS = { 'eduardo': 'eduardo@tally.legal', 'cristina': 'cristina@tally.legal',
+    // Cristina salió del portafolio (10-ago-2026): su cartera pasó a Cristian.
+    // 'cristina' se conserva como alias → cristian@ para que ninguna fila legacy
+    // mande CC a una cuenta que ya no atiende clientes.
+    const DEFAULTS = { 'eduardo': 'eduardo@tally.legal', 'cristian': 'cristian@tally.legal',
+                       'cristina': 'cristian@tally.legal',
                        'edgar': 'edgar.martinez@tally.legal', 'arturo': 'arturo@tally.legal' };
     const cfg = ss.getSheetByName('Config');
     const r = findRow(cfg, 1, 'owners_emails');
