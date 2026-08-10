@@ -91,6 +91,73 @@ function claudeApi(key, payloadObj) {
   return resp;
 }
 
+/* ══════════════ RESTAURACIÓN DE WeeklyPlan.Week ══════════════
+   El 10-ago-2026 la reasignación masiva de owner (Cristina→Cristian) se hizo por la API de
+   AppSheet. Cada edición disparó el recálculo de `Week`, que quedó en la semana corriente (33)
+   en las 360 filas tocadas. `Week` no se puede escribir por la API — AppSheet la reescribe en
+   cada guardado — así que se restaura directo sobre la Sheet, que no dispara fórmulas de la app.
+
+   WEEK_SNAPSHOT es el estado previo, capturado del pre-chequeo de la migración. Solo incluye
+   las 333 filas cuyo Week difería de 33; las otras 27 ya estaban en la semana corriente. */
+const WEEK_SNAPSHOT = '51f8b7cd:29,0413451f:29,f0016303:24,cb4419b4:24,a913faa0:29,dd690afc:24,37dce2c7:24,b893f40d:24,a1163c90:25,6f9cfafb:25,727af9d4:25,64025a28:25,12ef8265:28,228c8487:26,688cbb62:28,ad56dc8a:28,5588d66d:28,4f4aeef5:28,442f6d95:28,db4ab97a:28,affc6431:28,2d677271:28,93959dc7:28,60c50fba:28,399b31d1:28,f90e1657:28,8dc70be2:28,84008d28:28,0beb412e:28,73bbb995:28,be2041d7:28,f5e8b492:28,10fa51dc:28,9a7c0ea0:28,f83ee2a8:28,c9210000:28,52a6f951:28,912979f7:28,af874e63:28,0467977f:28,369a2c5c:28,49e9548f:28,154db9dd:28,cd428920:26,436e939f:26,60781b28:26,72970bf4:26,50ab7ef5:26,0e7918ab:26,2869f527:26,79ff97bd:27,f74caae3:27,2e1e97c6:27,67d57e9b:27,0a94cd8a:27,c1859c69:27,858d0e47:27,60919ef5:27,ad60c3cb:27,118b2ae8:27,1acb9d7d:27,2dbb3f52:27,548a457a:27,39b506e3:27,d4246103:27,2cd8fac7:27,f310d4c0:27,65ada50d:27,74972800000:27,0d38a590:27,cd545ad0:27,8551e6ff:28,27615271:28,9b7f8af6:28,0add113f:28,45bcdb7d:28,db15f323:28,11f0cbf4:28,90f519e0:28,df3a4584:28,69dd14ab:28,ba54cc35:28,2ed93a02:28,9aac4d1d:28,400c5d30:28,499aea92:28,58bc9bf1:28,4b149fc2:28,fc068172:28,6c53f764:28,c5b85f24:28,5fa5339e:28,71647732:28,2dbc9434:28,784f87b1:28,0bd8b603:28,03cb84e3:28,b3126a07:28,41308383:28,203f9bfd:28,ccce56b4:29,fc0397de:29,9174e973:29,f0cb5617:29,46b4d769:29,6dfbdafc:29,e1d3edab:29,24fdf85f:29,301d104b:29,6ad0f126:29,83c93750:29,0a832561:29,46575719:29,e4e7aa8f:29,ece54a39:29,1043e3bb:29,5e7c93a2:29,f6279ccf:29,0b287173:29,c4dbdd0a:29,2cd88ab8:29,6ef25b5d:29,c6d8b439:29,5ed29291:29,cdf8f980:29,04b1514d:29,5e9c4fca:29,73af684d:29,abf951e4:29,e58afdc8:29,198cf4ee:29,fc713139:29,27113da9:29,4b40db1d:29,80dfb23c:29,50d62fcb:29,be996ffd:29,e85b0c88:29,d7adbd6a:29,6cc16d3b:29,a64506a0:29,46adfce6:29,949f82a7:29,3368b857:29,a12bdee8:29,633e9045:29,3f2c9042:29,1ba5a3fa:29,f46bc27b:29,b970a0d9:29,b9a918a6:29,d948f10a:29,789fd7d3:29,7c156562:29,fcd7c3fe:29,be2f7be5:29,af22eb34:29,f0c1c4d9:30,ecab51c7:30,aa6744aa:30,24eed01e:30,9b1c2e37:30,49d13339:30,9a7198ff:30,9db7b887:30,0e5aba71:30,60474a3e:30,5dcdf179:30,a08548e7:30,5e3fa4ee:30,a738fe39:30,03916c52:31,daeaf086:30,daf07075:30,d1a2c4b4:30,5fb853c6:30,210afdab:30,629a1fe7:30,889daee1:30,7220ed18:30,b7c8d6fc:30,9404005e:30,f9b6be3d:30,0132c0a8:30,3754ae44:30,567d37e4:30,ab374e87:30,33c15543:30,002a857d:30,8e7a4deb:30,94a5ba3a:30,351db0ea:30,a0cabdfd:30,37afa899:30,bc41ff5a:30,1f6e585c:30,fa4f3ba3:30,63626731:30,76eecc0f:30,bd4e6d78:30,ab68157b:30,81ff7bdc:30,10b154f4:30,a466182f:30,5c6d6201:30,bc4ac585:30,d4becf1b:30,e2ea15bb:30,0b9672f0:30,6e7ac0ed:30,87516fa7:30,0dadf626:30,d7862744:30,69254bd0:30,251a7df0:30,6ee8c4b2:30,d876604d:30,abff7b94:30,84b9a800:30,121eac9e:30,68f1ac74:30,b800aa8b:30,a16e8e2c:30,bf2dfc0b:30,bb74c29c:30,bf3baa56:30,0889a60e:30,f837e173:30,d9f90091:30,1b5065d3:30,c9f0da29:30,05eb91ae:30,b6d9a805:30,998de1ba:30,bdd535e4:30,c48d1dd3:31,e5a79b07:31,895b5ebe:31,8389d7d5:31,8ba628ca:31,5d0ba72e:31,a246ede5:31,a122fd15:31,294b87e4:31,bf243f6d:31,64a7e798:31,09a2c883:31,263fd768:31,622eb9d0:31,4002a203:31,e39c0eaa:31,331bfb3b:31,94226e6e:31,4766fb76:31,fe1830f5:31,0022aad7:31,f8cf9875:31,4ed8038d:31,f8a9916a:31,e85b095e:31,e8ead2de:31,838ae201:31,463d814c:31,4cba2bd6:31,c9bbd69e:31,901ecd6d:31,973f94e4:31,9595c56e:31,b35f630f:31,54996d33:31,618e0a28:31,d045c033:31,b2f2aea8:31,040e3bf9:31,d1aec1f5:31,23100991:31,fe133b06:31,20e505f4:31,4b573697:31,0a5bec89:31,20dee2ba:31,678aa644:31,73e3661c:31,4b5c312d:31,5b97a0e9:31,dd32b267:31,ab247432:31,d5e37ce1:31,18b76e8a:31,d8466f8c:31,fd115f1a:31,c60dd8cb:31,d8a7f911:31,097a6904:31,ec1be30a:31,5da136db:31,a5da5901:31,6ea6b28c:32,42353202:32,d9b52cba:32,4defa7ab:32,f9b5babd:32,d66f75c4:32,47f135ec:32,f825f8c6:32,55738b81:32,e50de9b6:32,485a7154:32,9a1c7000:32,6841e778:32,c22e28b9:32,f605b21a:32,a66946f7:32,b4d9c0be:32,b76d0968:32,2b0a30b6:32,4b804ded:32,195423f8:32,9208be51:32,e0243927:32,745adfb0:32,9b0c9544:32,34189be8:32,81569855:32,db54b458:32,ad75998c:32,803657d2:32,95f91b28:32,c46330ac:32,5dffc8b0:32,8c4063d9:32,f36fad65:32,ace0dbb1:32';
+
+/** Escribe la columna Week de WeeklyPlan en un solo setValues (rápido y sin tocar AppSheet). */
+function aplicarWeekSnapshot(pares) {
+  const sh = hojaDeTabla('WeeklyPlan');
+  if (!sh) return { ok: false, error: 'no se encontró la hoja WeeklyPlan' };
+  const vals = sh.getDataRange().getValues();
+  const hdr = vals[0].map(function (h) { return String(h == null ? '' : h).trim(); });
+  const cWeek = hdr.indexOf('Week');
+  const cTask = hdr.indexOf('task_id');
+  if (cWeek < 0 || cTask < 0) return { ok: false, error: 'faltan columnas Week/task_id', headers: hdr };
+
+  const col = [];           // columna Week completa, sin encabezado
+  let n = 0, iguales = 0;
+  const vistos = {};
+  for (let i = 1; i < vals.length; i++) {
+    const tid = String(vals[i][cTask] == null ? '' : vals[i][cTask]).trim();
+    const actual = String(vals[i][cWeek] == null ? '' : vals[i][cWeek]).trim();
+    let valor = vals[i][cWeek];
+    if (tid && (tid in pares)) {
+      vistos[tid] = 1;
+      if (actual === pares[tid]) iguales++; else { valor = pares[tid]; n++; }
+    }
+    col.push([valor]);
+  }
+  if (n) sh.getRange(2, cWeek + 1, col.length, 1).setValues(col);
+  const faltan = Object.keys(pares).filter(function (k) { return !vistos[k]; });
+  return { ok: true, restauradas: n, ya_correctas: iguales, recibidas: Object.keys(pares).length, no_encontrados: faltan };
+}
+
+/** Parsea "task_id:week,..." a objeto. */
+function parseWeekMap(txt) {
+  const pares = {};
+  String(txt || '').split(',').forEach(function (kv) {
+    const t = String(kv).split(':');
+    if (t.length === 2 && t[0].trim() && t[1].trim()) pares[t[0].trim()] = t[1].trim();
+  });
+  return pares;
+}
+
+/** Aplica WEEK_SNAPSHOT una sola vez. La llama sync_inbox; se autodesactiva al terminar. */
+function restaurarWeekUnaVez() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('week_restore_20260810') === 'done') return null;
+  let r = null;
+  try {
+    r = aplicarWeekSnapshot(parseWeekMap(WEEK_SNAPSHOT));
+    if (r && r.ok) props.setProperty('week_restore_20260810', 'done');
+  } catch (e) {
+    r = { ok: false, error: String(e) };
+  }
+  try {
+    const ss = SpreadsheetApp.openById(DB_ID);
+    const log = ss.getSheetByName('Log_Periodos') || ss.insertSheet('Log_Periodos');
+    log.appendRow([new Date().toISOString(), 'restaurarWeekUnaVez ' + JSON.stringify(r)]);
+  } catch (e) {}
+  return r;
+}
+
 /* ══════════════ RUTEO DE ACCIONES ══════════════ */
 
 function handle(body) {
@@ -392,24 +459,7 @@ function handle(body) {
         const t = String(kv).split(':');
         if (t.length === 2 && t[0].trim() && t[1].trim()) paresW[t[0].trim()] = t[1].trim();
       });
-      const valsW = shW.getDataRange().getValues();
-      const hdrW = valsW[0].map(function (h) { return String(h == null ? '' : h).trim(); });
-      const cWeek = hdrW.indexOf('Week');
-      const cTask = hdrW.indexOf('task_id');
-      if (cWeek < 0 || cTask < 0) return { ok: false, error: 'faltan columnas Week/task_id', headers: hdrW };
-      let nW = 0, igualW = 0;
-      const vistosW = {};
-      for (let i = 1; i < valsW.length; i++) {
-        const tid = String(valsW[i][cTask] == null ? '' : valsW[i][cTask]).trim();
-        if (!tid || !(tid in paresW)) continue;
-        vistosW[tid] = 1;
-        const actual = String(valsW[i][cWeek] == null ? '' : valsW[i][cWeek]).trim();
-        if (actual === paresW[tid]) { igualW++; continue; }
-        shW.getRange(i + 1, cWeek + 1).setValue(paresW[tid]);
-        nW++;
-      }
-      const faltanW = Object.keys(paresW).filter(function (k) { return !vistosW[k]; });
-      return { ok: true, restauradas: nW, ya_correctas: igualW, recibidas: Object.keys(paresW).length, no_encontrados: faltanW };
+      return aplicarWeekSnapshot(paresW);
     }
 
     /* ── Dashboard: Pulso Semanal — ítems editables por columna ──
@@ -1275,6 +1325,8 @@ function handle(body) {
        (append_email, set_draft, upsert_sc, append_log, mark_sent) y
        etiqueta el hilo como procesado. */
     case 'sync_inbox': {
+      // Restauración puntual de WeeklyPlan.Week (10-ago-2026): corre una sola vez y se autodesactiva.
+      const rWeek = restaurarWeekUnaVez();
       const label = GmailApp.getUserLabelByName('tally-ops-processed') || GmailApp.createLabel('tally-ops-processed');
       const threads = GmailApp.search('subject:"[TALLY-OPS-SYNC]" -label:tally-ops-processed newer_than:3d', 0, 10);
       let ops = 0, errs = [];
@@ -1305,7 +1357,7 @@ function handle(body) {
       // Auto-bloqueo de tareas vencidas (misma corrida de 15 min)
       let tkres = null;
       try { tkres = handle({ action: 'tareas_auto_bloqueo' }); } catch (e) { tkres = { ok: false, error: String(e) }; }
-      return { ok: true, threads: threads.length, operaciones_aplicadas: ops, errores: errs.slice(0, 5), respuesta_os: osres, tareas_bloqueadas: tkres };
+      return { ok: true, threads: threads.length, operaciones_aplicadas: ops, errores: errs.slice(0, 5), respuesta_os: osres, tareas_bloqueadas: tkres, week_restore: rWeek };
     }
 
     /* ── LOGIN de la interfaz (usuarios en Sheet privado separado) ── */
