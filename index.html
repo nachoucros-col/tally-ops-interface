@@ -186,6 +186,67 @@ tr:hover td{background:rgba(96,71,255,.04)}
 .kb-modal h3{font-size:17px;font-weight:700;margin-bottom:6px}
 .kb-modal p{font-size:13.5px;color:var(--text-secondary);margin-bottom:8px;line-height:1.5}
 .kb-modal .btn{width:100%;margin-top:8px}
+/* ═══ Dashboard · cinco promesas (2-sep-2026) ═══ */
+.dash-ctrl{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.dash-ctrl select{width:auto;padding:7px 12px;font-size:13px}
+.dash-seg{display:inline-flex;background:var(--gray-100);border-radius:var(--radius-pill);padding:3px}
+.dash-seg button{background:transparent;padding:5px 12px;border-radius:var(--radius-pill);font-size:12.5px;font-weight:500;color:var(--ink)}
+.dash-seg button.on{background:var(--ink);color:var(--cream)}
+.dash-cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:18px}
+@media (max-width:1250px){.dash-cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:820px){.dash-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.dash-card{background:#fff;border:1px solid var(--border-light);border-radius:var(--radius-md);padding:16px 18px;box-shadow:var(--shadow-sm);cursor:pointer;transition:var(--transition-state);display:flex;flex-direction:column;gap:6px;min-height:190px}
+.dash-card:hover{box-shadow:var(--shadow-md);transform:translateY(-2px);border-color:var(--gray-300)}
+.dash-card.on{border-color:var(--violet-500);box-shadow:0 0 0 1px var(--violet-500)}
+.dash-card .dc-title{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary)}
+.dash-card .dc-num{font-size:30px;font-weight:700;letter-spacing:-0.02em;line-height:1.1}
+.dash-card .dc-num small{font-size:13px;font-weight:400;color:var(--text-secondary);margin-left:4px}
+.dash-card .dc-pct{font-size:13px;font-weight:500}
+.dash-bar{height:6px;background:var(--gray-100);border-radius:var(--radius-pill);overflow:hidden}
+.dash-bar i{display:block;height:100%;background:var(--green-500);border-radius:var(--radius-pill);transition:width .5s var(--ease)}
+.dash-card .dc-delta{font-size:12px;color:var(--text-secondary);line-height:1.4}
+.dash-card .dc-delta.up{color:#1d7a3f}.dash-card .dc-delta.down{color:#b34a17}
+.dash-card .dc-src{font-size:11px;color:var(--text-secondary);margin-top:auto;padding-top:6px;border-top:1px dashed var(--border-light)}
+.dash-card .dc-note{font-size:11.5px;background:var(--cyan-100);border-radius:var(--radius-sm);padding:5px 8px;color:#0a6d8f;line-height:1.4}
+.dash-owners{background:#fff;border:1px solid var(--border-light);border-radius:var(--radius-md);box-shadow:var(--shadow-sm);margin-bottom:18px;overflow-x:auto}
+.dash-owners table{box-shadow:none;border-radius:0}
+.dash-owners td.num{text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums}
+.dash-owners tr{cursor:pointer}
+.dash-owners tr.on td{background:var(--violet-100)}
+.dash-owners .dash-mini{display:inline-block;min-width:78px;font-size:12.5px}
+.dash-owners .dash-mini .dash-bar{height:4px;margin-top:3px}
+.dash-owners .dash-mini em{font-style:normal;color:var(--text-secondary);font-size:11px}
+.dash-layer{background:#fff;border:1px solid var(--border-light);border-radius:var(--radius-md);box-shadow:var(--shadow-sm);padding:18px 20px;margin-bottom:18px}
+.dash-layer h2{font-size:18px;font-weight:700;letter-spacing:-0.01em;margin-bottom:2px}
+.dash-layer .lead{margin-bottom:12px}
+.dash-layer .chips{margin-bottom:12px}
+.dash-table-wrap{overflow-x:auto}
+.dash-table-wrap table{box-shadow:none;border:1px solid var(--border-light)}
+.dash-table-wrap tbody tr{cursor:pointer}
+.dash-table-wrap td{font-size:13px}
+.cid{font-size:11px;color:var(--text-secondary)}
+.pill.ok{background:var(--green-100);color:#1d7a3f}
+.pill.bad{background:var(--orange-100);color:#b34a17}
+.pill.mid{background:var(--cyan-100);color:#0a6d8f}
+.pill.none{background:var(--gray-100);color:var(--text-secondary)}
+.dash-checks{display:inline-flex;gap:4px;flex-wrap:wrap}
+.dash-checks span{font-size:11px;padding:2px 7px;border-radius:var(--radius-sm);background:var(--gray-100);color:var(--text-secondary);white-space:nowrap;text-decoration:line-through;opacity:.8}
+.dash-checks span.si{background:var(--green-100);color:#1d7a3f;text-decoration:none;opacity:1}
+#dashModalBack{position:fixed;inset:0;background:rgba(33,33,33,.42);z-index:230;display:none;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto}
+#dashModalBack.open{display:flex}
+.dash-modal{background:#fff;border-radius:var(--radius-lg);padding:28px;max-width:780px;width:100%;box-shadow:var(--shadow-xl);position:relative}
+.dash-modal h3{font-size:20px;font-weight:700;letter-spacing:-0.015em;padding-right:40px}
+.dash-modal .meta{font-size:13px;color:var(--text-secondary);margin-bottom:14px;line-height:1.5}
+.dash-prom{display:grid;grid-template-columns:200px 1fr;gap:12px;padding:12px 0;border-top:1px solid var(--border-light);align-items:start}
+@media (max-width:640px){.dash-prom{grid-template-columns:1fr}}
+.dash-prom .pt{font-weight:700;font-size:13.5px}
+.dash-prom .pt small{display:block;font-weight:400;font-size:11px;color:var(--text-secondary);margin-top:2px}
+.dash-prom .pd{font-size:13px;line-height:1.55}
+.dash-prom .pd .falta{color:#b34a17;font-size:12.5px;margin-top:5px}
+.dash-reg{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.dash-reg input[type=date],.dash-reg input[type=text]{width:auto;padding:6px 10px;font-size:12.5px;border:1px solid #d4d4d4;border-radius:var(--radius-sm);background:var(--cream)}
+.dash-empty{padding:40px;text-align:center;color:var(--text-secondary)}
+.dash-warn{background:var(--orange-100);border-radius:var(--radius-sm);padding:10px 14px;font-size:13px;margin-bottom:14px;line-height:1.5}
 /* Brand Master §6.7 — reduced motion */
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{transition-duration:0.01ms !important;animation-duration:0.01ms !important}
@@ -198,6 +259,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
   <nav class="nav">
     <div class="logo">Tally <span>Ops</span></div>
     <div class="sub">Interfaz Contable</div>
+    <a href="#dashboard" data-view="dashboard">📊 Dashboard</a>
     <a href="#bandeja" class="active" data-view="bandeja">📥 Bandeja</a>
     <a href="#sc" data-view="sc" style="display:none">📦 Documentación</a><!-- oculto por orden de Juan 29-jul-2026, hasta nueva orden -->
     <a href="#tareas" data-view="tareas">✅ Tareas</a>
@@ -206,10 +268,36 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
     <div class="push"></div>
     <div class="status" id="userBox" style="border-top:none"></div>
-    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 29-jul v2 · kanban 4 estados</span></div>
+    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 2-sep v3 · dashboard 5 promesas</span></div>
   </nav>
 
   <main class="main">
+
+    <!-- ══ DASHBOARD · CINCO PROMESAS ══ -->
+    <section class="view" id="view-dashboard">
+      <div class="page-head">
+        <div>
+          <h1>Dashboard</h1>
+          <p class="lead">Las cinco promesas del equipo contable por período fiscal, en capas: las tarjetas (capa 1), los clientes detrás de cada número (capa 2) y el detalle de cada cliente con su fuente y lo que falta (capa 3). El universo es el que fijó Juan: todo cliente con facturas vigentes en el SAT ese mes.</p>
+        </div>
+        <div class="head-actions">
+          <button class="chip" onclick="dashCargar(true)" title="Vuelve a leer la foto del almacén">🔄 Actualizar</button>
+        </div>
+      </div>
+      <div class="dash-ctrl">
+        <select id="dashPeriodo" onchange="dashSetPeriodo(this.value)"><option value="">Período…</option></select>
+        <select id="dashOwner" onchange="dashSetOwner(this.value)"><option value="">👤 Todos los owners</option></select>
+        <div class="dash-seg" id="dashModo">
+          <button class="on" data-modo="universo" onclick="dashSetModo('universo')" title="Clientes con facturas vigentes en el SAT en el mes (definición de Juan)">Universo SAT</button>
+          <button data-modo="todos" onclick="dashSetModo('todos')" title="Todos los clientes con dato en la foto: conectados en Syntage o con período abierto en el sistema">Todos con dato</button>
+        </div>
+        <span id="dashCorte" style="font-size:12.5px;color:var(--text-secondary);margin-left:auto"></span>
+      </div>
+      <div id="dashAviso"></div>
+      <div class="dash-cards" id="dashCards"><div class="dash-empty" style="grid-column:1/-1">Cargando la foto del almacén…</div></div>
+      <div id="dashOwners"></div>
+      <div id="dashCapa2"></div>
+    </section>
 
     <!-- ══ BANDEJA ══ -->
     <section class="view active" id="view-bandeja">
@@ -342,6 +430,11 @@ tr:hover td{background:rgba(96,71,255,.04)}
   </main>
 </div>
 <div class="toast" id="toast"></div>
+
+<!-- ══ DASHBOARD · detalle de cliente (capa 3) ══ -->
+<div id="dashModalBack" onclick="if(event.target===this)dashCerrar()">
+  <div class="dash-modal"><button class="drawer-x" onclick="dashCerrar()" title="Cerrar (Esc)">✕</button><div id="dashModal"></div></div>
+</div>
 
 <!-- ══ DRAWER (detalle / redacción) ══ -->
 <div id="drawerBack" onclick="closeDrawer()"></div>
@@ -2083,7 +2176,7 @@ async function doLogin(){
   document.getElementById('loginBtn').disabled=false;
   if(r.ok){ AUTH={email:r.email,nombre:r.nombre,admin:!!r.admin,password:pass};
     sessionStorage.setItem('tallyAuth',JSON.stringify(AUTH));
-    document.getElementById('loginMsg').textContent=''; applyAuth(); loadAll(); }
+    document.getElementById('loginMsg').textContent=''; applyAuth(); loadAll(); if(AUTH.admin) dashIr(); }
   else document.getElementById('loginMsg').textContent=r.error||'Error de acceso';
 }
 function logout(){ sessionStorage.removeItem('tallyAuth'); AUTH=null; location.reload(); }
@@ -2115,9 +2208,272 @@ async function toggleUser(email,activo){
   else toast('❌ '+(r.error||'error'));
 }
 
+/* ═══════════════ DASHBOARD · CINCO PROMESAS (2-sep-2026) ═══════════════
+   Lee la foto diaria del almacén privado (acción metricas_tabla del Apps Script, con la sesión del usuario)
+   y la muestra en capas: tarjetas → clientes detrás de cada tarjeta → detalle por cliente con fuente y "qué falta".
+   Regla: lenguaje humano, sin códigos internos. Los usuarios que no son admin solo ven su propia cartera. */
+const DASH_PROM = [
+  { k:'opinion',       titulo:'Opinión positiva',       ok:'positiva',  fuente:'SAT, vía Syntage' },
+  { k:'documentacion', titulo:'Documentación completa', ok:'completa',  fuente:'Sistema contable · registro de períodos' },
+  { k:'calculo',       titulo:'Cálculo aprobado',       ok:'aprobado',  fuente:'Sistema contable + registro de aprobaciones' },
+  { k:'auditoria',     titulo:'Auditoría positiva',     ok:'positiva',  fuente:'Veredicto del auditor en el sistema' },
+  { k:'reporte',       titulo:'Reporte entregado',      ok:'entregado', fuente:'Registro de entregas' }
+];
+const DASH_MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+let DASH = { periodo:'', owner:'', ownerFijo:false, modo:'universo', metrica:'', estado:'', q:'', actual:null, anterior:null, periodos:{}, cargando:false };
+
+function dashAuth(){ return AUTH ? { email:AUTH.email, password:AUTH.password } : null; }
+function dashPeriodoLabel(p){ const m=String(p||'').match(/^(\d{4})-(\d{2})$/); return m ? DASH_MESES[Number(m[2])-1]+' '+m[1] : (p||'—'); }
+function dashPeriodoAnterior(p){ const m=String(p||'').match(/^(\d{4})-(\d{2})$/); if(!m) return ''; let y=Number(m[1]), mo=Number(m[2])-1; if(mo<1){ mo=12; y--; } return y+'-'+String(mo).padStart(2,'0'); }
+function dashFecha(s){
+  if(!s) return '';
+  const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return Number(m[3])+'-'+DASH_MESES[Number(m[2])-1].slice(0,3)+'-'+m[1];
+  const d=new Date(s); return isNaN(d) ? String(s) : d.toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'});
+}
+
+/* Etiqueta humana y color de cada estado */
+function dashEstadoInfo(k, v){
+  v=String(v||'').trim();
+  if(k==='opinion'){ if(v==='positiva') return {label:'Positiva',cls:'ok'}; if(v==='negativa') return {label:'Negativa',cls:'bad'}; return {label:'Sin lectura del SAT',cls:'none'}; }
+  if(k==='documentacion'){ if(v==='completa') return {label:'Completa',cls:'ok'}; const m=v.match(/^(\d)\/4$/); if(m) return {label:m[1]+' de 4 documentos',cls:m[1]==='0'?'bad':'mid'}; return {label:'Sin período abierto',cls:'none'}; }
+  if(k==='calculo'){ if(v==='aprobado') return {label:'Aprobado por el cliente',cls:'ok'}; if(v==='calculado') return {label:'Calculado, sin aprobación',cls:'mid'}; if(v==='pendiente') return {label:'Sin calcular',cls:'bad'}; return {label:'Sin período abierto',cls:'none'}; }
+  if(k==='auditoria'){ if(v==='positiva') return {label:'Positiva',cls:'ok'}; if(v==='requiere corrección') return {label:'Requiere corrección',cls:'bad'}; if(v==='en revisión') return {label:'En revisión',cls:'mid'}; if(v==='sin auditar') return {label:'Declarada, sin auditar',cls:'mid'}; if(v==='sin declarar') return {label:'Sin declarar',cls:'bad'}; if(!v||v==='sin período') return {label:'Sin período abierto',cls:'none'}; return {label:v.charAt(0).toUpperCase()+v.slice(1),cls:'mid'}; }
+  if(k==='reporte'){ if(v==='entregado') return {label:'Entregado',cls:'ok'}; if(v==='pendiente') return {label:'Pendiente',cls:'bad'}; return {label:'Sin período abierto',cls:'none'}; }
+  return {label:v||'—',cls:'none'};
+}
+const DASH_ORDEN = { bad:0, mid:1, none:2, ok:3 };
+
+/* ── Lectura ── */
+async function dashTabla(periodo){
+  const r = await api('metricas_tabla',{ auth:dashAuth(), periodo:periodo||'' },60000);
+  if(r && r.ok) return r;
+  if(r && /acci[oó]n desconocida/i.test(r.error||'')){
+    // Backend anterior al 2-sep: se arma la misma tabla con cinco lecturas por promesa.
+    const cols=['p1','p2','p3','p4','p5'], keys=['opinion','documentacion','calculo','auditoria','reporte'];
+    const parts=await Promise.all(cols.map(c=>api('metricas_detalle',{ auth:dashAuth(), metrica:c, periodo:periodo||'' },60000)));
+    if(!parts[0]||!parts[0].ok) return parts[0]||{ok:false,error:'sin respuesta del almacén'};
+    const map={};
+    parts.forEach((p,i)=>{ if(!p||!p.ok) return; (p.clientes||[]).forEach(c=>{ const o=map[c.company_id]||(map[c.company_id]={company_id:c.company_id,cliente:c.cliente,owner:c.owner,en_universo:c.en_universo,detalle:c.detalle}); o[keys[i]]=c.estado; }); });
+    return { ok:true, periodo:parts[0].periodo, fecha_corte:parts[0].fecha_corte, clientes:Object.values(map), periodos:{} };
+  }
+  return r||{ok:false,error:'sin respuesta del almacén'};
+}
+async function dashCargar(force){
+  if(!AUTH || DASH.cargando) return;
+  DASH.cargando=true;
+  const cards=document.getElementById('dashCards');
+  if(force||!DASH.actual) cards.innerHTML='<div class="dash-empty" style="grid-column:1/-1">Cargando la foto del almacén…</div>';
+  try{
+    const a=await dashTabla(DASH.periodo);
+    if(!a.ok){ cards.innerHTML=`<div class="dash-empty" style="grid-column:1/-1">⚠️ ${esc(a.error||'no se pudo leer el almacén')}</div>`; return; }
+    DASH.actual=a; DASH.periodo=a.periodo||DASH.periodo;
+    DASH.periodos=Object.assign({},DASH.periodos,a.periodos||{});
+    DASH.anterior=null;
+    const ant=dashPeriodoAnterior(DASH.periodo);
+    const conLista=a.periodos&&Object.keys(a.periodos).length;
+    if(ant&&(!conLista||a.periodos[ant])){ const b=await dashTabla(ant); if(b&&b.ok&&(b.clientes||[]).length) DASH.anterior=b; }
+    dashRender();
+  }finally{ DASH.cargando=false; }
+}
+
+/* ── Estado / filtros ── */
+function dashOwners(){ const s={}; ((DASH.actual&&DASH.actual.clientes)||[]).forEach(c=>{ s[c.owner?String(c.owner):'__sin']=1; }); return Object.keys(s).sort((a,b)=>a==='__sin'?1:b==='__sin'?-1:a.localeCompare(b)); }
+function dashOwnerPropio(){
+  if(!AUTH||AUTH.admin) return '';
+  const nom=String(AUTH.nombre||String(AUTH.email||'').split('@')[0]).trim().split(/\s+/)[0].toLowerCase();
+  return dashOwners().find(o=>o!=='__sin'&&o.toLowerCase()===nom)||'';
+}
+function dashFilas(t, modo, sinOwner){
+  return ((t&&t.clientes)||[]).filter(c=>{
+    if(!sinOwner&&DASH.owner){ if(DASH.owner==='__sin'){ if(c.owner) return false; } else if(String(c.owner||'')!==DASH.owner) return false; }
+    if(modo==='universo'&&c.en_universo!=='sí') return false;
+    return true;
+  });
+}
+function dashConteo(filas, p){
+  let ok=0; const by={};
+  filas.forEach(c=>{ const v=String(c[p.k]||''); if(v===p.ok) ok++; const info=dashEstadoInfo(p.k,v); by[info.label]=(by[info.label]||0)+1; });
+  return { ok, total:filas.length, by };
+}
+function dashModoEfectivo(){
+  const todos=(DASH.actual&&DASH.actual.clientes)||[];
+  if(DASH.modo==='universo'&&!todos.some(c=>c.en_universo==='sí')) return 'todos';
+  return DASH.modo;
+}
+function dashSetPeriodo(v){ if(!v||v===DASH.periodo) return; DASH.periodo=v; DASH.actual=null; DASH.anterior=null; DASH.estado=''; dashCargar(true); }
+function dashSetOwner(v){ if(DASH.ownerFijo) return; DASH.owner=v||''; DASH.estado=''; dashRender(); }
+function dashToggleOwner(v){ if(DASH.ownerFijo) return; DASH.owner=(DASH.owner===v)?'':v; DASH.estado=''; dashRender(); }
+function dashSetModo(m){ DASH.modo=m; DASH.estado=''; dashRender(); }
+function dashSetMetrica(k){ DASH.metrica=(DASH.metrica===k)?'':k; DASH.estado=''; DASH.q=''; dashRender(); if(DASH.metrica){ const el=document.getElementById('dashCapa2'); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); } }
+function dashSetEstado(l){ DASH.estado=(DASH.estado===l)?'':l; dashRenderCapa2(); }
+function dashIr(){ const a=document.querySelector('.nav a[data-view="dashboard"]'); if(a) a.click(); }
+
+/* ── Render capa 1 (tarjetas) y tabla por owner ── */
+function dashRender(){
+  const t=DASH.actual; if(!t) return;
+  const modo=dashModoEfectivo();
+  // selects
+  const pers=Object.keys(DASH.periodos).sort().reverse(); if(DASH.periodo&&!pers.includes(DASH.periodo)) pers.unshift(DASH.periodo);
+  document.getElementById('dashPeriodo').innerHTML=pers.map(p=>`<option value="${esc(p)}" ${p===DASH.periodo?'selected':''}>Período ${esc(dashPeriodoLabel(p))}</option>`).join('')||'<option value="">Sin períodos</option>';
+  if(!AUTH.admin){ const propio=dashOwnerPropio(); if(propio){ DASH.owner=propio; DASH.ownerFijo=true; } }
+  const selO=document.getElementById('dashOwner');
+  selO.innerHTML='<option value="">👤 Todos los owners</option>'+dashOwners().map(o=>`<option value="${esc(o)}" ${o===DASH.owner?'selected':''}>${esc(o==='__sin'?'(sin owner)':o)}</option>`).join('');
+  selO.disabled=DASH.ownerFijo; selO.title=DASH.ownerFijo?'Ves solo tu cartera':'';
+  document.querySelectorAll('#dashModo button').forEach(b=>b.classList.toggle('on',b.dataset.modo===modo));
+  // aviso + corte
+  const todos=t.clientes||[];
+  const nUni=todos.filter(c=>c.en_universo==='sí').length, nNo=todos.filter(c=>c.en_universo==='no').length, nSin=todos.length-nUni-nNo;
+  document.getElementById('dashAviso').innerHTML = (DASH.modo==='universo'&&modo==='todos')
+    ? `<div class="dash-warn">La foto de ${esc(dashPeriodoLabel(DASH.periodo))} todavía no trae la lectura de facturas del SAT, así que el universo está vacío. Mientras, se muestran todos los clientes con dato (${todos.length}).</div>` : '';
+  document.getElementById('dashCorte').textContent = t.fecha_corte
+    ? `Foto del ${dashFecha(t.fecha_corte)} · en el universo SAT: ${nUni} · sin facturas en el mes: ${nNo} · sin lectura del SAT: ${nSin}`
+    : 'Sin foto para este período todavía';
+  // tarjetas
+  const filas=dashFilas(t,modo), filasAnt=DASH.anterior?dashFilas(DASH.anterior,modo):null;
+  const cards=document.getElementById('dashCards');
+  if(!filas.length){ cards.innerHTML=`<div class="dash-empty" style="grid-column:1/-1">No hay clientes en esta vista${DASH.owner?' para este owner':''}. Cambia el período, el owner o el modo.</div>`; }
+  else cards.innerHTML=DASH_PROM.map(p=>{
+    const c=dashConteo(filas,p); const pct=c.total?Math.round(100*c.ok/c.total):0;
+    let delta;
+    if(filasAnt&&filasAnt.length){ const ca=dashConteo(filasAnt,p); const pa=ca.total?Math.round(100*ca.ok/ca.total):0; const d=pct-pa;
+      delta=`<div class="dc-delta ${d>0?'up':d<0?'down':''}">${d>0?'▲':d<0?'▼':'='} ${Math.abs(d)} pts vs ${esc(dashPeriodoLabel(DASH.anterior.periodo))} (${ca.ok} de ${ca.total})</div>`; }
+    else delta='<div class="dc-delta">Sin período anterior para comparar</div>';
+    const okLabel=dashEstadoInfo(p.k,p.ok).label;
+    const resto=Object.entries(c.by).filter(([l])=>l!==okLabel).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([l,n])=>l+': '+n).join(' · ');
+    const note=(p.k==='calculo'||p.k==='reporte')&&c.ok===0?`<div class="dc-note">El registro arranca con el piloto: aún no hay ${p.k==='calculo'?'aprobaciones':'entregas'} registradas. Se registran desde el detalle de cada cliente.</div>`:'';
+    return `<div class="dash-card ${DASH.metrica===p.k?'on':''}" onclick="dashSetMetrica('${p.k}')" title="Ver los clientes detrás de este número">
+      <div class="dc-title">${esc(p.titulo)}</div>
+      <div class="dc-num">${c.ok}<small>de ${c.total}</small></div>
+      <div class="dc-pct">${pct}%</div>
+      <div class="dash-bar"><i style="width:${pct}%"></i></div>
+      ${delta}${resto?`<div class="dc-delta">${esc(resto)}</div>`:''}${note}
+      <div class="dc-src">Fuente: ${esc(p.fuente)}</div></div>`;
+  }).join('');
+  // por owner (solo admin: el equipo no ve comparaciones entre personas)
+  const ow=document.getElementById('dashOwners');
+  if(AUTH.admin){
+    const base=dashFilas(t,modo,true); const grupos={};
+    base.forEach(c=>{ const o=c.owner?String(c.owner):'__sin'; (grupos[o]=grupos[o]||[]).push(c); });
+    const keys=Object.keys(grupos).sort((a,b)=>grupos[b].length-grupos[a].length);
+    ow.innerHTML=keys.length?`<div class="dash-owners"><table><thead><tr><th>Owner</th><th style="text-align:center">Clientes</th>${DASH_PROM.map(p=>`<th style="text-align:center">${esc(p.titulo)}</th>`).join('')}</tr></thead><tbody>${keys.map(o=>{
+      const f=grupos[o];
+      return `<tr class="${DASH.owner===o?'on':''}" data-owner="${esc(o)}" title="Filtrar por este owner"><td><b>${esc(o==='__sin'?'(sin owner)':o)}</b></td><td class="num">${f.length}</td>${DASH_PROM.map(p=>{ const c=dashConteo(f,p); const pct=c.total?Math.round(100*c.ok/c.total):0;
+        return `<td class="num"><span class="dash-mini">${c.ok}/${c.total} <em>${pct}%</em><div class="dash-bar"><i style="width:${pct}%"></i></div></span></td>`; }).join('')}</tr>`; }).join('')}</tbody></table></div>`:'';
+    ow.querySelectorAll('tr[data-owner]').forEach(tr=>tr.addEventListener('click',()=>dashToggleOwner(tr.dataset.owner)));
+  } else ow.innerHTML='';
+  dashRenderCapa2();
+}
+
+/* ── Capa 2: clientes detrás de una tarjeta ── */
+function dashFuenteCelda(k, c){
+  const d=c.detalle||{}; const s=d.sistema||null;
+  if(k==='opinion'){
+    const o=d.opinion, cf=d.cfdi;
+    return (o?`Opinión del SAT ${String(o.sentido||'').toUpperCase().indexOf('POSITIV')===0?'positiva':'negativa'} · verificada el ${esc(dashFecha(o.fecha))}`:'Sin opinión leída del SAT')
+      +(cf&&cf.total!==''&&cf.total!==null&&cf.total!==undefined?`<br><span class="cid">Facturas vigentes del mes: ${esc(cf.total)} (emitidas ${esc(cf.emitidos)}, recibidas ${esc(cf.recibidos)})</span>`:'');
+  }
+  if(k==='documentacion'){
+    if(!s) return '<span class="cid">Sin fila del período en el registro de períodos</span>';
+    return `<span class="dash-checks"><span class="${s.edo?'si':''}">estado de cuenta</span><span class="${s.ven?'si':''}">ventas</span><span class="${s.ret?'si':''}">retenciones</span><span class="${s.inv?'si':''}">inventario</span></span>`+(s.decl?`<br><span class="cid">Declaración: ${esc(s.decl)}</span>`:'');
+  }
+  if(k==='calculo'){
+    if(!s&&!d.aprobacion) return '<span class="cid">Sin fila del período en el registro de períodos</span>';
+    return (s&&s.cal?'Cálculo cargado en el sistema':'Sin cálculo en el sistema')
+      +(d.aprobacion&&d.aprobacion.fecha?`<br><span class="cid">Aprobado por el cliente el ${esc(dashFecha(d.aprobacion.fecha))}${d.aprobacion.canal?' · '+esc(d.aprobacion.canal):''}</span>`:'<br><span class="cid">Sin aprobación registrada</span>');
+  }
+  if(k==='auditoria'){
+    if(!s) return '<span class="cid">Sin fila del período en el registro de períodos</span>';
+    return (s.qa?'Veredicto del auditor: '+esc(s.qa):'Sin veredicto del auditor')
+      +(s.decl?`<br><span class="cid">Declaración ${esc(s.decl)}${s.fdecl?' · '+esc(dashFecha(s.fdecl)):''}</span>`:'<br><span class="cid">Sin declaración registrada</span>');
+  }
+  if(k==='reporte'){
+    return d.reporte&&d.reporte.fecha?`Entregado el ${esc(dashFecha(d.reporte.fecha))}${d.reporte.canal?' · '+esc(d.reporte.canal):''}`:'<span class="cid">Sin entrega registrada</span>';
+  }
+  return '';
+}
+function dashQueFalta(k, c){
+  const v=String(c[k]||''); const d=c.detalle||{}; const s=d.sistema||null; let msg='';
+  if(k==='opinion'){ if(v==='negativa') msg='Qué sigue: plan por opinión negativa con el contador (sugerencias, no órdenes) y verificar la causa en el portal del SAT.'; else if(v!=='positiva') msg='Qué sigue: conectar el RFC en Syntage (lo hace Juan) para leer la opinión del SAT.'; }
+  if(k==='documentacion'){ if(!s) msg='Falta: abrir el período de este cliente en el registro de períodos.'; else if(v!=='completa'){ const f=[]; if(!s.edo) f.push('estado de cuenta'); if(!s.ven) f.push('reporte de ventas'); if(!s.ret) f.push('retenciones'); if(!s.inv) f.push('inventario'); msg='Falta: '+f.join(', ')+'.'; } }
+  if(k==='calculo'){ if(!s) msg='Falta: abrir el período; sin período no hay cálculo.'; else if(v==='pendiente') msg='Falta: cargar el cálculo del mes en el sistema.'; else if(v==='calculado') msg='Falta: enviar el cálculo al cliente y registrar su aprobación (abajo).'; }
+  if(k==='auditoria'){ if(!s) msg='Falta: abrir el período; sin declaración no hay auditoría.'; else if(v==='requiere corrección') msg='Falta: atender la corrección del auditor y volver a cargar.'; else if(v==='en revisión') msg='En manos del auditor.'; else if(v==='sin auditar') msg='Falta: que el auditor revise la declaración cargada.'; else if(v==='sin declarar') msg='Falta: presentar la declaración y cargar el acuse.'; }
+  if(k==='reporte'){ if(!s) msg='Falta: abrir el período; el reporte cierra el mes.'; else if(v!=='entregado') msg='Falta: entregar el reporte del mes al cliente y registrarlo (abajo).'; }
+  return msg?`<div class="falta">${esc(msg)}</div>`:'';
+}
+function dashRenderCapa2(){
+  const el=document.getElementById('dashCapa2'); const t=DASH.actual; if(!el||!t) return;
+  const p=DASH_PROM.find(x=>x.k===DASH.metrica);
+  if(!p){ el.innerHTML='<div class="dash-layer" style="color:var(--text-secondary);font-size:13.5px">Haz clic en una tarjeta para ver los clientes detrás del número; y en un cliente, para ver su detalle y lo que falta.</div>'; return; }
+  const modo=dashModoEfectivo();
+  const filas=dashFilas(t,modo); const c=dashConteo(filas,p);
+  const q=DASH.q.trim().toLowerCase();
+  const lista=filas.filter(x=>(!DASH.estado||dashEstadoInfo(p.k,x[p.k]).label===DASH.estado)&&(!q||String(x.cliente||'').toLowerCase().includes(q)||String(x.company_id||'').toLowerCase().includes(q)))
+    .sort((a,b)=>{ const ia=dashEstadoInfo(p.k,a[p.k]), ib=dashEstadoInfo(p.k,b[p.k]); return (DASH_ORDEN[ia.cls]-DASH_ORDEN[ib.cls])||String(a.cliente||'').localeCompare(String(b.cliente||'')); });
+  const chips=Object.entries(c.by).sort((a,b)=>b[1]-a[1]).map(([l,n])=>`<button class="chip ${DASH.estado===l?'on':''}" data-estado="${esc(l)}">${esc(l)} <span class="chip-n">${n}</span></button>`).join('');
+  el.innerHTML=`<div class="dash-layer">
+    <h2>${esc(p.titulo)} · ${c.ok} de ${c.total}</h2>
+    <p class="lead">Período ${esc(dashPeriodoLabel(DASH.periodo))}${DASH.owner?' · owner '+esc(DASH.owner==='__sin'?'(sin owner)':DASH.owner):''} · fuente: ${esc(p.fuente)}. Haz clic en un cliente para ver el detalle completo.</p>
+    <div class="chips" style="align-items:center"><button class="chip ${DASH.estado?'':'on'}" data-estado="">Todos <span class="chip-n">${c.total}</span></button>${chips}<input type="text" id="dashQ" placeholder="🔎 Cliente o ID…" value="${esc(DASH.q)}" style="max-width:220px;width:220px;margin-left:auto"></div>
+    <div class="dash-table-wrap"><table><thead><tr><th>Cliente</th><th>Owner</th><th>Estado</th><th>Fuente y dato</th>${modo==='todos'?'<th>Universo SAT</th>':''}</tr></thead><tbody>
+    ${lista.length?lista.map(x=>{ const info=dashEstadoInfo(p.k,x[p.k]);
+      return `<tr data-cid="${esc(x.company_id)}"><td><b>${esc(x.cliente||x.company_id)}</b><br><span class="cid">${esc(x.company_id)}</span></td><td>${esc(x.owner||'sin owner')}</td><td><span class="pill ${info.cls}">${esc(info.label)}</span></td><td>${dashFuenteCelda(p.k,x)}</td>${modo==='todos'?`<td>${esc(x.en_universo==='sí'?'Sí':x.en_universo==='no'?'Sin facturas':'Sin lectura')}</td>`:''}</tr>`; }).join('')
+      :`<tr><td colspan="5" class="dash-empty">Ningún cliente con ese filtro.</td></tr>`}
+    </tbody></table></div></div>`;
+  el.querySelectorAll('button[data-estado]').forEach(b=>b.addEventListener('click',()=>dashSetEstado(b.dataset.estado)));
+  el.querySelectorAll('tr[data-cid]').forEach(tr=>tr.addEventListener('click',()=>dashAbrir(tr.dataset.cid)));
+  const qEl=document.getElementById('dashQ'); if(qEl){ qEl.addEventListener('input',()=>{ DASH.q=qEl.value; const pos=qEl.selectionStart; dashRenderCapa2(); const n=document.getElementById('dashQ'); if(n){ n.focus(); try{ n.setSelectionRange(pos,pos); }catch(e){} } }); }
+}
+
+/* ── Capa 3: detalle de un cliente ── */
+function dashRegistro(k, c){
+  const s=(c.detalle||{}).sistema||null; if(!s) return '';
+  const hoy=new Date().toISOString().slice(0,10);
+  if(k==='calculo'&&String(c.calculo)!=='aprobado') return `<div class="dash-reg"><input type="date" id="dashRegFecha-calculo" value="${hoy}"><input type="text" id="dashRegCanal-calculo" placeholder="canal: correo, WhatsApp, sesión…"><button class="mini btn-primary" onclick="dashRegistrar('calculo','${esc(c.company_id)}')">Registrar aprobación del cliente</button></div>`;
+  if(k==='reporte'&&String(c.reporte)!=='entregado') return `<div class="dash-reg"><input type="date" id="dashRegFecha-reporte" value="${hoy}"><input type="text" id="dashRegCanal-reporte" placeholder="canal: correo, sesión…"><button class="mini btn-primary" onclick="dashRegistrar('reporte','${esc(c.company_id)}')">Registrar reporte entregado</button></div>`;
+  return '';
+}
+async function dashRegistrar(k, cid){
+  const c=((DASH.actual&&DASH.actual.clientes)||[]).find(x=>x.company_id===cid); if(!c) return;
+  const fecha=(document.getElementById('dashRegFecha-'+k)||{}).value||''; const canal=((document.getElementById('dashRegCanal-'+k)||{}).value||'').trim();
+  if(!fecha){ toast('Indica la fecha'); return; }
+  const payload={ auth:dashAuth(), company_id:cid, periodo:DASH.periodo, canal:canal, evidencia:'registrado desde el Dashboard' };
+  let r;
+  if(k==='calculo'){ payload.fecha_aprobacion=fecha; r=await api('aprobacion_calculo_set',payload,60000); }
+  else { payload.fecha_entrega=fecha; r=await api('reporte_entregado_set',payload,60000); }
+  if(!r||!r.ok){ toast('❌ '+((r&&r.error)||'no se pudo registrar')); return; }
+  c.detalle=c.detalle||{};
+  if(k==='calculo'){ c.calculo='aprobado'; c.detalle.aprobacion={fecha:fecha,canal:canal}; }
+  else { c.reporte='entregado'; c.detalle.reporte={fecha:fecha,canal:canal}; }
+  toast('✅ Registrado. La tarjeta ya lo refleja aquí; la foto oficial del almacén se rehace cada noche.');
+  dashRender(); dashAbrir(cid);
+}
+function dashAbrir(cid){
+  const c=((DASH.actual&&DASH.actual.clientes)||[]).find(x=>x.company_id===cid); if(!c) return;
+  const uni=c.en_universo==='sí'?'En el universo SAT: tiene facturas vigentes en el mes.':c.en_universo==='no'?'Fuera del universo: el SAT no registra facturas vigentes suyas en el mes.':'Sin lectura del SAT: no está conectado en Syntage o la lectura falló.';
+  const filas=DASH_PROM.map(p=>{ const info=dashEstadoInfo(p.k,c[p.k]);
+    return `<div class="dash-prom"><div class="pt">${esc(p.titulo)}<small>${esc(p.fuente)}</small></div><div class="pd"><span class="pill ${info.cls}">${esc(info.label)}</span><div style="margin-top:6px">${dashFuenteCelda(p.k,c)}</div>${dashQueFalta(p.k,c)}${dashRegistro(p.k,c)}</div></div>`; }).join('');
+  document.getElementById('dashModal').innerHTML=`<h3>${esc(c.cliente||c.company_id)}</h3>
+    <div class="meta">${esc(c.company_id)} · owner: <b>${esc(c.owner||'sin owner')}</b> · período ${esc(dashPeriodoLabel(DASH.periodo))} · foto del ${esc(dashFecha((DASH.actual||{}).fecha_corte))}<br>${esc(uni)}</div>
+    ${filas}
+    <div class="btn-row"><button class="btn btn-ghost" onclick="dashVerTareas('${esc(c.company_id)}')">Ver tareas de este cliente</button><button class="btn btn-ghost" onclick="dashCerrar()">Cerrar</button></div>`;
+  document.getElementById('dashModalBack').classList.add('open');
+}
+function dashCerrar(){ document.getElementById('dashModalBack').classList.remove('open'); }
+function dashVerTareas(cid){
+  dashCerrar();
+  const q=document.getElementById('tkBuscar'); if(q){ q.value=cid; }
+  const a=document.querySelector('.nav a[data-view="tareas"]'); if(a) a.click();
+  try{ renderTareas(); }catch(e){}
+}
+document.addEventListener('keydown',ev=>{ if(ev.key==='Escape') dashCerrar(); });
+const dashNavLink=document.querySelector('.nav a[data-view="dashboard"]');
+if(dashNavLink) dashNavLink.addEventListener('click',()=>{ if(!DASH.actual&&!DASH.cargando) dashCargar(); });
+
 document.getElementById('cfgSheet').textContent=SHEET_ID;
 document.getElementById('cfgScript').textContent=APPS_SCRIPT_URL;
 applyAuth();
+if(AUTH&&AUTH.admin) dashIr(); // Juan entra directo al Dashboard; el equipo sigue entrando a la Bandeja
 api('__health',{}).then(()=>{});
 (async()=>{ // health check legible
   const r=await new Promise(res=>{ const cb='__hc'; window[cb]=d=>res(d);
