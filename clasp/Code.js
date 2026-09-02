@@ -2183,7 +2183,7 @@ function almUpsert_(nombre, claves, filas) {
 /* ── Syntage: llave y cliente HTTP ── */
 function syntageKey_() {
   const props = PropertiesService.getScriptProperties();
-  let k = props.getProperty('SYNTAGE_API_KEY');
+  let k = props.getProperty('4c6b47ed46df2f02763aa0677a35ef3b');
   if (!k && typeof SECRETS !== 'undefined' && SECRETS && SECRETS.SYNTAGE_API_KEY) {
     k = SECRETS.SYNTAGE_API_KEY;
     props.setProperty('SYNTAGE_API_KEY', k); // se copia una vez a propiedades; después el archivo Secrets puede vaciarse
