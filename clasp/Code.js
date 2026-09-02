@@ -47,12 +47,13 @@ const SENDER_NAME = 'Juan Vélez — Tally';
 function doGet(e) {
   const p = (e && e.parameter) || {};
   if (!p.action) {
-    return out({ ok: true, service: 'tally-ops-interface', version: 2, ts: new Date().toISOString() }, p.callback);
+    return out({ ok: true, service: 'tally-ops-interface', version: '2.1-almacen-2026-09-02', ts: new Date().toISOString() }, p.callback);
   }
   if (p.token !== TOKEN) return out({ ok: false, error: 'token inválido' }, p.callback);
   try {
     const body = p.payload ? JSON.parse(p.payload) : p;
     body.action = p.action;
+    delete body._via; // la marca de canal de control solo la pone sync_inbox, nunca una petición externa
     return out(handle(body), p.callback);
   } catch (err) {
     return out({ ok: false, error: String(err) }, p.callback);
@@ -64,6 +65,7 @@ function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
     if (body.token !== TOKEN) return out({ ok: false, error: 'token inválido' });
+    delete body._via; // idem: nunca desde fuera
     return out(handle(body));
   } catch (err) {
     return out({ ok: false, error: String(err) });
@@ -2183,7 +2185,7 @@ function almUpsert_(nombre, claves, filas) {
 /* ── Syntage: llave y cliente HTTP ── */
 function syntageKey_() {
   const props = PropertiesService.getScriptProperties();
-  let k = props.getProperty('4c6b47ed46df2f02763aa0677a35ef3b');
+  let k = props.getProperty('SYNTAGE_API_KEY');
   if (!k && typeof SECRETS !== 'undefined' && SECRETS && SECRETS.SYNTAGE_API_KEY) {
     k = SECRETS.SYNTAGE_API_KEY;
     props.setProperty('SYNTAGE_API_KEY', k); // se copia una vez a propiedades; después el archivo Secrets puede vaciarse
