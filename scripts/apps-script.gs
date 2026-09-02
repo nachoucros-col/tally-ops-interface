@@ -2357,16 +2357,24 @@ function almacenTick_() {
                         num_operacion: d.operationNumber || '', complementaria: d.complementary || '', fuente: 'syntage', fecha_lectura: hoy });
           }
         });
-        // 4) Conteo de CFDI vigentes por mes (sin bajar el detalle): total, emitidos, recibidos
+        // 4) CFDI vigentes por mes, sin bajar el detalle completo: una página de hasta 100 por período.
+        //    La API pagina por cursor y no siempre trae el total; se cuenta lo que hay en la página y,
+        //    si viene llena, se marca "100+" (lo que importa para el universo es si hay o no facturas).
         periodos.forEach(function (p) {
           const rg = almRangoPeriodo_(p);
-          const base = { itemsPerPage: 1, status: 'VIGENTE', 'issuedAt[after]': rg[0], 'issuedAt[before]': rg[1] };
-          const tot = synGet_('/entities/' + eid + '/invoices', base);
-          const emi = synGet_('/entities/' + eid + '/invoices', Object.assign({ isIssuer: 'true' }, base));
-          const rec = synGet_('/entities/' + eid + '/invoices', Object.assign({ isReceiver: 'true' }, base));
-          const g = function (x) { return (x && !x._error && x['hydra:totalItems'] !== undefined) ? Number(x['hydra:totalItems']) : ''; };
+          const pag = synGet_('/entities/' + eid + '/invoices', { itemsPerPage: 100, status: 'VIGENTE', 'issuedAt[after]': rg[0] + ' 00:00:00', 'issuedAt[strictly_before]': rg[1] + ' 00:00:00' });
+          let total = '', emi = '', rec = '', fuente = 'syntage';
+          if (pag && !pag._error) {
+            const ms = pag['hydra:member'] || [];
+            const lleno = ms.length >= 100 && (pag['hydra:view'] || {})['hydra:next'];
+            total = pag['hydra:totalItems'] !== undefined ? Number(pag['hydra:totalItems']) : (lleno ? '100+' : ms.length);
+            emi = ms.filter(function (f) { return f.isIssuer === true; }).length; if (lleno) emi = emi + '+';
+            rec = ms.filter(function (f) { return f.isReceiver === true; }).length; if (lleno) rec = rec + '+';
+          } else {
+            fuente = 'error:' + (pag && pag._error !== undefined ? String(pag._error) + ' ' + String(pag._body || '').substring(0, 120) : 'sin respuesta');
+          }
           cfdi.push({ syntage_entity_id: eid, company_id: company, rfc: rfc, periodo: p,
-                      cfdi_total_n: g(tot), emitidos_n: g(emi), recibidos_n: g(rec), fuente: 'syntage', fecha_lectura: hoy });
+                      cfdi_total_n: total, emitidos_n: emi, recibidos_n: rec, fuente: fuente, fecha_lectura: hoy });
         });
       }
       if (entUpd.length) almUpsert_('entidades_syntage', ['syntage_entity_id'], entUpd);
@@ -2431,7 +2439,7 @@ function almSnapshot_(periodo) {
   base.forEach(function (e) {
     const cid = e.cid; if (!cid) { sinMapa++; return; }
     const p = padron.porId[cid] || { nombre: e.razon, owner: '' };
-    const cf = cfdi[cid]; const n = cf && cf.cfdi_total_n !== '' ? Number(cf.cfdi_total_n) : null;
+    const cf = cfdi[cid]; const nRaw = cf ? parseInt(String(cf.cfdi_total_n), 10) : NaN; const n = isNaN(nRaw) ? null : nRaw;
     const enUniverso = n === null ? '' : (n > 0 ? 'sí' : 'no'); if (enUniverso === 'sí') enUni++;
     const o = opin[cid]; const x = cxp[cid] || null;
     const p1 = o ? (o.sentido === 'POSITIVE' || o.sentido === 'POSITIVA' ? 'positiva' : (o.sentido ? 'negativa' : '')) : '';
