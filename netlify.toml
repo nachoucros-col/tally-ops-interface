@@ -4,9 +4,12 @@
 [build]
   publish = "."
   # Ahorro de builds: solo construir cuando cambian archivos que el navegador realmente sirve.
-  # Cambios de backend (scripts/apps-script.gs, clasp/, agente/, docs/) NO gastan build minutes:
-  # Netlify corre este comando; si no hay diff en estos paths, marca el deploy como "Skipped" (gratis).
-  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- index.html retro-julio.html netlify.toml '*.png'"
+  # Cambios de backend (scripts/apps-script.gs, clasp/, agente/, docs/) NO gastan build minutes.
+  # CORRECCIÓN 2-sep-2026 (Talia): cuando Netlify no tiene caché, CACHED_COMMIT_REF == COMMIT_REF y el
+  # diff salía vacío → TODOS los deploys desde el 10-ago quedaron "Skipped" y el sitio se quedó en la
+  # versión subida a mano (Netlify Drop). Ahora: si no se puede comparar, se construye; si se puede y no
+  # hay cambios en los archivos servidos, se omite.
+  ignore = "if [ -z \"$CACHED_COMMIT_REF\" ] || [ \"$CACHED_COMMIT_REF\" = \"$COMMIT_REF\" ]; then exit 1; fi; git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- index.html retro-julio.html netlify.toml '*.png'"
 
 [[headers]]
   for = "/*"
