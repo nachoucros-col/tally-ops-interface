@@ -2,3 +2,5 @@
 .autopush.log
 .DS_Store
 **/.DS_Store
+clasp/Secrets.js
+scripts/*.bak-*
