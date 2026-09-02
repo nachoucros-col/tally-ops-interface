@@ -47,7 +47,7 @@ const SENDER_NAME = 'Juan Vélez — Tally';
 function doGet(e) {
   const p = (e && e.parameter) || {};
   if (!p.action) {
-    return out({ ok: true, service: 'tally-ops-interface', version: '2.1-almacen-2026-09-02', ts: new Date().toISOString() }, p.callback);
+    return out({ ok: true, service: 'tally-ops-interface', version: '2.2-dashboard-2026-09-02', ts: new Date().toISOString() }, p.callback);
   }
   if (p.token !== TOKEN) return out({ ok: false, error: 'token inválido' }, p.callback);
   try {
@@ -1368,6 +1368,18 @@ function handle(body) {
       if (!body._via && !checkUser(body.auth).ok) return { ok: false, error: 'no autenticado' };
       return almDetalle_(body.metrica || 'p1', body.periodo || '', body.owner || '');
     }
+    case 'metricas_tabla': {
+      if (!body._via && !checkUser(body.auth).ok) return { ok: false, error: 'no autenticado' };
+      return almTabla_(body.periodo || '', body.owner || '');
+    }
+    case 'almacen_normalizar': {
+      if (!body._via && !checkAdmin(body.auth)) return { ok: false, error: 'solo canal de control o admin' };
+      return almNormalizar_();
+    }
+    case 'almacen_diag': {
+      if (!body._via && !checkUser(body.auth).ok) return { ok: false, error: 'no autenticado' };
+      return almDiag_();
+    }
     case 'almacen_upsert': {
       if (!body._via && !checkAdmin(body.auth)) return { ok: false, error: 'solo canal de control o admin' };
       if (!ALM_TABS[body.tabla]) return { ok: false, error: 'tabla no permitida: ' + body.tabla };
@@ -2111,7 +2123,9 @@ const ALM_TABS = {
 };
 
 /** Devuelve el Spreadsheet del almacén; lo crea (privado) la primera vez. */
+let ALM_SS_CACHE_ = null; // una sola apertura por ejecución
 function almacenSS_() {
+  if (ALM_SS_CACHE_) return ALM_SS_CACHE_;
   const props = PropertiesService.getScriptProperties();
   let id = props.getProperty('ALMACEN_ID');
   let ss = null;
@@ -2124,7 +2138,25 @@ function almacenSS_() {
   Object.keys(ALM_TABS).forEach(function (t) { getOrCreate(ss, t, ALM_TABS[t]); });
   const hoja1 = ss.getSheetByName('Hoja 1') || ss.getSheetByName('Sheet1');
   if (hoja1 && ss.getSheets().length > 1) { try { ss.deleteSheet(hoja1); } catch (e) {} }
+  ALM_SS_CACHE_ = ss;
   return ss;
+}
+
+/* ── Fechas: Sheets convierte '2026-08' y '2026-09-02' a fecha al escribirlas; aquí se vuelven texto ── */
+let ALM_TZ_ = null;
+function almTZ_() {
+  if (!ALM_TZ_) { try { ALM_TZ_ = almacenSS_().getSpreadsheetTimeZone() || 'America/Mexico_City'; } catch (e) { ALM_TZ_ = 'America/Mexico_City'; } }
+  return ALM_TZ_;
+}
+function almTexto_(v, col) {
+  if (v instanceof Date) {
+    if (isNaN(v.getTime())) return '';
+    const c = String(col || '').toLowerCase();
+    if (c === 'periodo') return Utilities.formatDate(v, almTZ_(), 'yyyy-MM');
+    if (c === 'ts') return v.toISOString();
+    return Utilities.formatDate(v, almTZ_(), 'yyyy-MM-dd');
+  }
+  return v;
 }
 
 function almLog_(proceso, resultado, detalle) {
@@ -2145,7 +2177,7 @@ function almLeer_(nombre) {
   const head = data[0].map(String);
   return data.slice(1).map(function (r, i) {
     const o = { _fila: i + 2 };
-    head.forEach(function (h, j) { o[h] = r[j]; });
+    head.forEach(function (h, j) { o[h] = almTexto_(r[j], h); });
     return o;
   });
 }
@@ -2156,30 +2188,60 @@ function almUpsert_(nombre, claves, filas) {
   const sh = getOrCreate(ss, nombre, ALM_TABS[nombre] || Object.keys(filas[0] || {}));
   const head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
   const idx = {}; head.forEach(function (h, j) { idx[h] = j; });
-  const existentes = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, head.length).getValues() : [];
+  const nEx = sh.getLastRow() - 1;
+  const existentes = nEx > 0 ? sh.getRange(2, 1, nEx, head.length).getValues() : [];
+  const keyOf = function (get) { return claves.map(function (c) { const v = get(c); return String(v === undefined || v === null ? '' : v).trim(); }).join('|'); };
   const mapa = {};
-  existentes.forEach(function (r, i) {
-    const k = claves.map(function (c) { return String(r[idx[c]] === undefined ? '' : r[idx[c]]).trim(); }).join('|');
-    mapa[k] = i + 2;
-  });
+  existentes.forEach(function (r, i) { mapa[keyOf(function (c) { return almTexto_(r[idx[c]], c); })] = i + 2; });
   let ins = 0, upd = 0;
   const nuevas = [];
   filas.forEach(function (f) {
-    const k = claves.map(function (c) { return String(f[c] === undefined || f[c] === null ? '' : f[c]).trim(); }).join('|');
-    const rowVals = head.map(function (h) { return f[h] === undefined || f[h] === null ? '' : f[h]; });
-    if (mapa[k]) {
-      // actualizar solo columnas presentes en f (no borrar lo que no viene)
-      const fila = mapa[k];
-      const actuales = sh.getRange(fila, 1, 1, head.length).getValues()[0];
+    const k = keyOf(function (c) { return f[c]; });
+    const fila = mapa[k];
+    if (fila && fila > 0) {
+      // actualizar solo columnas presentes en f (no borrar lo que no viene); lo demás se reescribe ya como texto
+      const actuales = existentes[fila - 2].map(function (v, j) { return almTexto_(v, head[j]); });
       head.forEach(function (h, j) { if (f[h] !== undefined && f[h] !== null) actuales[j] = f[h]; });
-      sh.getRange(fila, 1, 1, head.length).setValues([actuales]);
+      sh.getRange(fila, 1, 1, head.length).setNumberFormat('@').setValues([actuales]);
       upd++;
     } else {
-      nuevas.push(rowVals); mapa[k] = -1; ins++;
+      nuevas.push(head.map(function (h) { return f[h] === undefined || f[h] === null ? '' : f[h]; })); mapa[k] = -1; ins++;
     }
   });
-  if (nuevas.length) sh.getRange(sh.getLastRow() + 1, 1, nuevas.length, head.length).setValues(nuevas);
+  if (nuevas.length) sh.getRange(sh.getLastRow() + 1, 1, nuevas.length, head.length).setNumberFormat('@').setValues(nuevas);
   return { ok: true, insertadas: ins, actualizadas: upd };
+}
+
+/** Migración única (2-sep-2026): fechas→texto, formato texto en toda la pestaña y sin duplicados por clave. */
+function almNormalizar_() {
+  const ss = almacenSS_(); const out = {};
+  const claves = { entidades_syntage: ['syntage_entity_id'], opiniones: ['syntage_entity_id', 'fecha_consulta'],
+                   declaraciones_mes: ['syntage_entity_id', 'num_operacion'], cfdi_resumen_mes: ['syntage_entity_id', 'periodo'],
+                   snapshot_metricas: ['fecha_corte', 'periodo', 'company_id'], aprobaciones_calculo: ['company_id', 'periodo'],
+                   reportes_entregados: ['company_id', 'periodo'] };
+  Object.keys(ALM_TABS).forEach(function (t) {
+    const sh = ss.getSheetByName(t); if (!sh) return;
+    const nCols = sh.getLastColumn(), nRows = sh.getLastRow();
+    if (nRows < 1 || nCols < 1) return;
+    const data = sh.getRange(1, 1, nRows, nCols).getValues();
+    const head = data[0].map(String);
+    let fechas = 0;
+    const body = data.slice(1).map(function (r) { return r.map(function (v, j) { if (v instanceof Date) fechas++; return almTexto_(v, head[j]); }); });
+    let filas = body, dup = 0;
+    if (claves[t]) {
+      const ix = claves[t].map(function (c) { return head.indexOf(c); });
+      const keyOf = function (r) { return ix.map(function (j) { return String(j >= 0 ? r[j] : '').trim(); }).join('|'); };
+      const ultimo = {}; body.forEach(function (r, i) { ultimo[keyOf(r)] = i; });
+      filas = body.filter(function (r, i) { return ultimo[keyOf(r)] === i; });
+      dup = body.length - filas.length;
+    }
+    sh.getRange(1, 1, Math.max(nRows, filas.length + 1), nCols).setNumberFormat('@');
+    if (nRows > 1) sh.getRange(2, 1, nRows - 1, nCols).clearContent();
+    if (filas.length) sh.getRange(2, 1, filas.length, nCols).setValues(filas);
+    out[t] = { filas: filas.length, fechas_convertidas: fechas, duplicados_quitados: dup };
+  });
+  almLog_('normalizar', 'ok', JSON.stringify(out).substring(0, 880));
+  return { ok: true, tablas: out };
 }
 
 /* ── Syntage: llave y cliente HTTP ── */
@@ -2434,20 +2496,24 @@ function almSnapshot_(periodo) {
   // Universo: compañías mapeadas desde Syntage (las no mapeadas quedan fuera pero se registran en log)
   const filas = []; let sinMapa = 0, enUni = 0;
   // Base de la foto: entidades Syntage mapeadas; si aún no hay lectura de Syntage, todo cliente con fila del período en el sistema.
-  let base = ents.map(function (e) { return { cid: String(e.company_id || ''), razon: e.razon_social }; });
-  if (!base.length) base = Object.keys(cxp).map(function (cid) { return { cid: cid, razon: '' }; });
+  // Base = entidades conectadas en Syntage (mapeadas al padrón) ∪ clientes con fila del período en el sistema contable.
+  // Así los clientes sin conexión al SAT no desaparecen: quedan como 'sin lectura' para que Juan los vea y los conecte.
+  const enBase = {};
+  let base = [];
+  ents.forEach(function (e) { const cid = String(e.company_id || ''); if (!cid) { sinMapa++; return; } if (!enBase[cid]) { enBase[cid] = 1; base.push({ cid: cid, razon: e.razon_social }); } });
+  Object.keys(cxp).forEach(function (cid) { if (cid && !enBase[cid]) { enBase[cid] = 1; base.push({ cid: cid, razon: '' }); } });
   base.forEach(function (e) {
-    const cid = e.cid; if (!cid) { sinMapa++; return; }
+    const cid = e.cid;
     const p = padron.porId[cid] || { nombre: e.razon, owner: '' };
     const cf = cfdi[cid]; const nRaw = cf ? parseInt(String(cf.cfdi_total_n), 10) : NaN; const n = isNaN(nRaw) ? null : nRaw;
-    const enUniverso = n === null ? '' : (n > 0 ? 'sí' : 'no'); if (enUniverso === 'sí') enUni++;
+    const enUniverso = n === null ? 'sin lectura' : (n > 0 ? 'sí' : 'no'); if (enUniverso === 'sí') enUni++;
     const o = opin[cid]; const x = cxp[cid] || null;
-    const p1 = o ? (o.sentido === 'POSITIVE' || o.sentido === 'POSITIVA' ? 'positiva' : (o.sentido ? 'negativa' : '')) : '';
-    let p2 = '';
+    const p1 = o ? (o.sentido === 'POSITIVE' || o.sentido === 'POSITIVA' ? 'positiva' : (o.sentido ? 'negativa' : 'sin lectura')) : 'sin lectura';
+    let p2 = 'sin período';
     if (x) { const k = [x.edo, x.ven, x.ret, x.inv].filter(Boolean).length; p2 = k >= 4 ? 'completa' : (k + '/4'); }
-    const p3 = apro[cid] && apro[cid].fecha_aprobacion ? 'aprobado' : (x && x.cal ? 'calculado' : (x ? 'pendiente' : ''));
-    const p4 = x ? (x.qa === 'Aprobado' ? 'positiva' : (x.qa ? x.qa.toLowerCase() : (x.decl ? 'sin auditar' : ''))) : '';
-    const p5 = repo[cid] && repo[cid].fecha_entrega ? 'entregado' : (x ? 'pendiente' : '');
+    const p3 = apro[cid] && apro[cid].fecha_aprobacion ? 'aprobado' : (x && x.cal ? 'calculado' : (x ? 'pendiente' : 'sin período'));
+    const p4 = x ? (x.qa === 'Aprobado' ? 'positiva' : (x.qa ? x.qa.toLowerCase() : (x.decl ? 'sin auditar' : 'sin declarar'))) : 'sin período';
+    const p5 = repo[cid] && repo[cid].fecha_entrega ? 'entregado' : (x ? 'pendiente' : 'sin período');
     filas.push({ fecha_corte: hoy, periodo: periodo, company_id: cid, cliente: p.nombre || '', owner: p.owner || '', en_universo: enUniverso,
                  p1_opinion: p1, p2_documentacion: p2, p3_calculo: p3, p4_auditoria: p4, p5_reporte: p5,
                  detalle_json: JSON.stringify({ cfdi: cf ? { total: cf.cfdi_total_n, emitidos: cf.emitidos_n, recibidos: cf.recibidos_n } : null,
@@ -2456,7 +2522,34 @@ function almSnapshot_(periodo) {
                                                reporte: repo[cid] ? { fecha: repo[cid].fecha_entrega, canal: repo[cid].canal } : null }) });
   });
   if (filas.length) almUpsert_('snapshot_metricas', ['fecha_corte', 'periodo', 'company_id'], filas);
-  return { periodo: periodo, filas: filas.length, en_universo: enUni, entidades_sin_mapa: sinMapa };
+  return { periodo: periodo, filas: filas.length, en_universo: enUni, entidades_sin_mapa: sinMapa, con_fila_sistema: Object.keys(cxp).length, con_lectura_sat: Object.keys(cfdi).length };
+}
+
+/** Tabla completa del último corte de un período — una sola llamada para el Dashboard de las cinco promesas. */
+function almTabla_(periodo, owner) {
+  const per = periodo || almPeriodo_(-1);
+  const snap = almLeer_('snapshot_metricas');
+  const cortes = {};
+  snap.forEach(function (r) { const p = String(r.periodo); if (!p) return; if (!cortes[p] || String(r.fecha_corte) > cortes[p]) cortes[p] = String(r.fecha_corte); });
+  const corte = cortes[per] || '';
+  const rows = snap.filter(function (r) { return String(r.periodo) === per && String(r.fecha_corte) === corte && (!owner || String(r.owner) === owner); })
+    .map(function (r) { let det = null; try { det = JSON.parse(r.detalle_json || 'null'); } catch (e) {}
+      return { company_id: String(r.company_id), cliente: r.cliente, owner: r.owner, en_universo: r.en_universo,
+               opinion: r.p1_opinion, documentacion: r.p2_documentacion, calculo: r.p3_calculo, auditoria: r.p4_auditoria, reporte: r.p5_reporte, detalle: det }; });
+  return { ok: true, periodo: per, fecha_corte: corte, clientes: rows, periodos: cortes };
+}
+
+/** Diagnóstico legible del almacén; se escribe también en log_corridas para leerlo desde el canal de control. */
+function almDiag_() {
+  const snap = almLeer_('snapshot_metricas');
+  const porPer = {}; const uni = {};
+  snap.forEach(function (r) { const p = String(r.periodo); porPer[p] = (porPer[p] || 0) + 1; if (r.en_universo === 'sí') uni[p] = (uni[p] || 0) + 1; });
+  const res = almResumen_('', '');
+  const a = res.actual || {};
+  const out = { filas_snapshot: snap.length, por_periodo: porPer, en_universo: uni, ciclo: almCiclo_(),
+                resumen_actual: a.periodo ? { periodo: a.periodo, corte: a.fecha_corte, universo: a.universo, opinion: a.p1_opinion, documentacion: a.p2_documentacion, calculo: a.p3_calculo, auditoria: a.p4_auditoria, reporte: a.p5_reporte } : null };
+  almLog_('diag', 'ok', JSON.stringify(out).substring(0, 880));
+  return { ok: true, diag: out };
 }
 
 /** Resumen de las cinco promesas para la interfaz (último corte del período y último corte del período anterior). */
