@@ -1349,6 +1349,51 @@ function handle(body) {
       return { ok: true, revisados: revisados, detectados: detectados, errores: errs.slice(0, 5) };
     }
 
+    /* ── Almacén v0 + cinco promesas (2-sep-2026) ──
+       Lectura autenticada (usuario de la interfaz). Escritura solo desde el
+       canal de control (remitente @tally.legal) o admin. */
+    case 'almacen_estado': {
+      if (!body._via && !checkUser(body.auth).ok) return { ok: false, error: 'no autenticado' };
+      const ssA = almacenSS_(); const props = PropertiesService.getScriptProperties();
+      const conteos = {}; Object.keys(ALM_TABS).forEach(function (t) { const sh = ssA.getSheetByName(t); conteos[t] = sh ? Math.max(0, sh.getLastRow() - 1) : 0; });
+      return { ok: true, almacen_id: ssA.getId(), url: ssA.getUrl(), creado: props.getProperty('ALMACEN_CREADO'), ciclo: almCiclo_(), llave_syntage: !!syntageKey_(), filas: conteos };
+    }
+    case 'metricas_resumen': {
+      if (!body._via && !checkUser(body.auth).ok) return { ok: false, error: 'no autenticado' };
+      return almResumen_(body.periodo || '', body.owner || '');
+    }
+    case 'metricas_detalle': {
+      if (!body._via && !checkUser(body.auth).ok) return { ok: false, error: 'no autenticado' };
+      return almDetalle_(body.metrica || 'p1', body.periodo || '', body.owner || '');
+    }
+    case 'almacen_upsert': {
+      if (!body._via && !checkAdmin(body.auth)) return { ok: false, error: 'solo canal de control o admin' };
+      if (!ALM_TABS[body.tabla]) return { ok: false, error: 'tabla no permitida: ' + body.tabla };
+      if (!Array.isArray(body.claves) || !Array.isArray(body.filas) || !body.filas.length) return { ok: false, error: 'faltan claves/filas' };
+      return almUpsert_(body.tabla, body.claves, body.filas);
+    }
+    case 'aprobacion_calculo_set': {
+      const u = checkUser(body.auth); if (!body._via && !u.ok) return { ok: false, error: 'no autenticado' };
+      if (!body.company_id || !body.periodo) return { ok: false, error: 'faltan company_id/periodo' };
+      return almUpsert_('aprobaciones_calculo', ['company_id', 'periodo'], [{ company_id: body.company_id, periodo: body.periodo, fecha_envio: body.fecha_envio || '',
+        fecha_aprobacion: body.fecha_aprobacion || '', canal: body.canal || '', evidencia: body.evidencia || '', registrado_por: body._via ? 'control' : u.email, ts: now }]);
+    }
+    case 'reporte_entregado_set': {
+      const u = checkUser(body.auth); if (!body._via && !u.ok) return { ok: false, error: 'no autenticado' };
+      if (!body.company_id || !body.periodo) return { ok: false, error: 'faltan company_id/periodo' };
+      return almUpsert_('reportes_entregados', ['company_id', 'periodo'], [{ company_id: body.company_id, periodo: body.periodo, fecha_entrega: body.fecha_entrega || '',
+        canal: body.canal || '', evidencia: body.evidencia || '', registrado_por: body._via ? 'control' : u.email, ts: now }]);
+    }
+    case 'syntage_tick': {
+      if (!body._via && !checkAdmin(body.auth)) return { ok: false, error: 'solo canal de control o admin' };
+      if (body.reiniciar) PropertiesService.getScriptProperties().deleteProperty('ALM_CYCLE');
+      return almacenTick_();
+    }
+    case 'snapshot_ahora': {
+      if (!body._via && !checkAdmin(body.auth)) return { ok: false, error: 'solo canal de control o admin' };
+      return { ok: true, snapshot: almSnapshot_(body.periodo || almPeriodo_(-1)) };
+    }
+
     /* ── Sincronización por correo de control ──
        El agente envía un correo interno (accounting@ → juan@) con asunto
        [TALLY-OPS-SYNC] y un bloque <<<JSON [...operaciones...] JSON>>>.
@@ -1364,6 +1409,10 @@ function handle(body) {
       threads.forEach(th => {
         try {
           const msgs = th.getMessages();
+          // Validación de remitente (2-sep-2026): solo correos de @tally.legal mueven el sistema.
+          const fromRaw = String(msgs[msgs.length - 1].getFrom() || '');
+          const fromMail = (fromRaw.match(/<([^>]+)>/) || [null, fromRaw])[1].trim().toLowerCase();
+          if (!/@tally\.legal$/.test(fromMail)) { errs.push('remitente no autorizado: ' + fromMail); th.addLabel(label); th.moveToArchive(); return; }
           const bodyTxt = msgs[msgs.length - 1].getPlainBody();
           const mt = bodyTxt.match(/<<<JSON([\s\S]*?)JSON>>>/);
           if (!mt) { errs.push('sin bloque JSON en: ' + th.getFirstMessageSubject()); }
@@ -1374,6 +1423,7 @@ function handle(body) {
             const list = JSON.parse(clean);
             list.forEach(op => {
               if (op.action === 'sync_inbox' || op.action === 'init_schema') return;
+              op._via = 'control';
               const r = handle(op);
               if (r && r.ok) ops++; else errs.push(JSON.stringify(r));
             });
@@ -1474,6 +1524,8 @@ function handle(body) {
 function cronSync() {
   const r = handle({ action: 'sync_inbox' });
   console.log(JSON.stringify(r));
+  // Almacén v0 + Syntage: avanza el ciclo diario en cada corrida (código, sin IA).
+  try { const a = almacenTick_(); console.log('almacen ' + JSON.stringify(a)); } catch (e) { console.log('almacen error ' + e); }
 }
 
 /**
@@ -2014,3 +2066,418 @@ function out(obj, callback) {
   return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+ * ALMACÉN v0 (privado) + LECTURA NOCTURNA DE SYNTAGE — 2-sep-2026
+ * ----------------------------------------------------------------------
+ * Qué es: un Google Sheet PRIVADO (sin compartir por link) que el propio
+ * backend crea la primera vez y del que guarda el ID en ScriptProperties.
+ * Sustituye la "servilleta de tres columnas" que corría en la laptop de
+ * Juan: la lectura de Syntage corre aquí, en Google, como CÓDIGO (sin IA,
+ * sin tokens), aprovechando el reloj de cronSync (cada 15 min).
+ *
+ * Reglas que respeta:
+ *  - NULL = sin dato, 0 = cero confirmado (RN-4.1): las celdas vacías son
+ *    "sin dato"; nunca se escribe 0 por defecto.
+ *  - Solo texto/datos estructurados (RN-1.2). No se guarda el detalle de
+ *    CFDI: solo conteos y totales por mes. El detalle espera al almacén
+ *    relacional (ADR-001).
+ *  - Fuente y frescura viajan con cada dato (columna fuente + fecha).
+ *  - Cuando exista Postgres, cambia el DESTINO de estas funciones, no la
+ *    lógica.
+ *
+ * Ciclo diario (máquina de estados en ScriptProperties ALM_CYCLE):
+ *   entidades → detalle (lotes de ALM_LOTE entidades por tick) → snapshot → listo
+ * Arranca a partir de las 02:00 (CDMX) cada día, o de inmediato si nunca
+ * ha corrido. Cada tick tiene presupuesto de tiempo (ALM_PRESUPUESTO_MS)
+ * para no comerse los 6 minutos de cronSync.
+ * ══════════════════════════════════════════════════════════════════════ */
+
+const ALM_TITULO = 'Tally · Almacén v0 (privado)';
+const ALM_LOTE = 12;               // entidades por tick
+const ALM_PRESUPUESTO_MS = 150000; // 2.5 min por tick
+const SYN_BASE = 'https://api.syntage.com';
+
+const ALM_TABS = {
+  entidades_syntage: ['syntage_entity_id', 'nombre_syntage', 'company_id', 'rfc', 'razon_social', 'primera_lectura', 'ultima_lectura', 'match_por', 'notas'],
+  opiniones:         ['company_id', 'rfc', 'syntage_entity_id', 'fecha_consulta', 'sentido', 'fecha_opinion', 'folio', 'fuente'],
+  declaraciones_mes: ['syntage_entity_id', 'company_id', 'rfc', 'periodo', 'tipo', 'intervalo', 'fecha_presentacion', 'num_operacion', 'complementaria', 'fuente', 'fecha_lectura'],
+  cfdi_resumen_mes:  ['syntage_entity_id', 'company_id', 'rfc', 'periodo', 'cfdi_total_n', 'emitidos_n', 'recibidos_n', 'fuente', 'fecha_lectura'],
+  snapshot_metricas: ['fecha_corte', 'periodo', 'company_id', 'cliente', 'owner', 'en_universo', 'p1_opinion', 'p2_documentacion', 'p3_calculo', 'p4_auditoria', 'p5_reporte', 'detalle_json'],
+  aprobaciones_calculo: ['company_id', 'periodo', 'fecha_envio', 'fecha_aprobacion', 'canal', 'evidencia', 'registrado_por', 'ts'],
+  reportes_entregados:  ['company_id', 'periodo', 'fecha_entrega', 'canal', 'evidencia', 'registrado_por', 'ts'],
+  log_corridas:      ['ts', 'proceso', 'resultado', 'detalle']
+};
+
+/** Devuelve el Spreadsheet del almacén; lo crea (privado) la primera vez. */
+function almacenSS_() {
+  const props = PropertiesService.getScriptProperties();
+  let id = props.getProperty('ALMACEN_ID');
+  let ss = null;
+  if (id) { try { ss = SpreadsheetApp.openById(id); } catch (e) { ss = null; } }
+  if (!ss) {
+    ss = SpreadsheetApp.create(ALM_TITULO);
+    props.setProperty('ALMACEN_ID', ss.getId());
+    props.setProperty('ALMACEN_CREADO', new Date().toISOString());
+  }
+  Object.keys(ALM_TABS).forEach(function (t) { getOrCreate(ss, t, ALM_TABS[t]); });
+  const hoja1 = ss.getSheetByName('Hoja 1') || ss.getSheetByName('Sheet1');
+  if (hoja1 && ss.getSheets().length > 1) { try { ss.deleteSheet(hoja1); } catch (e) {} }
+  return ss;
+}
+
+function almLog_(proceso, resultado, detalle) {
+  const fila = [new Date().toISOString(), proceso, resultado, String(detalle || '').substring(0, 900)];
+  try {
+    almacenSS_().getSheetByName('log_corridas').appendRow(fila);
+  } catch (e) {
+    // Si el almacén no se pudo abrir/crear, dejar rastro en la DB de la interfaz para poder diagnosticar.
+    try { const ss = SpreadsheetApp.openById(DB_ID); (ss.getSheetByName('Log_Periodos') || ss.insertSheet('Log_Periodos')).appendRow([fila[0], 'almacen ' + proceso + ' ' + resultado + ' · ' + fila[3] + ' · sin almacén: ' + e]); } catch (e2) {}
+  }
+}
+
+/** Lee una pestaña del almacén como lista de objetos {col: valor}. */
+function almLeer_(nombre) {
+  const sh = almacenSS_().getSheetByName(nombre);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const data = sh.getDataRange().getValues();
+  const head = data[0].map(String);
+  return data.slice(1).map(function (r, i) {
+    const o = { _fila: i + 2 };
+    head.forEach(function (h, j) { o[h] = r[j]; });
+    return o;
+  });
+}
+
+/** Upsert genérico por columnas clave. Devuelve {insertadas, actualizadas}. */
+function almUpsert_(nombre, claves, filas) {
+  const ss = almacenSS_();
+  const sh = getOrCreate(ss, nombre, ALM_TABS[nombre] || Object.keys(filas[0] || {}));
+  const head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  const idx = {}; head.forEach(function (h, j) { idx[h] = j; });
+  const existentes = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, head.length).getValues() : [];
+  const mapa = {};
+  existentes.forEach(function (r, i) {
+    const k = claves.map(function (c) { return String(r[idx[c]] === undefined ? '' : r[idx[c]]).trim(); }).join('|');
+    mapa[k] = i + 2;
+  });
+  let ins = 0, upd = 0;
+  const nuevas = [];
+  filas.forEach(function (f) {
+    const k = claves.map(function (c) { return String(f[c] === undefined || f[c] === null ? '' : f[c]).trim(); }).join('|');
+    const rowVals = head.map(function (h) { return f[h] === undefined || f[h] === null ? '' : f[h]; });
+    if (mapa[k]) {
+      // actualizar solo columnas presentes en f (no borrar lo que no viene)
+      const fila = mapa[k];
+      const actuales = sh.getRange(fila, 1, 1, head.length).getValues()[0];
+      head.forEach(function (h, j) { if (f[h] !== undefined && f[h] !== null) actuales[j] = f[h]; });
+      sh.getRange(fila, 1, 1, head.length).setValues([actuales]);
+      upd++;
+    } else {
+      nuevas.push(rowVals); mapa[k] = -1; ins++;
+    }
+  });
+  if (nuevas.length) sh.getRange(sh.getLastRow() + 1, 1, nuevas.length, head.length).setValues(nuevas);
+  return { ok: true, insertadas: ins, actualizadas: upd };
+}
+
+/* ── Syntage: llave y cliente HTTP ── */
+function syntageKey_() {
+  const props = PropertiesService.getScriptProperties();
+  let k = props.getProperty('SYNTAGE_API_KEY');
+  if (!k && typeof SECRETS !== 'undefined' && SECRETS && SECRETS.SYNTAGE_API_KEY) {
+    k = SECRETS.SYNTAGE_API_KEY;
+    props.setProperty('SYNTAGE_API_KEY', k); // se copia una vez a propiedades; después el archivo Secrets puede vaciarse
+  }
+  return k || '';
+}
+
+function synGet_(path, params) {
+  const key = syntageKey_();
+  if (!key) return { _error: 'sin SYNTAGE_API_KEY' };
+  let url = path.indexOf('http') === 0 ? path : SYN_BASE + path;
+  if (params) {
+    const qs = Object.keys(params).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); }).join('&');
+    url += (url.indexOf('?') >= 0 ? '&' : '?') + qs;
+  }
+  for (let i = 0; i < 3; i++) {
+    try {
+      const r = UrlFetchApp.fetch(url, { method: 'get', headers: { 'X-Api-Key': key, 'Accept': 'application/ld+json' }, muteHttpExceptions: true });
+      const code = r.getResponseCode();
+      if (code === 429 || code >= 500) { Utilities.sleep(2500 * (i + 1)); continue; }
+      if (code >= 400) return { _error: code, _body: r.getContentText().substring(0, 300) };
+      return JSON.parse(r.getContentText());
+    } catch (e) { if (i === 2) return { _error: String(e) }; Utilities.sleep(2000); }
+  }
+  return { _error: 'reintentos agotados' };
+}
+
+/** Todas las páginas de una colección hydra (tope de páginas por seguridad). */
+function synTodos_(path, params, maxPag) {
+  let acc = [], pag = synGet_(path, params), n = 0;
+  while (true) {
+    if (!pag || pag._error) return { _error: (pag && pag._error) || 'sin respuesta', acumulado: acc };
+    const ms = pag['hydra:member'] || [];
+    acc = acc.concat(ms); n++;
+    const nxt = (pag['hydra:view'] || {})['hydra:next'];
+    if (!nxt || !ms.length || n >= (maxPag || 10)) break;
+    pag = synGet_(nxt);
+  }
+  return acc;
+}
+
+/* ── Utilidades de fecha (CDMX) ── */
+function almHoy_() { return Utilities.formatDate(new Date(), 'America/Mexico_City', 'yyyy-MM-dd'); }
+function almHora_() { return Number(Utilities.formatDate(new Date(), 'America/Mexico_City', 'H')); }
+function almPeriodo_(offsetMeses) {
+  const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + (offsetMeses || 0));
+  return Utilities.formatDate(d, 'America/Mexico_City', 'yyyy-MM');
+}
+function almRangoPeriodo_(periodo) { // 'yyyy-MM' → [inicio, fin exclusivo] como 'yyyy-MM-dd'
+  const y = Number(periodo.slice(0, 4)), m = Number(periodo.slice(5, 7));
+  const ini = new Date(y, m - 1, 1), fin = new Date(y, m, 1);
+  const f = function (d) { return Utilities.formatDate(d, 'America/Mexico_City', 'yyyy-MM-dd'); };
+  return [f(ini), f(fin)];
+}
+/** PeriodID de Clientes_por_periodo: '2026-5_AZ006499' (mes sin cero a la izquierda). */
+function almPeriodIdAppSheet_(periodo, companyId) {
+  return periodo.slice(0, 4) + '-' + String(Number(periodo.slice(5, 7))) + '_' + companyId;
+}
+
+/* ── Normalización de nombres para el match Syntage ↔ Clients_Load ── */
+function almNorm_(s) {
+  s = String(s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  s = s.replace(/\b(S DE RL DE CV|SA DE CV|SAPI DE CV|S A P I DE CV|S\.A\.B\.|INC\.?|LLC|LTD|CO|DBA|MEXICO|MX|LATAM|GRUPO|THE)\b/g, ' ');
+  s = s.replace(/[^A-Z0-9 ]/g, ' ');
+  return s.split(/\s+/).filter(Boolean).join(' ');
+}
+
+/** Padrón vivo (Clients_Load del DataModel): {company_id: {rfc, nombre, owner, suspension}} + índices por RFC y nombre. */
+function almPadron_() {
+  const sh = hojaDeTabla('Clients_Load');
+  const out = { porId: {}, porRfc: {}, porNombre: {} };
+  if (!sh) return out;
+  const data = sh.getDataRange().getValues();
+  const head = data[0].map(String);
+  const iId = head.indexOf('Company_Id'), iRfc = head.indexOf('RFC'), iRfcV = head.indexOf('RFC_v'),
+        iNom = head.indexOf('ClientName'), iOwn = head.indexOf('Owner'), iSus = head.indexOf('Suspension');
+  for (let i = 1; i < data.length; i++) {
+    const id = String(data[i][iId] || '').trim(); if (!id) continue;
+    const rfc = String(data[i][iRfc] || '').trim().toUpperCase();
+    const rfcV = String(iRfcV >= 0 ? data[i][iRfcV] || '' : '').trim().toUpperCase();
+    const o = { company_id: id, rfc: rfc && rfc !== 'NO MATCH' ? rfc : rfcV, nombre: String(data[i][iNom] || ''), owner: String(data[i][iOwn] || ''), suspension: String(data[i][iSus] || '') };
+    out.porId[id] = o;
+    if (o.rfc) out.porRfc[o.rfc] = id;
+    const n = almNorm_(o.nombre); if (n) out.porNombre[n] = id;
+  }
+  return out;
+}
+
+/* ── Máquina de estados del ciclo diario ── */
+function almCiclo_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('ALM_CYCLE') || 'null'); } catch (e) { return null; } }
+function almGuardarCiclo_(c) { PropertiesService.getScriptProperties().setProperty('ALM_CYCLE', JSON.stringify(c)); }
+
+/** Tick: lo llama cronSync cada 15 min. Avanza el ciclo del día lo que alcance en su presupuesto. */
+function almacenTick_() {
+  const t0 = Date.now();
+  const hoy = almHoy_();
+  let c = almCiclo_();
+  if (!c || (c.fecha !== hoy && (almHora_() >= 2 || c.etapa === 'listo' || c.etapa === 'error'))) {
+    if (c && c.fecha === hoy) return { ok: true, etapa: c.etapa, nota: 'sin cambios' };
+    c = { fecha: hoy, etapa: 'entidades', cola: [], hecho: 0, total: 0, errores: 0, inicio: new Date().toISOString() };
+    almGuardarCiclo_(c);
+  }
+  if (c.etapa === 'listo') return { ok: true, etapa: 'listo', fecha: c.fecha };
+  if (!syntageKey_() && c.etapa !== 'snapshot') {
+    // Sin llave de Syntage todavía: se salta la lectura del SAT y la foto del día sale solo con el sistema contable.
+    almLog_('syntage', 'sin llave', 'SYNTAGE_API_KEY no está en Propiedades del script; la foto de hoy sale sin opinión ni universo SAT');
+    c.etapa = 'snapshot'; almGuardarCiclo_(c);
+  }
+
+  try {
+    if (c.etapa === 'entidades') {
+      const ents = synTodos_('/entities', { itemsPerPage: 200 }, 5);
+      if (ents._error) { c.errores++; almGuardarCiclo_(c); almLog_('syntage.entidades', 'error', JSON.stringify(ents._error)); return { ok: false, error: ents._error }; }
+      const padron = almPadron_();
+      const previas = {}; almLeer_('entidades_syntage').forEach(function (e) { previas[String(e.syntage_entity_id)] = e; });
+      const filas = [];
+      ents.forEach(function (e) {
+        const prev = previas[e.id] || {};
+        let company = String(prev.company_id || ''), matchPor = String(prev.match_por || '');
+        if (!company) { const n = almNorm_(e.name); if (padron.porNombre[n]) { company = padron.porNombre[n]; matchPor = 'nombre'; } }
+        filas.push({ syntage_entity_id: e.id, nombre_syntage: e.name || '', company_id: company, match_por: matchPor,
+                     primera_lectura: prev.primera_lectura || hoy, ultima_lectura: hoy });
+      });
+      almUpsert_('entidades_syntage', ['syntage_entity_id'], filas);
+      c.cola = ents.map(function (e) { return e.id; }); c.total = c.cola.length; c.etapa = 'detalle';
+      almGuardarCiclo_(c);
+      almLog_('syntage.entidades', 'ok', c.total + ' entidades conectadas');
+    }
+
+    if (c.etapa === 'detalle') {
+      const padron = almPadron_();
+      const mapaEnt = {}; almLeer_('entidades_syntage').forEach(function (e) { mapaEnt[String(e.syntage_entity_id)] = e; });
+      const periodos = [almPeriodo_(0), almPeriodo_(-1)]; // mes en curso y mes anterior
+      const opin = [], decl = [], cfdi = [], entUpd = [];
+      let n = 0;
+      while (c.cola.length && n < ALM_LOTE && (Date.now() - t0) < ALM_PRESUPUESTO_MS) {
+        const eid = c.cola.shift(); n++; c.hecho++;
+        const ent = mapaEnt[eid] || { syntage_entity_id: eid };
+        let rfc = String(ent.rfc || ''), company = String(ent.company_id || ''), razon = String(ent.razon_social || ''), matchPor = String(ent.match_por || '');
+        // 1) CSF → RFC y razón social; si no había match por nombre, match por RFC contra el padrón
+        const ts = synGet_('/entities/' + eid + '/tax-status', { itemsPerPage: 1 });
+        const tsm = (ts && ts['hydra:member'] && ts['hydra:member'][0]) || null;
+        if (tsm) {
+          rfc = String(tsm.rfc || rfc).toUpperCase();
+          razon = (tsm.company && (tsm.company.legalName || tsm.company.tradeName)) || (tsm.person && tsm.person.fullName) || razon;
+          if (!company && rfc && padron.porRfc[rfc]) { company = padron.porRfc[rfc]; matchPor = 'rfc'; }
+        }
+        entUpd.push({ syntage_entity_id: eid, rfc: rfc, razon_social: razon, company_id: company, match_por: matchPor, ultima_lectura: hoy });
+        // 2) Opinión de cumplimiento (la más reciente)
+        const oc = synGet_('/entities/' + eid + '/tax-compliance-checks', { itemsPerPage: 5 });
+        const ocm = (oc && oc['hydra:member']) || [];
+        if (ocm.length) {
+          ocm.sort(function (a, b) { return String(b.checkedAt || b.createdAt) < String(a.checkedAt || a.createdAt) ? -1 : 1; });
+          const u = ocm[0];
+          opin.push({ company_id: company, rfc: rfc, syntage_entity_id: eid, fecha_consulta: hoy,
+                      sentido: String(u.result || '').toUpperCase(), fecha_opinion: String(u.checkedAt || u.createdAt || '').slice(0, 10),
+                      folio: u.internalIdentifier || '', fuente: 'syntage' });
+        }
+        // 3) Declaraciones presentadas en los últimos ~3 meses (todas las páginas cortas)
+        const tr = synGet_('/entities/' + eid + '/tax-returns', { itemsPerPage: 100 });
+        const trm = (tr && tr['hydra:member']) || [];
+        const corte = almPeriodo_(-3) + '-01';
+        trm.forEach(function (d) {
+          const pres = String(d.presentedAt || d.createdAt || '').slice(0, 10);
+          if (pres && pres >= corte) {
+            decl.push({ syntage_entity_id: eid, company_id: company, rfc: rfc,
+                        periodo: (d.fiscalYear ? String(d.fiscalYear) : '') + (d.period ? ' · ' + d.period : ''),
+                        tipo: d.type || '', intervalo: d.intervalUnit || '', fecha_presentacion: pres,
+                        num_operacion: d.operationNumber || '', complementaria: d.complementary || '', fuente: 'syntage', fecha_lectura: hoy });
+          }
+        });
+        // 4) Conteo de CFDI vigentes por mes (sin bajar el detalle): total, emitidos, recibidos
+        periodos.forEach(function (p) {
+          const rg = almRangoPeriodo_(p);
+          const base = { itemsPerPage: 1, status: 'VIGENTE', 'issuedAt[after]': rg[0], 'issuedAt[before]': rg[1] };
+          const tot = synGet_('/entities/' + eid + '/invoices', base);
+          const emi = synGet_('/entities/' + eid + '/invoices', Object.assign({ isIssuer: 'true' }, base));
+          const rec = synGet_('/entities/' + eid + '/invoices', Object.assign({ isReceiver: 'true' }, base));
+          const g = function (x) { return (x && !x._error && x['hydra:totalItems'] !== undefined) ? Number(x['hydra:totalItems']) : ''; };
+          cfdi.push({ syntage_entity_id: eid, company_id: company, rfc: rfc, periodo: p,
+                      cfdi_total_n: g(tot), emitidos_n: g(emi), recibidos_n: g(rec), fuente: 'syntage', fecha_lectura: hoy });
+        });
+      }
+      if (entUpd.length) almUpsert_('entidades_syntage', ['syntage_entity_id'], entUpd);
+      if (opin.length) almUpsert_('opiniones', ['syntage_entity_id', 'fecha_consulta'], opin);
+      if (decl.length) almUpsert_('declaraciones_mes', ['syntage_entity_id', 'num_operacion'], decl);
+      if (cfdi.length) almUpsert_('cfdi_resumen_mes', ['syntage_entity_id', 'periodo'], cfdi);
+      if (!c.cola.length) c.etapa = 'snapshot';
+      almGuardarCiclo_(c);
+      almLog_('syntage.detalle', 'ok', 'lote ' + n + ' · hecho ' + c.hecho + '/' + c.total + ' · ' + Math.round((Date.now() - t0) / 1000) + 's');
+      if (c.etapa !== 'snapshot') return { ok: true, etapa: 'detalle', hecho: c.hecho, total: c.total };
+    }
+
+    if (c.etapa === 'snapshot') {
+      const r = almSnapshot_(almPeriodo_(-1));
+      c.etapa = 'listo'; c.fin = new Date().toISOString(); almGuardarCiclo_(c);
+      almLog_('snapshot', 'ok', JSON.stringify(r).substring(0, 800));
+      return { ok: true, etapa: 'listo', snapshot: r };
+    }
+  } catch (e) {
+    c.errores++; c.etapa = c.errores > 5 ? 'error' : c.etapa; almGuardarCiclo_(c);
+    almLog_('almacenTick', 'error', String(e));
+    return { ok: false, error: String(e) };
+  }
+  return { ok: true, etapa: c.etapa };
+}
+
+/** Foto diaria de las cinco promesas para un período (mes anterior por defecto).
+ *  p1 opinión ← Syntage · p2 documentación ← sistema contable · p3 cálculo ← sistema contable + aprobaciones_calculo
+ *  p4 auditoría ← veredicto del auditor en el sistema · p5 reporte ← reportes_entregados
+ *  en_universo = tiene CFDI vigentes en el período según el SAT (definición de Juan, 2-sep-2026). */
+function almSnapshot_(periodo) {
+  const hoy = almHoy_();
+  const padron = almPadron_();
+  const ents = almLeer_('entidades_syntage');
+  const cfdi = {}; almLeer_('cfdi_resumen_mes').forEach(function (r) { if (String(r.periodo) === periodo && r.company_id) cfdi[String(r.company_id)] = r; });
+  const opin = {}; almLeer_('opiniones').forEach(function (r) { const k = String(r.company_id); if (!k) return; if (!opin[k] || String(r.fecha_consulta) > String(opin[k].fecha_consulta)) opin[k] = r; });
+  const apro = {}; almLeer_('aprobaciones_calculo').forEach(function (r) { if (String(r.periodo) === periodo) apro[String(r.company_id)] = r; });
+  const repo = {}; almLeer_('reportes_entregados').forEach(function (r) { if (String(r.periodo) === periodo) repo[String(r.company_id)] = r; });
+  // Sistema contable: Clientes_por_periodo del período
+  const cxp = {};
+  const shC = hojaDeTabla('Clientes_por_periodo');
+  if (shC) {
+    const data = shC.getDataRange().getValues(); const head = data[0].map(String);
+    const ix = function (n) { return head.indexOf(n); };
+    const iPid = ix('PeriodID'), iEdo = ix('Related Estados_cuentas'), iVen = ix('VentasList'), iRet = ix('RetencionList'), iInv = ix('InventarioList'),
+          iCal = ix('Related calculo_impuestos'), iQA = ix('QA_Resultado'), iDT = ix('DeclaracionTipo'), iFD = ix('Fecha_Declaracion'), iEst = ix('EstadoCliente');
+    const suf = '_';
+    for (let i = 1; i < data.length; i++) {
+      const pid = String(data[i][iPid] || '');
+      if (pid.indexOf(periodo.slice(0, 4) + '-' + String(Number(periodo.slice(5, 7))) + suf) !== 0) continue;
+      const cid = pid.split('_')[1];
+      cxp[cid] = { edo: !!String(data[i][iEdo] || '').trim(), ven: !!String(data[i][iVen] || '').trim() && String(data[i][iVen]).trim() !== '0',
+                   ret: !!String(data[i][iRet] || '').trim(), inv: !!String(data[i][iInv] || '').trim(), cal: !!String(data[i][iCal] || '').trim(),
+                   qa: String(data[i][iQA] || ''), decl: String(data[i][iDT] || ''), fdecl: data[i][iFD] ? String(data[i][iFD]) : '', estado: String(data[i][iEst] || '') };
+    }
+  }
+  // Universo: compañías mapeadas desde Syntage (las no mapeadas quedan fuera pero se registran en log)
+  const filas = []; let sinMapa = 0, enUni = 0;
+  // Base de la foto: entidades Syntage mapeadas; si aún no hay lectura de Syntage, todo cliente con fila del período en el sistema.
+  let base = ents.map(function (e) { return { cid: String(e.company_id || ''), razon: e.razon_social }; });
+  if (!base.length) base = Object.keys(cxp).map(function (cid) { return { cid: cid, razon: '' }; });
+  base.forEach(function (e) {
+    const cid = e.cid; if (!cid) { sinMapa++; return; }
+    const p = padron.porId[cid] || { nombre: e.razon, owner: '' };
+    const cf = cfdi[cid]; const n = cf && cf.cfdi_total_n !== '' ? Number(cf.cfdi_total_n) : null;
+    const enUniverso = n === null ? '' : (n > 0 ? 'sí' : 'no'); if (enUniverso === 'sí') enUni++;
+    const o = opin[cid]; const x = cxp[cid] || null;
+    const p1 = o ? (o.sentido === 'POSITIVE' || o.sentido === 'POSITIVA' ? 'positiva' : (o.sentido ? 'negativa' : '')) : '';
+    let p2 = '';
+    if (x) { const k = [x.edo, x.ven, x.ret, x.inv].filter(Boolean).length; p2 = k >= 4 ? 'completa' : (k + '/4'); }
+    const p3 = apro[cid] && apro[cid].fecha_aprobacion ? 'aprobado' : (x && x.cal ? 'calculado' : (x ? 'pendiente' : ''));
+    const p4 = x ? (x.qa === 'Aprobado' ? 'positiva' : (x.qa ? x.qa.toLowerCase() : (x.decl ? 'sin auditar' : ''))) : '';
+    const p5 = repo[cid] && repo[cid].fecha_entrega ? 'entregado' : (x ? 'pendiente' : '');
+    filas.push({ fecha_corte: hoy, periodo: periodo, company_id: cid, cliente: p.nombre || '', owner: p.owner || '', en_universo: enUniverso,
+                 p1_opinion: p1, p2_documentacion: p2, p3_calculo: p3, p4_auditoria: p4, p5_reporte: p5,
+                 detalle_json: JSON.stringify({ cfdi: cf ? { total: cf.cfdi_total_n, emitidos: cf.emitidos_n, recibidos: cf.recibidos_n } : null,
+                                               opinion: o ? { sentido: o.sentido, fecha: o.fecha_opinion, folio: o.folio } : null,
+                                               sistema: x, aprobacion: apro[cid] ? { fecha: apro[cid].fecha_aprobacion, canal: apro[cid].canal } : null,
+                                               reporte: repo[cid] ? { fecha: repo[cid].fecha_entrega, canal: repo[cid].canal } : null }) });
+  });
+  if (filas.length) almUpsert_('snapshot_metricas', ['fecha_corte', 'periodo', 'company_id'], filas);
+  return { periodo: periodo, filas: filas.length, en_universo: enUni, entidades_sin_mapa: sinMapa };
+}
+
+/** Resumen de las cinco promesas para la interfaz (último corte del período y último corte del período anterior). */
+function almResumen_(periodo, owner) {
+  const snap = almLeer_('snapshot_metricas');
+  const ultimoCorte = function (per) { let m = ''; snap.forEach(function (r) { if (String(r.periodo) === per && String(r.fecha_corte) > m) m = String(r.fecha_corte); }); return m; };
+  const arma = function (per) {
+    const corte = ultimoCorte(per); if (!corte) return null;
+    const rows = snap.filter(function (r) { return String(r.periodo) === per && String(r.fecha_corte) === corte && r.en_universo === 'sí' && (!owner || String(r.owner) === owner); });
+    const cnt = function (col, ok) { let s = 0; rows.forEach(function (r) { if (String(r[col]) === ok) s++; }); return s; };
+    return { periodo: per, fecha_corte: corte, universo: rows.length,
+             p1_opinion: { ok: cnt('p1_opinion', 'positiva'), total: rows.length },
+             p2_documentacion: { ok: cnt('p2_documentacion', 'completa'), total: rows.length },
+             p3_calculo: { ok: cnt('p3_calculo', 'aprobado'), calculado: cnt('p3_calculo', 'calculado'), total: rows.length },
+             p4_auditoria: { ok: cnt('p4_auditoria', 'positiva'), total: rows.length },
+             p5_reporte: { ok: cnt('p5_reporte', 'entregado'), total: rows.length },
+             por_owner: (function () { const m = {}; rows.forEach(function (r) { m[r.owner || '(sin owner)'] = (m[r.owner || '(sin owner)'] || 0) + 1; }); return m; })() };
+  };
+  const per = periodo || almPeriodo_(-1);
+  const d = new Date(Number(per.slice(0, 4)), Number(per.slice(5, 7)) - 1, 1); d.setMonth(d.getMonth() - 1);
+  const ant = Utilities.formatDate(d, 'America/Mexico_City', 'yyyy-MM');
+  return { ok: true, actual: arma(per), anterior: arma(ant) };
+}
+
+function almDetalle_(metrica, periodo, owner) {
+  const col = { p1: 'p1_opinion', p2: 'p2_documentacion', p3: 'p3_calculo', p4: 'p4_auditoria', p5: 'p5_reporte' }[metrica] || metrica;
+  const per = periodo || almPeriodo_(-1);
+  const snap = almLeer_('snapshot_metricas');
+  let corte = ''; snap.forEach(function (r) { if (String(r.periodo) === per && String(r.fecha_corte) > corte) corte = String(r.fecha_corte); });
+  const rows = snap.filter(function (r) { return String(r.periodo) === per && String(r.fecha_corte) === corte && (!owner || String(r.owner) === owner); })
+    .map(function (r) { let det = null; try { det = JSON.parse(r.detalle_json || 'null'); } catch (e) {}
+      return { company_id: r.company_id, cliente: r.cliente, owner: r.owner, en_universo: r.en_universo, estado: r[col], detalle: det }; });
+  return { ok: true, metrica: col, periodo: per, fecha_corte: corte, clientes: rows };
+}
