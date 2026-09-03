@@ -47,7 +47,7 @@ const SENDER_NAME = 'Juan Vélez — Tally';
 function doGet(e) {
   const p = (e && e.parameter) || {};
   if (!p.action) {
-    return out({ ok: true, service: 'tally-ops-interface', version: '2.2-dashboard-2026-09-02', ts: new Date().toISOString() }, p.callback);
+    return out({ ok: true, service: 'tally-ops-interface', version: '2.3-dashboard-padron-2026-09-02', ts: new Date().toISOString() }, p.callback);
   }
   if (p.token !== TOKEN) return out({ ok: false, error: 'token inválido' }, p.callback);
   try {
@@ -2194,20 +2194,27 @@ function almUpsert_(nombre, claves, filas) {
   const mapa = {};
   existentes.forEach(function (r, i) { mapa[keyOf(function (c) { return almTexto_(r[idx[c]], c); })] = i + 2; });
   let ins = 0, upd = 0;
-  const nuevas = [];
+  const nuevas = []; const cambios = {}; // fila → valores nuevos
   filas.forEach(function (f) {
     const k = keyOf(function (c) { return f[c]; });
     const fila = mapa[k];
     if (fila && fila > 0) {
       // actualizar solo columnas presentes en f (no borrar lo que no viene); lo demás se reescribe ya como texto
-      const actuales = existentes[fila - 2].map(function (v, j) { return almTexto_(v, head[j]); });
+      const actuales = (cambios[fila] || existentes[fila - 2]).map(function (v, j) { return almTexto_(v, head[j]); });
       head.forEach(function (h, j) { if (f[h] !== undefined && f[h] !== null) actuales[j] = f[h]; });
-      sh.getRange(fila, 1, 1, head.length).setNumberFormat('@').setValues([actuales]);
-      upd++;
+      cambios[fila] = actuales; upd++;
     } else {
       nuevas.push(head.map(function (h) { return f[h] === undefined || f[h] === null ? '' : f[h]; })); mapa[k] = -1; ins++;
     }
   });
+  const filasCambiadas = Object.keys(cambios);
+  if (filasCambiadas.length > 40 && existentes.length) {
+    // Muchas actualizaciones (la foto completa): se reescribe el bloque existente de una sola vez.
+    const bloque = existentes.map(function (r, i) { return cambios[i + 2] || r.map(function (v, j) { return almTexto_(v, head[j]); }); });
+    sh.getRange(2, 1, bloque.length, head.length).setNumberFormat('@').setValues(bloque);
+  } else {
+    filasCambiadas.forEach(function (fila) { sh.getRange(Number(fila), 1, 1, head.length).setNumberFormat('@').setValues([cambios[fila]]); });
+  }
   if (nuevas.length) sh.getRange(sh.getLastRow() + 1, 1, nuevas.length, head.length).setNumberFormat('@').setValues(nuevas);
   return { ok: true, insertadas: ins, actualizadas: upd };
 }
@@ -2323,12 +2330,14 @@ function almPadron_() {
   const data = sh.getDataRange().getValues();
   const head = data[0].map(String);
   const iId = head.indexOf('Company_Id'), iRfc = head.indexOf('RFC'), iRfcV = head.indexOf('RFC_v'),
-        iNom = head.indexOf('ClientName'), iOwn = head.indexOf('Owner'), iSus = head.indexOf('Suspension');
+        iNom = head.indexOf('ClientName'), iOwn = head.indexOf('Owner'), iSus = head.indexOf('Suspension'),
+        iTipo = head.indexOf('Tipo de cliente'), iSub = head.indexOf('SubscriptionType');
   for (let i = 1; i < data.length; i++) {
     const id = String(data[i][iId] || '').trim(); if (!id) continue;
     const rfc = String(data[i][iRfc] || '').trim().toUpperCase();
     const rfcV = String(iRfcV >= 0 ? data[i][iRfcV] || '' : '').trim().toUpperCase();
-    const o = { company_id: id, rfc: rfc && rfc !== 'NO MATCH' ? rfc : rfcV, nombre: String(data[i][iNom] || ''), owner: String(data[i][iOwn] || ''), suspension: String(data[i][iSus] || '') };
+    const o = { company_id: id, rfc: rfc && rfc !== 'NO MATCH' ? rfc : rfcV, nombre: String(data[i][iNom] || ''), owner: String(data[i][iOwn] || ''), suspension: String(data[i][iSus] || ''),
+                tipo: String(iTipo >= 0 ? data[i][iTipo] || '' : ''), suscripcion: String(iSub >= 0 ? data[i][iSub] || '' : '') };
     out.porId[id] = o;
     if (o.rfc) out.porRfc[o.rfc] = id;
     const n = almNorm_(o.nombre); if (n) out.porNombre[n] = id;
@@ -2498,17 +2507,23 @@ function almSnapshot_(periodo) {
   // Base de la foto: entidades Syntage mapeadas; si aún no hay lectura de Syntage, todo cliente con fila del período en el sistema.
   // Base = entidades conectadas en Syntage (mapeadas al padrón) ∪ clientes con fila del período en el sistema contable.
   // Así los clientes sin conexión al SAT no desaparecen: quedan como 'sin lectura' para que Juan los vea y los conecte.
-  const enBase = {};
+  // v2.3 (pedido de Juan, 2-sep 18:00): la foto cubre TODO el padrón — cada owner con todas sus empresas.
+  // Base = padrón completo (Clients_Load) ∪ entidades Syntage mapeadas ∪ clientes con fila del período.
+  // Los no conectados en Syntage quedan marcados 'sin conexión' (su contexto se limita al sistema de Tally).
+  const enBase = {}; const conectado = {};
   let base = [];
-  ents.forEach(function (e) { const cid = String(e.company_id || ''); if (!cid) { sinMapa++; return; } if (!enBase[cid]) { enBase[cid] = 1; base.push({ cid: cid, razon: e.razon_social }); } });
+  Object.keys(padron.porId).forEach(function (cid) { if (cid && !enBase[cid]) { enBase[cid] = 1; base.push({ cid: cid, razon: '' }); } });
+  ents.forEach(function (e) { const cid = String(e.company_id || ''); if (!cid) { sinMapa++; return; } conectado[cid] = 1; if (!enBase[cid]) { enBase[cid] = 1; base.push({ cid: cid, razon: e.razon_social }); } });
   Object.keys(cxp).forEach(function (cid) { if (cid && !enBase[cid]) { enBase[cid] = 1; base.push({ cid: cid, razon: '' }); } });
+  let sinConexion = 0;
   base.forEach(function (e) {
     const cid = e.cid;
-    const p = padron.porId[cid] || { nombre: e.razon, owner: '' };
+    const p = padron.porId[cid] || { nombre: e.razon, owner: '', rfc: '', suspension: '', tipo: '', suscripcion: '' };
+    const conSat = !!conectado[cid]; if (!conSat) sinConexion++;
     const cf = cfdi[cid]; const nRaw = cf ? parseInt(String(cf.cfdi_total_n), 10) : NaN; const n = isNaN(nRaw) ? null : nRaw;
-    const enUniverso = n === null ? 'sin lectura' : (n > 0 ? 'sí' : 'no'); if (enUniverso === 'sí') enUni++;
+    const enUniverso = !conSat ? 'sin conexión' : (n === null ? 'sin lectura' : (n > 0 ? 'sí' : 'no')); if (enUniverso === 'sí') enUni++;
     const o = opin[cid]; const x = cxp[cid] || null;
-    const p1 = o ? (o.sentido === 'POSITIVE' || o.sentido === 'POSITIVA' ? 'positiva' : (o.sentido ? 'negativa' : 'sin lectura')) : 'sin lectura';
+    const p1 = !conSat ? 'sin conexión' : (o ? (o.sentido === 'POSITIVE' || o.sentido === 'POSITIVA' ? 'positiva' : (o.sentido ? 'negativa' : 'sin lectura')) : 'sin lectura');
     let p2 = 'sin período';
     if (x) { const k = [x.edo, x.ven, x.ret, x.inv].filter(Boolean).length; p2 = k >= 4 ? 'completa' : (k + '/4'); }
     const p3 = apro[cid] && apro[cid].fecha_aprobacion ? 'aprobado' : (x && x.cal ? 'calculado' : (x ? 'pendiente' : 'sin período'));
@@ -2516,13 +2531,15 @@ function almSnapshot_(periodo) {
     const p5 = repo[cid] && repo[cid].fecha_entrega ? 'entregado' : (x ? 'pendiente' : 'sin período');
     filas.push({ fecha_corte: hoy, periodo: periodo, company_id: cid, cliente: p.nombre || '', owner: p.owner || '', en_universo: enUniverso,
                  p1_opinion: p1, p2_documentacion: p2, p3_calculo: p3, p4_auditoria: p4, p5_reporte: p5,
-                 detalle_json: JSON.stringify({ cfdi: cf ? { total: cf.cfdi_total_n, emitidos: cf.emitidos_n, recibidos: cf.recibidos_n } : null,
+                 detalle_json: JSON.stringify({ syntage: conSat,
+                                               padron: { rfc: p.rfc || '', tipo: p.tipo || '', suscripcion: p.suscripcion || '', suspension: p.suspension || '' },
+                                               cfdi: cf ? { total: cf.cfdi_total_n, emitidos: cf.emitidos_n, recibidos: cf.recibidos_n } : null,
                                                opinion: o ? { sentido: o.sentido, fecha: o.fecha_opinion, folio: o.folio } : null,
                                                sistema: x, aprobacion: apro[cid] ? { fecha: apro[cid].fecha_aprobacion, canal: apro[cid].canal } : null,
                                                reporte: repo[cid] ? { fecha: repo[cid].fecha_entrega, canal: repo[cid].canal } : null }) });
   });
   if (filas.length) almUpsert_('snapshot_metricas', ['fecha_corte', 'periodo', 'company_id'], filas);
-  return { periodo: periodo, filas: filas.length, en_universo: enUni, entidades_sin_mapa: sinMapa, con_fila_sistema: Object.keys(cxp).length, con_lectura_sat: Object.keys(cfdi).length };
+  return { periodo: periodo, filas: filas.length, en_universo: enUni, sin_conexion_sat: sinConexion, entidades_sin_mapa: sinMapa, con_fila_sistema: Object.keys(cxp).length, con_lectura_sat: Object.keys(cfdi).length };
 }
 
 /** Tabla completa del último corte de un período — una sola llamada para el Dashboard de las cinco promesas. */

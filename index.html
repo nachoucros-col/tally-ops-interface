@@ -247,6 +247,14 @@ tr:hover td{background:rgba(96,71,255,.04)}
 .dash-reg input[type=date],.dash-reg input[type=text]{width:auto;padding:6px 10px;font-size:12.5px;border:1px solid #d4d4d4;border-radius:var(--radius-sm);background:var(--cream)}
 .dash-empty{padding:40px;text-align:center;color:var(--text-secondary)}
 .dash-warn{background:var(--orange-100);border-radius:var(--radius-sm);padding:10px 14px;font-size:13px;margin-bottom:14px;line-height:1.5}
+/* Etiquetas de conexión con el SAT y suspensión */
+.sat-tag{display:inline-block;font-size:10.5px;font-weight:500;padding:2px 8px;border-radius:var(--radius-sm);margin-top:3px;white-space:nowrap}
+.sat-tag.sat-si{background:var(--green-100);color:#1d7a3f}
+.sat-tag.sat-no{background:var(--cyan-100);color:#0a6d8f}
+.sat-tag.sat-sl{background:var(--gray-100);color:var(--text-secondary);border:1px dashed var(--gray-300)}
+.sat-tag.sat-off{background:var(--orange-100);color:#b34a17}
+.sat-tag.sat-susp{background:var(--ink);color:var(--cream)}
+.dash-bar i.sat{background:var(--violet-500)}
 /* Brand Master §6.7 — reduced motion */
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{transition-duration:0.01ms !important;animation-duration:0.01ms !important}
@@ -278,7 +286,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
       <div class="page-head">
         <div>
           <h1>Dashboard</h1>
-          <p class="lead">Las cinco promesas del equipo contable por período fiscal, en capas: las tarjetas (capa 1), los clientes detrás de cada número (capa 2) y el detalle de cada cliente con su fuente y lo que falta (capa 3). El universo es el que fijó Juan: todo cliente con facturas vigentes en el SAT ese mes.</p>
+          <p class="lead">Las cinco promesas del equipo contable por período fiscal, en capas: las tarjetas (capa 1), los clientes detrás de cada número (capa 2) y el detalle de cada cliente con su fuente y lo que falta (capa 3). Cubre todo el padrón: cada owner con todas sus empresas. Las que no están conectadas al SAT (Syntage) llevan etiqueta: su contexto se limita a lo que hay en el sistema de Tally. El universo SAT es el que fijó Juan: clientes con facturas vigentes en el SAT ese mes.</p>
         </div>
         <div class="head-actions">
           <button class="chip" onclick="dashCargar(true)" title="Vuelve a leer la foto del almacén">🔄 Actualizar</button>
@@ -288,9 +296,10 @@ tr:hover td{background:rgba(96,71,255,.04)}
         <select id="dashPeriodo" onchange="dashSetPeriodo(this.value)"><option value="">Período…</option></select>
         <select id="dashOwner" onchange="dashSetOwner(this.value)"><option value="">👤 Todos los owners</option></select>
         <div class="dash-seg" id="dashModo">
-          <button class="on" data-modo="universo" onclick="dashSetModo('universo')" title="Clientes con facturas vigentes en el SAT en el mes (definición de Juan)">Universo SAT</button>
-          <button data-modo="todos" onclick="dashSetModo('todos')" title="Todos los clientes con dato en la foto: conectados en Syntage o con período abierto en el sistema">Todos con dato</button>
+          <button class="on" data-modo="todos" onclick="dashSetModo('todos')" title="Todo el padrón: cada owner con todas sus empresas; las no conectadas al SAT llevan etiqueta">Todos los clientes</button>
+          <button data-modo="universo" onclick="dashSetModo('universo')" title="Solo clientes con facturas vigentes en el SAT en el mes (definición de Juan)">Universo SAT</button>
         </div>
+        <button class="chip" id="dashSusp" onclick="dashSetSusp(!DASH.susp)" title="Los clientes suspendidos no cuentan en las promesas; aquí se pueden mostrar">Incluir suspendidos</button>
         <span id="dashCorte" style="font-size:12.5px;color:var(--text-secondary);margin-left:auto"></span>
       </div>
       <div id="dashAviso"></div>
@@ -2220,7 +2229,7 @@ const DASH_PROM = [
   { k:'reporte',       titulo:'Reporte entregado',      ok:'entregado', fuente:'Registro de entregas' }
 ];
 const DASH_MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-let DASH = { periodo:'', owner:'', ownerFijo:false, modo:'universo', metrica:'', estado:'', q:'', actual:null, anterior:null, periodos:{}, cargando:false };
+let DASH = { periodo:'', owner:'', ownerFijo:false, modo:'todos', susp:false, metrica:'', estado:'', q:'', actual:null, anterior:null, periodos:{}, cargando:false };
 
 function dashAuth(){ return AUTH ? { email:AUTH.email, password:AUTH.password } : null; }
 function dashPeriodoLabel(p){ const m=String(p||'').match(/^(\d{4})-(\d{2})$/); return m ? DASH_MESES[Number(m[2])-1]+' '+m[1] : (p||'—'); }
@@ -2235,7 +2244,7 @@ function dashFecha(s){
 /* Etiqueta humana y color de cada estado */
 function dashEstadoInfo(k, v){
   v=String(v||'').trim();
-  if(k==='opinion'){ if(v==='positiva') return {label:'Positiva',cls:'ok'}; if(v==='negativa') return {label:'Negativa',cls:'bad'}; return {label:'Sin lectura del SAT',cls:'none'}; }
+  if(k==='opinion'){ if(v==='positiva') return {label:'Positiva',cls:'ok'}; if(v==='negativa') return {label:'Negativa',cls:'bad'}; if(v==='sin conexión') return {label:'Sin conexión al SAT',cls:'none'}; return {label:'Sin lectura del SAT',cls:'none'}; }
   if(k==='documentacion'){ if(v==='completa') return {label:'Completa',cls:'ok'}; const m=v.match(/^(\d)\/4$/); if(m) return {label:m[1]+' de 4 documentos',cls:m[1]==='0'?'bad':'mid'}; return {label:'Sin período abierto',cls:'none'}; }
   if(k==='calculo'){ if(v==='aprobado') return {label:'Aprobado por el cliente',cls:'ok'}; if(v==='calculado') return {label:'Calculado, sin aprobación',cls:'mid'}; if(v==='pendiente') return {label:'Sin calcular',cls:'bad'}; return {label:'Sin período abierto',cls:'none'}; }
   if(k==='auditoria'){ if(v==='positiva') return {label:'Positiva',cls:'ok'}; if(v==='requiere corrección') return {label:'Requiere corrección',cls:'bad'}; if(v==='en revisión') return {label:'En revisión',cls:'mid'}; if(v==='sin auditar') return {label:'Declarada, sin auditar',cls:'mid'}; if(v==='sin declarar') return {label:'Sin declarar',cls:'bad'}; if(!v||v==='sin período') return {label:'Sin período abierto',cls:'none'}; return {label:v.charAt(0).toUpperCase()+v.slice(1),cls:'mid'}; }
@@ -2243,6 +2252,23 @@ function dashEstadoInfo(k, v){
   return {label:v||'—',cls:'none'};
 }
 const DASH_ORDEN = { bad:0, mid:1, none:2, ok:3 };
+/* Conexión con el SAT (Syntage) y datos del padrón */
+function dashConexion(c){
+  const u=String(c.en_universo||'');
+  if(u==='sí') return { t:'SAT: con facturas en el mes', cls:'sat-si' };
+  if(u==='no') return { t:'SAT: sin facturas en el mes', cls:'sat-no' };
+  if(u==='sin lectura') return { t:'Conectado al SAT, sin lectura', cls:'sat-sl' };
+  return { t:'Sin conexión al SAT · solo datos internos', cls:'sat-off' };
+}
+function dashConectado(c){ const u=String(c.en_universo||''); return u==='sí'||u==='no'||u==='sin lectura'; }
+function dashPadron(c){ return ((c.detalle||{}).padron)||{}; }
+function dashSuspendido(c){ return String(dashPadron(c).suspension||'').toLowerCase()==='sí'; }
+function dashSuscripcion(v){ v=String(v||''); return v==='active'?'Suscripción activa':v==='past_due'?'Suscripción vencida':v==='none'?'Sin suscripción':v==='no_stripe_match'?'Sin cruce con Stripe':(v||''); }
+function dashTags(c){
+  const cx=dashConexion(c); let h=`<span class="sat-tag ${cx.cls}">${esc(cx.t)}</span>`;
+  if(dashSuspendido(c)) h+=' <span class="sat-tag sat-susp">Suspendido</span>';
+  return h;
+}
 
 /* ── Lectura ── */
 async function dashTabla(periodo){
@@ -2288,9 +2314,11 @@ function dashFilas(t, modo, sinOwner){
   return ((t&&t.clientes)||[]).filter(c=>{
     if(!sinOwner&&DASH.owner){ if(DASH.owner==='__sin'){ if(c.owner) return false; } else if(String(c.owner||'')!==DASH.owner) return false; }
     if(modo==='universo'&&c.en_universo!=='sí') return false;
+    if(!DASH.susp&&dashSuspendido(c)) return false;
     return true;
   });
 }
+function dashSetSusp(v){ DASH.susp=!!v; DASH.estado=''; dashRender(); }
 function dashConteo(filas, p){
   let ok=0; const by={};
   filas.forEach(c=>{ const v=String(c[p.k]||''); if(v===p.ok) ok++; const info=dashEstadoInfo(p.k,v); by[info.label]=(by[info.label]||0)+1; });
@@ -2323,11 +2351,13 @@ function dashRender(){
   document.querySelectorAll('#dashModo button').forEach(b=>b.classList.toggle('on',b.dataset.modo===modo));
   // aviso + corte
   const todos=t.clientes||[];
-  const nUni=todos.filter(c=>c.en_universo==='sí').length, nNo=todos.filter(c=>c.en_universo==='no').length, nSin=todos.length-nUni-nNo;
+  const nUni=todos.filter(c=>c.en_universo==='sí').length, nNo=todos.filter(c=>c.en_universo==='no').length, nSL=todos.filter(c=>c.en_universo==='sin lectura').length;
+  const nOff=todos.filter(c=>!dashConectado(c)).length, nSusp=todos.filter(dashSuspendido).length;
   document.getElementById('dashAviso').innerHTML = (DASH.modo==='universo'&&modo==='todos')
-    ? `<div class="dash-warn">La foto de ${esc(dashPeriodoLabel(DASH.periodo))} todavía no trae la lectura de facturas del SAT, así que el universo está vacío. Mientras, se muestran todos los clientes con dato (${todos.length}).</div>` : '';
+    ? `<div class="dash-warn">La foto de ${esc(dashPeriodoLabel(DASH.periodo))} todavía no trae la lectura de facturas del SAT, así que el universo está vacío. Mientras, se muestran todos los clientes (${todos.length}).</div>` : '';
+  const suspChip=document.getElementById('dashSusp'); if(suspChip){ suspChip.textContent=(DASH.susp?'Ocultar suspendidos':'Incluir suspendidos')+' ('+nSusp+')'; suspChip.classList.toggle('on',DASH.susp); }
   document.getElementById('dashCorte').textContent = t.fecha_corte
-    ? `Foto del ${dashFecha(t.fecha_corte)} · en el universo SAT: ${nUni} · sin facturas en el mes: ${nNo} · sin lectura del SAT: ${nSin}`
+    ? `Foto del ${dashFecha(t.fecha_corte)} · ${todos.length} clientes en el padrón · conectados al SAT: ${nUni+nNo+nSL} (con facturas en el mes: ${nUni}${nSL?', sin lectura: '+nSL:''}) · sin conexión al SAT: ${nOff} · suspendidos: ${nSusp}${DASH.susp?'':' (ocultos)'}`
     : 'Sin foto para este período todavía';
   // tarjetas
   const filas=dashFilas(t,modo), filasAnt=DASH.anterior?dashFilas(DASH.anterior,modo):null;
@@ -2341,13 +2371,14 @@ function dashRender(){
     else delta='<div class="dc-delta">Sin período anterior para comparar</div>';
     const okLabel=dashEstadoInfo(p.k,p.ok).label;
     const resto=Object.entries(c.by).filter(([l])=>l!==okLabel).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([l,n])=>l+': '+n).join(' · ');
+    let uniLine=''; if(modo==='todos'){ const fu=filas.filter(x=>x.en_universo==='sí'); const cu=dashConteo(fu,p); uniLine=`<div class="dc-delta">Universo SAT: <b>${cu.ok} de ${cu.total}</b>${cu.total?' ('+Math.round(100*cu.ok/cu.total)+'%)':''}</div>`; }
     const note=(p.k==='calculo'||p.k==='reporte')&&c.ok===0?`<div class="dc-note">El registro arranca con el piloto: aún no hay ${p.k==='calculo'?'aprobaciones':'entregas'} registradas. Se registran desde el detalle de cada cliente.</div>`:'';
     return `<div class="dash-card ${DASH.metrica===p.k?'on':''}" onclick="dashSetMetrica('${p.k}')" title="Ver los clientes detrás de este número">
       <div class="dc-title">${esc(p.titulo)}</div>
       <div class="dc-num">${c.ok}<small>de ${c.total}</small></div>
       <div class="dc-pct">${pct}%</div>
       <div class="dash-bar"><i style="width:${pct}%"></i></div>
-      ${delta}${resto?`<div class="dc-delta">${esc(resto)}</div>`:''}${note}
+      ${uniLine}${delta}${resto?`<div class="dc-delta">${esc(resto)}</div>`:''}${note}
       <div class="dc-src">Fuente: ${esc(p.fuente)}</div></div>`;
   }).join('');
   // por owner (solo admin: el equipo no ve comparaciones entre personas)
@@ -2356,9 +2387,9 @@ function dashRender(){
     const base=dashFilas(t,modo,true); const grupos={};
     base.forEach(c=>{ const o=c.owner?String(c.owner):'__sin'; (grupos[o]=grupos[o]||[]).push(c); });
     const keys=Object.keys(grupos).sort((a,b)=>grupos[b].length-grupos[a].length);
-    ow.innerHTML=keys.length?`<div class="dash-owners"><table><thead><tr><th>Owner</th><th style="text-align:center">Clientes</th>${DASH_PROM.map(p=>`<th style="text-align:center">${esc(p.titulo)}</th>`).join('')}</tr></thead><tbody>${keys.map(o=>{
-      const f=grupos[o];
-      return `<tr class="${DASH.owner===o?'on':''}" data-owner="${esc(o)}" title="Filtrar por este owner"><td><b>${esc(o==='__sin'?'(sin owner)':o)}</b></td><td class="num">${f.length}</td>${DASH_PROM.map(p=>{ const c=dashConteo(f,p); const pct=c.total?Math.round(100*c.ok/c.total):0;
+    ow.innerHTML=keys.length?`<div class="dash-owners"><table><thead><tr><th>Owner</th><th style="text-align:center">Clientes</th><th style="text-align:center" title="Clientes conectados en Syntage (lectura del SAT)">Conectados al SAT</th>${DASH_PROM.map(p=>`<th style="text-align:center">${esc(p.titulo)}</th>`).join('')}</tr></thead><tbody>${keys.map(o=>{
+      const f=grupos[o]; const nc=f.filter(dashConectado).length;
+      return `<tr class="${DASH.owner===o?'on':''}" data-owner="${esc(o)}" title="Filtrar por este owner"><td><b>${esc(o==='__sin'?'(sin owner)':o)}</b></td><td class="num">${f.length}</td><td class="num"><span class="dash-mini">${nc}/${f.length} <em>${f.length?Math.round(100*nc/f.length):0}%</em><div class="dash-bar"><i class="sat" style="width:${f.length?Math.round(100*nc/f.length):0}%"></i></div></span></td>${DASH_PROM.map(p=>{ const c=dashConteo(f,p); const pct=c.total?Math.round(100*c.ok/c.total):0;
         return `<td class="num"><span class="dash-mini">${c.ok}/${c.total} <em>${pct}%</em><div class="dash-bar"><i style="width:${pct}%"></i></div></span></td>`; }).join('')}</tr>`; }).join('')}</tbody></table></div>`:'';
     ow.querySelectorAll('tr[data-owner]').forEach(tr=>tr.addEventListener('click',()=>dashToggleOwner(tr.dataset.owner)));
   } else ow.innerHTML='';
@@ -2370,6 +2401,7 @@ function dashFuenteCelda(k, c){
   const d=c.detalle||{}; const s=d.sistema||null;
   if(k==='opinion'){
     const o=d.opinion, cf=d.cfdi;
+    if(!dashConectado(c)) return '<span class="cid">Sin conexión al SAT: no hay opinión ni facturas que leer. Solo datos internos.</span>';
     return (o?`Opinión del SAT ${String(o.sentido||'').toUpperCase().indexOf('POSITIV')===0?'positiva':'negativa'} · verificada el ${esc(dashFecha(o.fecha))}`:'Sin opinión leída del SAT')
       +(cf&&cf.total!==''&&cf.total!==null&&cf.total!==undefined?`<br><span class="cid">Facturas vigentes del mes: ${esc(cf.total)} (emitidas ${esc(cf.emitidos)}, recibidas ${esc(cf.recibidos)})</span>`:'');
   }
@@ -2394,7 +2426,7 @@ function dashFuenteCelda(k, c){
 }
 function dashQueFalta(k, c){
   const v=String(c[k]||''); const d=c.detalle||{}; const s=d.sistema||null; let msg='';
-  if(k==='opinion'){ if(v==='negativa') msg='Qué sigue: plan por opinión negativa con el contador (sugerencias, no órdenes) y verificar la causa en el portal del SAT.'; else if(v!=='positiva') msg='Qué sigue: conectar el RFC en Syntage (lo hace Juan) para leer la opinión del SAT.'; }
+  if(k==='opinion'){ if(v==='negativa') msg='Qué sigue: plan por opinión negativa con el contador (sugerencias, no órdenes) y verificar la causa en el portal del SAT.'; else if(v==='sin conexión') msg='Qué sigue: conectar el RFC en Syntage (lo hace Juan). Hasta entonces, el contexto de este cliente se limita al sistema de Tally.'; else if(v!=='positiva') msg='Qué sigue: la conexión existe pero el SAT no devolvió lectura; revisar en Syntage.'; }
   if(k==='documentacion'){ if(!s) msg='Falta: abrir el período de este cliente en el registro de períodos.'; else if(v!=='completa'){ const f=[]; if(!s.edo) f.push('estado de cuenta'); if(!s.ven) f.push('reporte de ventas'); if(!s.ret) f.push('retenciones'); if(!s.inv) f.push('inventario'); msg='Falta: '+f.join(', ')+'.'; } }
   if(k==='calculo'){ if(!s) msg='Falta: abrir el período; sin período no hay cálculo.'; else if(v==='pendiente') msg='Falta: cargar el cálculo del mes en el sistema.'; else if(v==='calculado') msg='Falta: enviar el cálculo al cliente y registrar su aprobación (abajo).'; }
   if(k==='auditoria'){ if(!s) msg='Falta: abrir el período; sin declaración no hay auditoría.'; else if(v==='requiere corrección') msg='Falta: atender la corrección del auditor y volver a cargar.'; else if(v==='en revisión') msg='En manos del auditor.'; else if(v==='sin auditar') msg='Falta: que el auditor revise la declaración cargada.'; else if(v==='sin declarar') msg='Falta: presentar la declaración y cargar el acuse.'; }
@@ -2415,10 +2447,10 @@ function dashRenderCapa2(){
     <h2>${esc(p.titulo)} · ${c.ok} de ${c.total}</h2>
     <p class="lead">Período ${esc(dashPeriodoLabel(DASH.periodo))}${DASH.owner?' · owner '+esc(DASH.owner==='__sin'?'(sin owner)':DASH.owner):''} · fuente: ${esc(p.fuente)}. Haz clic en un cliente para ver el detalle completo.</p>
     <div class="chips" style="align-items:center"><button class="chip ${DASH.estado?'':'on'}" data-estado="">Todos <span class="chip-n">${c.total}</span></button>${chips}<input type="text" id="dashQ" placeholder="🔎 Cliente o ID…" value="${esc(DASH.q)}" style="max-width:220px;width:220px;margin-left:auto"></div>
-    <div class="dash-table-wrap"><table><thead><tr><th>Cliente</th><th>Owner</th><th>Estado</th><th>Fuente y dato</th>${modo==='todos'?'<th>Universo SAT</th>':''}</tr></thead><tbody>
-    ${lista.length?lista.map(x=>{ const info=dashEstadoInfo(p.k,x[p.k]);
-      return `<tr data-cid="${esc(x.company_id)}"><td><b>${esc(x.cliente||x.company_id)}</b><br><span class="cid">${esc(x.company_id)}</span></td><td>${esc(x.owner||'sin owner')}</td><td><span class="pill ${info.cls}">${esc(info.label)}</span></td><td>${dashFuenteCelda(p.k,x)}</td>${modo==='todos'?`<td>${esc(x.en_universo==='sí'?'Sí':x.en_universo==='no'?'Sin facturas':'Sin lectura')}</td>`:''}</tr>`; }).join('')
-      :`<tr><td colspan="5" class="dash-empty">Ningún cliente con ese filtro.</td></tr>`}
+    <div class="dash-table-wrap"><table><thead><tr><th>Cliente</th><th>Owner</th><th>Estado</th><th>Fuente y dato</th></tr></thead><tbody>
+    ${lista.length?lista.map(x=>{ const info=dashEstadoInfo(p.k,x[p.k]); const pd=dashPadron(x);
+      return `<tr data-cid="${esc(x.company_id)}"><td><b>${esc(x.cliente||x.company_id)}</b><br><span class="cid">${esc(x.company_id)}${pd.tipo?' · '+esc(pd.tipo):''}</span><br>${dashTags(x)}</td><td>${esc(x.owner||'sin owner')}</td><td><span class="pill ${info.cls}">${esc(info.label)}</span></td><td>${dashFuenteCelda(p.k,x)}</td></tr>`; }).join('')
+      :`<tr><td colspan="4" class="dash-empty">Ningún cliente con ese filtro.</td></tr>`}
     </tbody></table></div></div>`;
   el.querySelectorAll('button[data-estado]').forEach(b=>b.addEventListener('click',()=>dashSetEstado(b.dataset.estado)));
   el.querySelectorAll('tr[data-cid]').forEach(tr=>tr.addEventListener('click',()=>dashAbrir(tr.dataset.cid)));
@@ -2450,12 +2482,15 @@ async function dashRegistrar(k, cid){
 }
 function dashAbrir(cid){
   const c=((DASH.actual&&DASH.actual.clientes)||[]).find(x=>x.company_id===cid); if(!c) return;
-  const uni=c.en_universo==='sí'?'En el universo SAT: tiene facturas vigentes en el mes.':c.en_universo==='no'?'Fuera del universo: el SAT no registra facturas vigentes suyas en el mes.':'Sin lectura del SAT: no está conectado en Syntage o la lectura falló.';
+  const uni=c.en_universo==='sí'?'En el universo SAT: tiene facturas vigentes en el mes.':c.en_universo==='no'?'Conectado al SAT; sin facturas vigentes en el mes.':c.en_universo==='sin lectura'?'Conectado al SAT, pero la lectura no devolvió datos.':'';
+  const pd=dashPadron(c);
+  const banner=!dashConectado(c)?`<div class="dash-warn"><b>Sin conexión al SAT.</b> Este cliente no está conectado en Syntage: no hay opinión de cumplimiento ni facturas que leer, y el contexto se limita a lo registrado en el sistema de Tally. Conectarlo es de Juan.</div>`:'';
+  const padLine=[pd.tipo?'Tipo: '+pd.tipo:'', pd.rfc?'RFC '+pd.rfc:'', pd.suscripcion?dashSuscripcion(pd.suscripcion):'', dashSuspendido(c)?'SUSPENDIDO':''].filter(Boolean).join(' · ');
   const filas=DASH_PROM.map(p=>{ const info=dashEstadoInfo(p.k,c[p.k]);
     return `<div class="dash-prom"><div class="pt">${esc(p.titulo)}<small>${esc(p.fuente)}</small></div><div class="pd"><span class="pill ${info.cls}">${esc(info.label)}</span><div style="margin-top:6px">${dashFuenteCelda(p.k,c)}</div>${dashQueFalta(p.k,c)}${dashRegistro(p.k,c)}</div></div>`; }).join('');
   document.getElementById('dashModal').innerHTML=`<h3>${esc(c.cliente||c.company_id)}</h3>
-    <div class="meta">${esc(c.company_id)} · owner: <b>${esc(c.owner||'sin owner')}</b> · período ${esc(dashPeriodoLabel(DASH.periodo))} · foto del ${esc(dashFecha((DASH.actual||{}).fecha_corte))}<br>${esc(uni)}</div>
-    ${filas}
+    <div class="meta">${esc(c.company_id)} · owner: <b>${esc(c.owner||'sin owner')}</b> · período ${esc(dashPeriodoLabel(DASH.periodo))} · foto del ${esc(dashFecha((DASH.actual||{}).fecha_corte))}${padLine?'<br>'+esc(padLine):''}${uni?'<br>'+esc(uni):''}<br>${dashTags(c)}</div>
+    ${banner}${filas}
     <div class="btn-row"><button class="btn btn-ghost" onclick="dashVerTareas('${esc(c.company_id)}')">Ver tareas de este cliente</button><button class="btn btn-ghost" onclick="dashCerrar()">Cerrar</button></div>`;
   document.getElementById('dashModalBack').classList.add('open');
 }
