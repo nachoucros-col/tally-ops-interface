@@ -441,11 +441,15 @@ tr:hover td{background:rgba(96,71,255,.04)}
       <div id="cxClienteLista" class="cx-list"></div>
       <div id="cxClienteSel" class="cx-selected" style="display:none"></div>
       <div class="cx-row">
-        <label>Período</label>
-        <select id="cxMes" class="cx-input"></select><select id="cxAnio" class="cx-input"></select>
+        <label>Ejercicio</label>
+        <select id="cxAnio" class="cx-input" onchange="cxPintarMeses()"></select>
         <label>Idioma del documento</label>
         <select id="cxIdioma" class="cx-input"><option value="es">Español</option><option value="en">English</option><option value="zh">中文</option></select>
       </div>
+      <label>Períodos a calcular <small style="font-weight:400;opacity:.7">— uno o varios; con varios se entrega el consolidado del rango y también el documento de cada mes</small></label>
+      <div id="cxMeses" class="chips"></div>
+      <div class="cx-hint" id="cxMesesHint">Selecciona al menos un mes.</div>
+      <select id="cxMes" style="display:none"></select>
       <div class="cx-nav"><button class="btn" onclick="cxGo(2)" id="cxNext1" disabled>Continuar →</button></div>
     </div>
 
@@ -455,11 +459,19 @@ tr:hover td{background:rgba(96,71,255,.04)}
       <div id="cxDrop" class="cx-drop" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="cxDrop(event)" onclick="document.getElementById('cxFile').click()">
         <div class="cx-drop-ico">⬆️</div>
         <div><b>Arrastra los documentos aquí</b> o haz clic para elegirlos</div>
-        <small>Resumen mensual de Seller Central · Certificado de retenciones · Estado de cuenta bancario (PDF, CSV o imagen)</small>
+        <small>Resumen mensual de Seller Central · Certificado de retenciones · Estado de cuenta bancario (PDF, CSV o imagen). De cualquier fecha: cada documento se etiqueta con su propio período.</small>
         <input type="file" id="cxFile" multiple accept=".pdf,.csv,.png,.jpg,.jpeg,.xlsx,.numbers" style="display:none" onchange="cxFiles(this.files)">
       </div>
-      <table class="cx-table" id="cxDocs" style="display:none"><thead><tr><th>Archivo</th><th>Tipo detectado</th><th>Lectura</th><th>Datos clave</th><th></th></tr></thead><tbody></tbody></table>
-      <div class="cx-hint" id="cxDocsHint">Sin documentos todavía. Se necesitan al menos el resumen del marketplace y el certificado de retenciones del mes.</div>
+      <div class="cx-panel" id="cxSysPanel" style="margin-top:14px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <b>Documentos que ya están en el sistema</b>
+          <button class="btn secondary" onclick="cxDocsSistema()">Buscar en AppSheet</button>
+          <span class="cx-hint" id="cxSysMsg" style="margin:0">Los que el equipo ya cargó, sin descargarlos ni volverlos a subir.</span>
+        </div>
+        <div id="cxSysLista"></div>
+      </div>
+      <table class="cx-table" id="cxDocs" style="display:none"><thead><tr><th>Archivo</th><th>Tipo detectado</th><th>Período</th><th>Lectura</th><th>Datos clave</th><th></th></tr></thead><tbody></tbody></table>
+      <div class="cx-hint" id="cxDocsHint">Sin documentos todavía. Se necesitan al menos el resumen del marketplace y el certificado de retenciones de cada período que se vaya a calcular.</div>
       <div class="cx-nav"><button class="btn secondary" onclick="cxGo(1)">← Atrás</button><button class="btn" onclick="cxGo(3)" id="cxNext2" disabled>Continuar →</button></div>
     </div>
 
@@ -491,6 +503,14 @@ tr:hover td{background:rgba(96,71,255,.04)}
         <select id="cxLectura" class="cx-input"><option value="A">Lectura A — IVA según certificado del marketplace (recomendada para vendedores con ventas transfronterizas)</option><option value="B">Lectura B — IVA según lo facturado en CFDI</option></select>
         <label>Coeficiente de utilidad (anual anterior)</label><input id="cxCU" class="cx-input" placeholder="0.0000 · vacío = pendiente" style="max-width:220px">
       </div>
+      <label>Historial del cliente al inicio del primer período <small style="font-weight:400;opacity:.7">— lo que viene de meses anteriores y no está en estos documentos</small></label>
+      <div class="cx-row">
+        <label>IVA a favor por acreditar</label><input id="cxSaldoFavor" class="cx-input" placeholder="0.00" style="max-width:170px">
+        <label>IVA retenido pendiente de acreditar</label><input id="cxRetPend" class="cx-input" placeholder="0.00" style="max-width:170px">
+        <label>Pagos provisionales de ISR ya hechos</label><input id="cxPagosPrev" class="cx-input" placeholder="0.00" style="max-width:170px">
+      </div>
+      <label>Observaciones del contador <small style="font-weight:400;opacity:.7">— se imprimen tal cual en el documento y quedan en el registro del cálculo</small></label>
+      <textarea id="cxContexto" class="cx-input" rows="4" placeholder="Ej.: este cliente traía IVA retenido de meses anteriores sin acreditar; el criterio de IVA se acordó con el cliente el 3-sep; falta el certificado de la segunda tienda."></textarea>
       <div class="cx-nav"><button class="btn secondary" onclick="cxGo(3)">← Atrás</button><button class="btn" onclick="cxGenerar()" id="cxBtnGen">🧮 Calcular y generar documento</button></div>
       <div id="cxGenMsg" class="cx-hint"></div>
     </div>
@@ -2711,8 +2731,11 @@ setInterval(loadAll,120000);
       const retenido = r2(c.iva_retenido != null ? c.iva_retenido : (l.iva_retenido || 0));
       const retenidoLiq = l.iva_retenido != null ? r2(l.iva_retenido) : null;
       const difRet = (c.iva_retenido != null && retenidoLiq != null && Math.abs(retenidoLiq - retenido) > 0.01) ? r2(retenidoLiq - retenido) : null;
+      /* Retenciones de meses anteriores que el cliente no acreditó: las captura el contador
+         y se aplican en el primer mes de la serie, en su propio renglón. */
+      const retAnterior = (m === meses[0]) ? r2(Number(in_.retenciones_pendientes) || 0) : 0;
       const acreditable = r2(f.iva_acreditable_pue || 0);
-      const resultado = r2(trasladado - retenido - acreditable);
+      const resultado = r2(trasladado - retenido - acreditable - retAnterior);
       const posicion = r2(resultado - saldoFavor);
       const aPagar = Math.max(0, posicion);
       const arrastre = Math.max(0, -posicion);
@@ -2752,12 +2775,24 @@ setInterval(loadAll,120000);
           logo_svg: in_.logo_svg || null, lectura: in_.lectura || null, fuentes: in_.fuentes || [], alertas: (in_.alertas || []).concat(difRet != null ? ['El IVA retenido del certificado (' + retenido.toFixed(2) + ') no coincide con el de la liquidación del marketplace (' + retenidoLiq.toFixed(2) + '): diferencia de ' + difRet.toFixed(2) + '. El cálculo usa el certificado.'] : []), notas: in_.notas || [],
           resumen: { ventas_base: c.base, ordenes: c.ordenes, ordenes_16: c.ordenes_16, ordenes_0: (c.ordenes != null && c.ordenes_16 != null) ? c.ordenes - c.ordenes_16 : null,
                      isr_retenido_mes: c.isr_retenido, iva_retenido_mes: retenido, ingreso_liquidacion: l.ingreso_neto, transferencias: l.transferencias },
-          iva: { base_16: base16, base_0: base0, trasladado, retenido, acreditable, saldo_favor_anterior: saldoFavor, resultado, a_pagar: aPagar, saldo_favor_arrastre: arrastre,
+          iva: { base_16: base16, base_0: base0, trasladado, retenido, retenido_anterior: retAnterior, acreditable, saldo_favor_anterior: saldoFavor, resultado, a_pagar: aPagar, saldo_favor_arrastre: arrastre,
+                 src_retenido_anterior: 'Historial capturado por el contador',
                  ppd_pendiente: f.iva_ppd_pendiente || 0,
                  src_16: 'Certificado de retenciones ' + (c.folio || ''), src_0: 'Certificado de retenciones', src_trasladado: 'Certificado de retenciones', src_retenido: 'Certificado de retenciones' + (retenidoLiq != null ? ' · liquidación: ' + retenidoLiq.toFixed(2) : ''), src_acreditable: 'CFDI recibidos (SAT / Syntage)' },
           isr: { ingresos_mes: c.base, ingresos_acum: ingresosAcum, cu, utilidad, perdidas: cu !== null ? Math.min(utilidad, perdidas) : null, base: baseISR, isr_acum: isrAcum, retenido_acum: retAcum, pagos_previos: pagosAcum, a_pagar: isrPagar },
           cfdi_emitidos: f.emitidos || [], cfdi_recibidos: f.recibidos || [],
-          detalle_meses: detalle.slice(), banco: banco.slice(), serie: serie.slice()
+          detalle_meses: detalle.slice(), banco: banco.slice(), serie: serie.slice(),
+          contexto: in_.contexto || '', contexto_autor: in_.contexto_autor || '',
+          rango: in_.rango ? {
+            desde: in_.rango.desde, hasta: in_.rango.hasta, meses: serie.length,
+            iva_a_pagar: r2(serie.reduce(function (a, x) { return a + (x.iva_a_pagar || 0); }, 0)),
+            ventas: r2(detalle.reduce(function (a, x) { return a + (x.base || 0); }, 0)),
+            ordenes: detalle.reduce(function (a, x) { return a + (Number(x.ordenes) || 0); }, 0),
+            iva_trasladado: r2(detalle.reduce(function (a, x) { return a + (x.iva || 0); }, 0)),
+            iva_retenido: r2(detalle.reduce(function (a, x) { return a + (x.iva_ret || 0); }, 0)),
+            isr_retenido: r2(detalle.reduce(function (a, x) { return a + (x.isr_ret || 0); }, 0)),
+            saldo_favor_final: arrastre, isr_a_pagar: isrPagar
+          } : null
         };
       }
       saldoFavor = arrastre;
@@ -3093,13 +3128,14 @@ async function capiPost(action, payload){
 </script>
 <script>
 /* ══════════════ estado del asistente ══════════════ */
-const CX = { cliente: null, mes: null, anio: null, idioma: 'es', docs: [], syntage: null, calc: null, calc_id: null, archivos: null };
+const CX = { cliente: null, mes: null, anio: null, meses: [], idioma: 'es', docs: [], syntage: null, calc: null, calc_id: null, archivos: null, contexto: '', sistema: [] };
 const CX_MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const cxFmt = n => (n == null || isNaN(n)) ? '—' : new Intl.NumberFormat('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
 function cxInit() {
   const now = new Date(), prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   ['cxMes', 'cxFMes'].forEach(id => { const s = document.getElementById(id); CX_MESES.forEach((m, i) => s.insertAdjacentHTML('beforeend', `<option value="${i + 1}">${m}</option>`)); });
+  cxPintarMeses(prev.getMonth() + 1);
   ['cxAnio', 'cxFAnio'].forEach(id => { const s = document.getElementById(id); for (let y = now.getFullYear(); y >= 2024; y--) s.insertAdjacentHTML('beforeend', `<option>${y}</option>`); });
   document.getElementById('cxMes').value = prev.getMonth() + 1; document.getElementById('cxAnio').value = prev.getFullYear();
   document.querySelectorAll('.cx-tab').forEach(b => b.onclick = () => { document.querySelectorAll('.cx-tab').forEach(x => x.classList.remove('active')); b.classList.add('active'); document.getElementById('cx-nuevo').style.display = b.dataset.cxtab === 'nuevo' ? '' : 'none'; document.getElementById('cx-lista').style.display = b.dataset.cxtab === 'lista' ? '' : 'none'; if (b.dataset.cxtab === 'lista') cxListar(); });
@@ -3110,6 +3146,57 @@ function cxGo(n) {
   if (n === 4) cxResumenInsumos();
   document.querySelectorAll('.cx-step').forEach(s => s.style.display = s.dataset.step == n ? '' : 'none');
   document.querySelectorAll('.cx-steps li').forEach(li => { li.classList.toggle('on', li.dataset.s == n); li.classList.toggle('done', li.dataset.s < n); });
+}
+
+/* ══════════════ períodos: uno o varios ══════════════ */
+function cxPintarMeses(preseleccion) {
+  const C = document.getElementById('cxMeses'); if (!C) return;
+  if (preseleccion) CX.meses = [preseleccion];
+  C.innerHTML = CX_MESES.map((m, i) => `<button class="chip ${CX.meses.indexOf(i + 1) >= 0 ? 'on' : ''}" onclick="cxToggleMes(${i + 1})">${m.slice(0, 3)}</button>`).join('') +
+    ` <button class="chip" onclick="cxTodoElEjercicio()">todo el ejercicio</button>`;
+  const H = document.getElementById('cxMesesHint');
+  const sel = CX.meses.slice().sort((a, b) => a - b);
+  CX.mes = sel.length ? sel[sel.length - 1] : null;
+  CX.anio = +document.getElementById('cxAnio').value;
+  if (H) H.innerHTML = !sel.length ? 'Selecciona al menos un mes.'
+    : sel.length === 1 ? `Un período: <b>${CX_MESES[sel[0] - 1]} ${CX.anio}</b>.`
+    : `<b>${sel.length} períodos</b>: ${sel.map(m => CX_MESES[m - 1]).join(', ')} de ${CX.anio}. Se entrega el consolidado del rango y el documento de cada mes.`;
+  const B = document.getElementById('cxNext1'); if (B) B.disabled = !CX.cliente || !sel.length;
+}
+function cxToggleMes(m) { const i = CX.meses.indexOf(m); if (i >= 0) CX.meses.splice(i, 1); else CX.meses.push(m); cxPintarMeses(); }
+function cxTodoElEjercicio() { const hoy = new Date(), n = (+document.getElementById('cxAnio').value === hoy.getFullYear()) ? hoy.getMonth() : 12; CX.meses = []; for (let i = 1; i <= Math.max(1, n); i++) CX.meses.push(i); cxPintarMeses(); }
+function cxPeriodos() { return CX.meses.slice().sort((a, b) => a - b).map(m => ({ anio: CX.anio, mes: m })); }
+
+/* ══════════════ documentos que ya están en el sistema ══════════════ */
+async function cxDocsSistema() {
+  const L = document.getElementById('cxSysLista'), M = document.getElementById('cxSysMsg');
+  if (!CX.cliente) { M.textContent = 'Primero elige el cliente.'; return; }
+  M.textContent = 'Buscando en las tablas del sistema…'; L.innerHTML = '';
+  const r = await capi('calc_docs_sistema', { company_id: CX.cliente.company_id || '', periodos: cxPeriodos() });
+  if (!r.ok) { M.innerHTML = '⚠️ ' + (r.error || 'no pude consultar'); return; }
+  CX.sistema = r.documentos || [];
+  const avisos = (r.avisos || []).length ? `<div class="cx-hint">⚠️ ${(r.avisos || []).join(' · ')}</div>` : '';
+  if (!CX.sistema.length) { M.textContent = ''; L.innerHTML = '<div class="cx-hint">No hay documentos cargados en el sistema para este cliente y estos períodos. Puedes arrastrarlos aquí arriba.</div>' + avisos; return; }
+  M.textContent = '';
+  const filas = CX.sistema.map((d, i) => `<tr><td>${d.file_id ? `<input type="checkbox" id="cxSys${i}" ${d.tipo === 'otro' ? '' : 'checked'}>` : '—'}</td>
+    <td>${CX_TIPO[d.tipo] || d.tipo}</td><td>${d.mes_nombre || d.periodo} ${d.anio || ''}</td><td><small>${d.archivo}</small></td>
+    <td><small>${d.tabla}${d.fecha ? ' · ' + d.fecha : ''}</small></td>
+    <td>${d.file_id ? `<span class="cx-tag ok">disponible</span>` : `<span class="cx-tag warn">el archivo no está en Drive</span>`}</td></tr>`).join('');
+  L.innerHTML = `<table class="cx-table"><thead><tr><th></th><th>Rubro</th><th>Período</th><th>Archivo</th><th>Origen</th><th></th></tr></thead><tbody>${filas}</tbody></table>
+    <div class="cx-nav"><button class="btn" onclick="cxUsarDocsSistema()">Usar los seleccionados →</button></div>
+    <div class="cx-hint">${CX.sistema.length} documentos · ${r.sin_archivo || 0} sin archivo localizable en Drive</div>${avisos}`;
+}
+async function cxUsarDocsSistema() {
+  const ids = [], metas = [];
+  CX.sistema.forEach((d, i) => { const c = document.getElementById('cxSys' + i); if (d.file_id && c && c.checked) { ids.push(d.file_id); metas.push(d); } });
+  if (!ids.length) { document.getElementById('cxSysMsg').textContent = 'No hay documentos seleccionados.'; return; }
+  const T = document.getElementById('cxDocs'); T.style.display = '';
+  document.getElementById('cxDocsHint').textContent = `Leyendo ${ids.length} documento(s) del sistema…`;
+  metas.forEach((d, k) => CX.docs.push({ file_id: d.file_id, nombre: d.archivo, tipo: '…', datos: null, mes: d.mes, anio: d.anio, origen: d.tabla }));
+  cxPintarDocs();
+  const r = await capi('calc_extraer', { file_ids: ids });
+  (r.documentos || []).forEach(dd => { const row = CX.docs.filter(x => x.file_id === dd.file_id)[0]; if (row) Object.assign(row, dd, { origen: row.origen, mes: row.mes, anio: row.anio }); });
+  cxPintarDocs(); cxRevisarDocs();
 }
 
 /* ══════════════ paso 1 · cliente ══════════════ */
@@ -3157,7 +3244,7 @@ function cxBuscarCliente(q) {
 }
 
 function cxManualHtml(q) { const rfc = q.toUpperCase().replace(/\s+/g, ''); if (!/^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/.test(rfc)) return '<div class="cx-hint">Escribe un RFC válido (12 o 13 caracteres) para continuar sin padrón.</div>'; return `<div class="it" onclick='cxElegir({company_id:"",rfc:"${rfc}",nombre:"${rfc}",owner:"",syntage:false,manual:true})'><span>➕ <b>Usar este RFC tal cual</b> · ${rfc} <small>(sin ficha en el padrón; el nombre se toma de Syntage si está conectado)</small></span><span class="cx-tag warn">manual</span></div>`; }
-function cxElegir(c) { if (!c.rfc) { const r = prompt('Este cliente no tiene RFC en el padrón. Escribe su RFC (12 o 13 caracteres):', ''); const rfc = String(r || '').toUpperCase().replace(/\s+/g, ''); if (!/^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/.test(rfc)) { alert('RFC no válido. No se seleccionó el cliente.'); return; } c.rfc = rfc; c.rfc_origen = 'capturado'; } CX.cliente = c; document.getElementById('cxClienteLista').innerHTML = ''; document.getElementById('cxRfc').value = c.rfc; const S = document.getElementById('cxClienteSel'); S.style.display = ''; S.innerHTML = `<b>${c.nombre}</b> · ${c.rfc} · ${c.owner || 'sin owner'} · <span class="cx-tag ${c.syntage ? 'ok' : 'warn'}">${c.syntage ? 'Conectado a Syntage' : 'No conectado a Syntage'}</span>`; document.getElementById('cxNext1').disabled = false; }
+function cxElegir(c) { if (!c.rfc) { const r = prompt('Este cliente no tiene RFC en el padrón. Escribe su RFC (12 o 13 caracteres):', ''); const rfc = String(r || '').toUpperCase().replace(/\s+/g, ''); if (!/^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/.test(rfc)) { alert('RFC no válido. No se seleccionó el cliente.'); return; } c.rfc = rfc; c.rfc_origen = 'capturado'; } CX.cliente = c; document.getElementById('cxClienteLista').innerHTML = ''; document.getElementById('cxRfc').value = c.rfc; const S = document.getElementById('cxClienteSel'); S.style.display = ''; S.innerHTML = `<b>${c.nombre}</b> · ${c.rfc} · ${c.owner || 'sin owner'} · <span class="cx-tag ${c.syntage ? 'ok' : 'warn'}">${c.syntage ? 'Conectado a Syntage' : 'No conectado a Syntage'}</span>`; cxPintarMeses(); }
 
 /* ══════════════ paso 2 · documentos ══════════════ */
 function cxDrop(ev) { ev.preventDefault(); document.getElementById('cxDrop').classList.remove('over'); cxFiles(ev.dataTransfer.files); }
@@ -3167,16 +3254,33 @@ async function cxFiles(files) {
   for (const f of files) {
     const b64 = await new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(f); });
     const up = await capiPost('calc_upload', { rfc: CX.cliente.rfc, periodo, nombre: f.name, mime: f.type, base64: b64 });
-    const row = { file_id: up.file_id, nombre: f.name, tipo: '…', datos: null }; CX.docs.push(row); cxPintarDocs();
+    const row = { file_id: up.file_id, nombre: f.name, tipo: '…', datos: null, mes: CX.mes, anio: CX.anio, origen: 'cargado a mano' }; CX.docs.push(row); cxPintarDocs();
     const ex = await capi('calc_extraer', { file_ids: [up.file_id] }); Object.assign(row, ex.documentos[0]); cxPintarDocs();
   }
-  const tipos = CX.docs.map(d => d.tipo); const ok = tipos.includes('resumen_marketplace') && tipos.includes('certificado_retenciones');
-  document.getElementById('cxNext2').disabled = !ok; document.getElementById('cxDocsHint').textContent = ok ? 'Listo. Revisa que los datos clave coincidan con el PDF antes de continuar.' : 'Falta el resumen del marketplace o el certificado de retenciones del mes.';
+  cxRevisarDocs();
+}
+/* El período de cada documento manda: con varios meses seleccionados se revisa que cada
+   uno tenga su certificado, y se avisa exactamente cuál falta. */
+function cxRevisarDocs() {
+  const per = cxPeriodos(); const faltan = [];
+  per.forEach(pp => {
+    const delMes = CX.docs.filter(d => Number(d.mes) === pp.mes && Number(d.anio) === pp.anio);
+    const tipos = delMes.map(d => d.tipo);
+    if (!tipos.includes('certificado_retenciones')) faltan.push(`${CX_MESES[pp.mes - 1]}: certificado de retenciones`);
+    if (!tipos.includes('resumen_marketplace')) faltan.push(`${CX_MESES[pp.mes - 1]}: resumen del marketplace`);
+  });
+  const hayAlgo = CX.docs.some(d => d.tipo === 'certificado_retenciones');
+  document.getElementById('cxNext2').disabled = !hayAlgo;
+  document.getElementById('cxDocsHint').innerHTML = !CX.docs.length
+    ? 'Sin documentos todavía. Arrastra los que falten o toma los que ya están en el sistema.'
+    : (faltan.length ? `<span class="cx-tag warn">falta</span> ${faltan.join(' · ')}. Puedes continuar, pero esos meses saldrán incompletos y el documento lo dirá.`
+                     : 'Listo: cada período seleccionado tiene su certificado y su resumen. Revisa los datos clave contra el PDF antes de continuar.');
 }
 const CX_TIPO = { resumen_marketplace: 'Resumen del marketplace', certificado_retenciones: 'Certificado de retenciones', estado_cuenta: 'Estado de cuenta', otro: 'Otro', '…': 'Leyendo…' };
 function cxPintarDocs() {
   document.querySelector('#cxDocs tbody').innerHTML = CX.docs.map((d, i) => { const k = d.datos || {}; const clave = d.tipo === 'certificado_retenciones' ? `Base ${cxFmt(k.base)} · ${k.ordenes || '?'} órdenes${k.ordenes_16 != null ? ` (${k.ordenes_16} al 16%)` : ''} · IVA trasladado ${cxFmt(k.iva_trasladado)} · IVA ret. ${cxFmt(k.iva_retenido)} · ISR ret. ${cxFmt(k.isr_retenido)}` : d.tipo === 'resumen_marketplace' ? `Ingreso neto ${cxFmt(k.ingreso_neto)} · Transferencias ${cxFmt(k.transferencias)}` : d.tipo === 'estado_cuenta' ? `Abonos ${cxFmt(k.abonos)}${k.moneda ? ' ' + k.moneda : ''}${k.cargos ? ` · cargos ${cxFmt(k.cargos)}` : ''}${k.abonos_marketplace != null ? ` · del marketplace ${cxFmt(k.abonos_marketplace)} (${k.movimientos_marketplace})` : ''} · ${k.movimientos || 0} mov. ${k.cuenta || ''}${k.saldo_final != null ? ` · saldo final ${cxFmt(k.saldo_final)}` : ''}${k.saldo_final != null ? (k.cuadra ? ' · cuadra' : ' · no cuadra') : ''}` : '';
-    return `<tr><td>${d.nombre}</td><td><select onchange="CX.docs[${i}].tipo=this.value" class="cx-input" style="max-width:220px">${Object.keys(CX_TIPO).filter(t => t !== '…').map(t => `<option value="${t}" ${t === d.tipo ? 'selected' : ''}>${CX_TIPO[t]}</option>`).join('')}</select></td><td><span class="cx-tag ${d.ok ? 'ok' : d.tipo === '…' ? 'info' : 'warn'}">${d.tipo === '…' ? 'leyendo' : d.ok ? ('leído' + (d.via ? ' · ' + (d.via === 'OCR' ? 'OCR' : 'texto') : '')) : 'no legible'}</span></td><td>${clave}</td><td><button class="btn secondary" onclick="CX.docs.splice(${i},1);cxPintarDocs()">✕</button></td></tr>`; }).join('');
+    return `<tr><td>${d.nombre}${d.origen ? `<br><small style="opacity:.6">${d.origen}</small>` : ''}</td><td><select onchange="CX.docs[${i}].tipo=this.value;cxRevisarDocs()" class="cx-input" style="max-width:220px">${Object.keys(CX_TIPO).filter(t => t !== '…').map(t => `<option value="${t}" ${t === d.tipo ? 'selected' : ''}>${CX_TIPO[t]}</option>`).join('')}</select></td>
+      <td><select onchange="CX.docs[${i}].mes=+this.value;cxRevisarDocs()" class="cx-input" style="max-width:130px">${CX_MESES.map((m, k) => `<option value="${k + 1}" ${Number(d.mes) === k + 1 ? 'selected' : ''}>${m}</option>`).join('')}</select> <small>${d.anio || CX.anio}</small></td><td><span class="cx-tag ${d.ok ? 'ok' : d.tipo === '…' ? 'info' : 'warn'}">${d.tipo === '…' ? 'leyendo' : d.ok ? ('leído' + (d.via ? ' · ' + (d.via === 'OCR' ? 'OCR' : 'texto') : '')) : 'no legible'}</span></td><td>${clave}</td><td><button class="btn secondary" onclick="CX.docs.splice(${i},1);cxPintarDocs();cxRevisarDocs()">✕</button></td></tr>`; }).join('');
 }
 
 /* ══════════════ paso 3 · Syntage ══════════════ */
