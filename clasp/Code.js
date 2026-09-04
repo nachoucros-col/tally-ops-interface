@@ -3231,13 +3231,42 @@ function calcPdfObjetos_(raw) {
   }
   return objs;
 }
+function calcPdfA85_(arr) {                                  /* ASCII85Decode */
+  var out = [], t = 0, n = 0, i, c, ini = 0;
+  if (arr.length > 1 && arr[0] === 60 && arr[1] === 126) ini = 2;
+  for (i = ini; i < arr.length; i++) {
+    c = arr[i];
+    if (c === 126) break;
+    if (c === 32 || c === 10 || c === 13 || c === 9 || c === 12 || c === 0) continue;
+    if (c === 122 && n === 0) { out.push(0, 0, 0, 0); continue; }
+    if (c < 33 || c > 117) continue;
+    t = t * 85 + (c - 33); n++;
+    if (n === 5) { out.push(Math.floor(t / 16777216) & 255, Math.floor(t / 65536) & 255, Math.floor(t / 256) & 255, t & 255); t = 0; n = 0; }
+  }
+  if (n > 0) {
+    for (i = n; i < 5; i++) t = t * 85 + 84;
+    var b4 = [Math.floor(t / 16777216) & 255, Math.floor(t / 65536) & 255, Math.floor(t / 256) & 255, t & 255];
+    for (i = 0; i < n - 1; i++) out.push(b4[i]);
+  }
+  return out;
+}
+function calcPdfHex_(arr) { var out = [], hi = -1, i; for (i = 0; i < arr.length; i++) { var c = String.fromCharCode(arr[i]); if (c === '>') break; if (!/[0-9A-Fa-f]/.test(c)) continue; var v = parseInt(c, 16); if (hi < 0) hi = v; else { out.push((hi << 4) | v); hi = -1; } } if (hi >= 0) out.push(hi << 4); return out; }
+function calcPdfFiltros_(dict) { var m = dict.match(/\/Filter\s*(\[[^\]]*\]|\/[A-Za-z0-9]+)/); if (!m) return []; return (m[1].match(/\/[A-Za-z0-9]+/g) || []).map(function (f) { return f.slice(1); }); }
 function calcPdfStream_(raw, o) {
   if (o.sIni == null) return null;
   var lm = o.dict.match(/\/Length\s+(\d+)(\s+\d+\s+R)?/), fin = (lm && !lm[2]) ? Math.min(o.sIni + Number(lm[1]), o.sFin) : o.sFin;
-  if (fin - o.sIni > 900000) return null;
+  if (fin - o.sIni > 1200000) return null;
   var body = raw.slice(o.sIni, fin), arr = [], i;
   for (i = 0; i < body.length; i++) arr.push(body.charCodeAt(i) & 0xff);
-  if (/\/FlateDecode/.test(o.dict)) { try { return calcInflate_(arr); } catch (e) { return null; } }
+  var fs = calcPdfFiltros_(o.dict);
+  for (i = 0; i < fs.length; i++) {
+    try {
+      if (fs[i] === 'FlateDecode') arr = calcInflate_(arr);
+      else if (fs[i] === 'ASCII85Decode') arr = calcPdfA85_(arr);
+      else if (fs[i] === 'ASCIIHexDecode') arr = calcPdfHex_(arr);
+      else return null;
+    } catch (e) { return null; }
+  }
   return arr;
 }
 function calcPdfToUnicode_(txt) {
@@ -3272,10 +3301,10 @@ function calcPdfFuentes_(raw, objs) {
 
 /* ── A.3 flujo de contenido → segmentos con posición ── */
 function calcPdfSegmentos_(cs, fuentes) {
-  var segs = [], i = 0, n = cs.length, ops = [], tm = null, tlm = null, TL = 0, fAct = null;
+  var segs = [], i = 0, n = cs.length, ops = [], tm = null, tlm = null, TL = 0, fAct = null, ctm = [0, 0], pila = [];
   var DELIM = ' \t\r\n\f()<>[]{}/%';
   function nl(tx, ty) { tlm = [tlm[0] + tx, tlm[1] + ty]; tm = [tlm[0], tlm[1]]; }
-  function poner(partes) { if (tm) segs.push({ x: tm[0], y: tm[1], partes: partes }); }
+  function poner(partes) { if (tm) segs.push({ x: ctm[0] + tm[0], y: ctm[1] + tm[1], partes: partes }); }
   function literal() {
     var out = [], esc = false, depth = 1; i++;
     while (i < n) {
@@ -3310,7 +3339,10 @@ function calcPdfSegmentos_(cs, fuentes) {
     i = j;
     if (/^-?[\d.]+$/.test(t)) { ops.push(parseFloat(t)); continue; }
     if (t.charAt(0) === '/') { ops.push(t); continue; }
-    if (t === 'BT') { tm = [0, 0]; tlm = [0, 0]; }
+    if (t === 'q') { pila.push([ctm[0], ctm[1]]); }
+    else if (t === 'Q') { if (pila.length) ctm = pila.pop(); }
+    else if (t === 'cm') { var c6 = nums(6); if (c6.length === 6) ctm = [ctm[0] + c6[4], ctm[1] + c6[5]]; }
+    else if (t === 'BT') { tm = [0, 0]; tlm = [0, 0]; }
     else if (t === 'Tf') { var nm = null, k1; for (k1 = ops.length - 1; k1 >= 0; k1--) if (typeof ops[k1] === 'string' && ops[k1].charAt(0) === '/') { nm = ops[k1].slice(1); break; } fAct = nm; }
     else if (t === 'Tm') { var a6 = nums(6); if (a6.length === 6) { tlm = [a6[4], a6[5]]; tm = [a6[4], a6[5]]; } }
     else if (t === 'Td' || t === 'TD') { var a2 = nums(2); if (a2.length === 2 && tlm) { if (t === 'TD') TL = -a2[1]; nl(a2[0], a2[1]); } }
@@ -3369,6 +3401,7 @@ function calcPdfTexto_(bytes) {
     var st = calcPdfStream_(raw, o); if (!st || !st.length) continue;
     var cs = calcPdfLatin1_(st); if (cs.indexOf('Tj') < 0 && cs.indexOf('TJ') < 0) continue;
     var sg = calcPdfSegmentos_(cs, fuentes); if (sg.length) paginas.push(sg);
+    if (paginas.length >= 15) break;                          /* certificados de miles de renglones: los totales están al inicio */
   }
   if (!paginas.length) return '';
   function todo(off) { var r = [], q; for (q = 0; q < paginas.length; q++) r.push(calcPdfLineas_(paginas[q], fuentes, off)); return r.join('\n'); }
@@ -3464,18 +3497,67 @@ function calcCuentaDe_(t) {
 
 /* Certificado de retenciones: se conservan los patrones del OCR y se añaden
    respaldos que funcionan con la capa de texto del PDF (folio suelto y RFC del receptor). */
+/* Certificado de retenciones (CFDI clave 26). La fuente de verdad son los renglones del
+   bloque "Impuestos retenidos", uno por impuesto:
+     Base del impuesto <IVA trasladado>   Tipo de impuesto IVA   Importe del impuesto <IVA retenido>   Tipo de pago 01
+     Base del impuesto <monto operación>  Tipo de impuesto ISR   Importe del impuesto <ISR retenido>   Tipo de pago 04
+   Los "Total IVA / Total ISR retenido" del pie ya no son la fuente primaria: en los
+   certificados grandes esas cifras se parten en dos renglones ("413,221." + "90") y se
+   perdían. El tipo de impuesto puede venir en el mismo renglón o en el de arriba; si no
+   viene, se deduce del tipo de pago (01 = pago definitivo IVA, 04 = provisional ISR). */
+function calcRetBloque_(t) {
+  const out = {};
+  const re = /Base del impuesto\s+([\d,]+(?:\.\d+)?)\s+Tipo de impuesto\s*(IVA|ISR)?\s*Importe del impuesto\s+([\d,]+(?:\.\d+)?)([^\n]{0,70})/g;
+  let m;
+  while ((m = re.exec(t))) {
+    const base = calcNum_(m[1]), imp = calcNum_(m[3]), cola = m[4] || '';
+    let tipo = m[2] || '';
+    if (!tipo) {
+      if (/definitivo\s*IVA/i.test(cola) || /Tipo de pago\s*0?1\b/.test(cola)) tipo = 'IVA';
+      else if (/provisional\s*ISR/i.test(cola) || /Tipo de pago\s*0?4\b/.test(cola)) tipo = 'ISR';
+    }
+    if (tipo === 'IVA' && base != null) { out.iva_trasladado = base; out.iva_retenido = imp; }
+    else if (tipo === 'ISR' && base != null) { out.base_isr = base; out.isr_retenido = imp; }
+  }
+  return out;
+}
 function calcParseCertificado_(t) {
+  const bloque = calcRetBloque_(t);
   const rows = []; const re = /(?:^|\n)\s*\d+\s+([\d,]+\.\d\d)\s+\d\d\/\d\d\/\d{4}\s+\d\d\s+([\d,]+\.\d\d)\s+([\d,]+\.\d\d)/g; let m;
   while ((m = re.exec(t))) rows.push({ base: calcNum_(m[1]), iva: calcNum_(m[2]) });
+
   let folio = (t.match(/Folio fiscal\s+([0-9A-Fa-f-]{36})/) || [])[1] || '';
   if (!folio) folio = (t.match(/\b([0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})\b/i) || [])[1] || '';
-  let rfcRec = (t.match(/Receptor[\s\S]{0,300}?RFC\s+([A-Z&\u00d10-9]{12,13})/) || [])[1] || '';
-  const par = t.match(/RFC\s+([A-Z&\u00d10-9]{12,13})\s+RFC\s+([A-Z&\u00d10-9]{12,13})/);
+  let rfcRec = (t.match(/Receptor[\s\S]{0,300}?RFC\s+([A-Z&Ñ0-9]{12,13})/) || [])[1] || '';
+  const par = t.match(/RFC\s+([A-Z&Ñ0-9]{12,13})\s+RFC\s+([A-Z&Ñ0-9]{12,13})/);
   if (par) rfcRec = par[2];
+
+  const montoOp = calcGrab_(t, /Monto operaci[oó]n\s+([\d,]+\.\d\d)/);
+  const base = montoOp != null ? montoOp : (bloque.base_isr != null ? bloque.base_isr : null);
+  const ivaTras = bloque.iva_trasladado != null ? bloque.iva_trasladado : calcGrab_(t, /Total IVA\s+([\d,]+\.\d\d)/);
+  const ivaRet = bloque.iva_retenido != null ? bloque.iva_retenido : calcGrab_(t, /Total IVA retenido\s+([\d,]+\.\d\d)/);
+  const isrRet = bloque.isr_retenido != null ? bloque.isr_retenido : calcGrab_(t, /Total ISR retenido\s+([\d,]+\.\d\d)/);
+  const declaradas = calcGrab_(t, /N[uú]mero\s+(\d+)\s+Periodicidad/) || calcGrab_(t, /N[uú]mero\s+servicios\s+(\d+)/);
+  const ordenes = declaradas || rows.length || null;
+
+  /* Órdenes con IVA 16%: se cuentan del detalle cuando el detalle se leyó completo; si no,
+     y si todo el monto de operación coincide con la base al 16% (trasladado / 0.16), son
+     todas. En cualquier otro caso se deja sin dato y el documento lo declara. */
+  let ord16 = null, ord16Origen = 'sin dato';
+  const contadas = rows.filter(function (r) { return r.iva > 0; }).length;
+  if (rows.length && (!ordenes || rows.length >= ordenes * 0.95)) { ord16 = contadas; ord16Origen = 'contado del detalle'; }
+  else if (ivaTras != null && base) {
+    const b16 = ivaTras / 0.16;
+    if (Math.abs(b16 - base) <= Math.max(1, base * 0.005)) { ord16 = ordenes; ord16Origen = 'derivado: todo el monto de operación está gravado al 16%'; }
+  }
+
   return { mes: calcGrab_(t, /Mes inicial\s+(\d\d)/), anio: calcGrab_(t, /Ejercicio fiscal\s+(\d{4})/), folio: folio, rfc_receptor: rfcRec,
-    base: calcGrab_(t, /Monto operaci[o\u00f3]n\s+([\d,]+\.\d\d)/), isr_retenido: calcGrab_(t, /Total ISR retenido\s+([\d,]+\.\d\d)/), iva_retenido: calcGrab_(t, /Total IVA retenido\s+([\d,]+\.\d\d)/),
-    iva_trasladado: calcGrab_(t, /Total IVA\s+([\d,]+\.\d\d)/), ordenes: rows.length || calcGrab_(t, /N[u\u00fa]mero\s+(\d+)\s+Periodicidad/), ordenes_16: rows.filter(function (r) { return r.iva > 0; }).length };
+    base: base, isr_retenido: isrRet, iva_retenido: ivaRet, iva_trasladado: ivaTras,
+    base_16: ivaTras != null ? calcR2_(ivaTras / 0.16) : null, base_isr: bloque.base_isr != null ? bloque.base_isr : null,
+    ordenes: ordenes, ordenes_16: ord16, ordenes_16_origen: ord16Origen, renglones_leidos: rows.length,
+    fuente_importes: (bloque.iva_trasladado != null || bloque.isr_retenido != null) ? 'bloque Impuestos retenidos' : 'totales del pie' };
 }
+
 
 function calcRiqueza_(r) {
   if (!r || !r.datos) return 0;
