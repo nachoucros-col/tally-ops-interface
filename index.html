@@ -9,24 +9,36 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  /* Tally Brand Master §10 — tokens canónicos (docs/brand-master.md) */
-  --violet-500:#6047ff; --violet-100:#dcdcff;
+  /* ═══ Tally × Apple — tokens (port de compendio-growve-poc-v1_1.html) ═══ */
+  /* Marca Tally (brand-master §6.1) */
+  --violet-500:#6047ff; --violet-100:#dcdcff; --violet-ink:#4326c4;
   --orange-500:#ff8248; --orange-100:#fcddd6;
   --cyan-500:#5ed7ff;   --cyan-100:#dcf8ff;
   --green-500:#49d475;  --green-100:#c8e8ce;
   --ink:#212121; --cream:#fefcf8;
+  /* Superficies: lienzo cálido + tarjetas blancas (Apple) */
+  --bg:#f4f3f0; --card:#ffffff; --card-2:#faf9f7;
+  /* Grises de sistema de Apple para texto */
+  --t1:#1c1c1e; --t2:#5f6067; --t3:#8e8e93;
+  /* Separadores translúcidos de medio píxel */
+  --sep:rgba(0,0,0,.07); --sep-strong:rgba(0,0,0,.12); --fill:rgba(0,0,0,.04); --hairline:rgba(0,0,0,.03);
+  /* Semánticos legibles sobre fondo claro */
+  --ok:#17864a; --warn:#c9591f; --bad:#c62828;
+  /* Radios: 980px = la cápsula de Apple */
+  --r-sm:10px; --r-md:16px; --r-lg:22px; --r-xl:28px; --r-pill:980px;
+  /* Sombras de doble capa, difusas y de baja opacidad */
+  --sh-1:0 1px 2px rgba(0,0,0,.04),0 1px 3px rgba(0,0,0,.03);
+  --sh-2:0 4px 16px -2px rgba(0,0,0,.07),0 1px 3px rgba(0,0,0,.04);
+  --sh-3:0 24px 56px -12px rgba(0,0,0,.20),0 2px 8px rgba(0,0,0,.06);
+  --ease:cubic-bezier(.16,1,.3,1);
+  --font:'DM Sans','Noto Sans SC',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  /* Alias que el resto del CSS ya referencia → apuntan a los nuevos valores */
   --brand-primary:var(--violet-500); --brand-primary-soft:var(--violet-100);
-  --text-secondary:#6B7280; --border-light:#e8e8e8;
-  /* alias legacy → canónicos (el resto del CSS referencia estos) */
-  --gray-100:rgba(33,33,33,.05); --gray-300:var(--border-light); --gray-500:var(--text-secondary);
-  --radius-sm:8px; --radius-md:16px; --radius-lg:24px; --radius-pill:999px;
-  --shadow-sm:0 1px 3px rgba(0,0,0,.06);
-  --shadow-md:0 4px 12px rgba(0,0,0,.08);
-  --shadow-lg:0 20px 40px -8px rgba(0,0,0,.1);
-  --shadow-xl:0 25px 50px -12px rgba(0,0,0,.15);
-  --ease:cubic-bezier(0.16,1,0.3,1);
-  --transition-micro:150ms ease-out;
-  --transition-state:300ms var(--ease);
+  --text-secondary:var(--t2); --border-light:var(--sep);
+  --gray-100:var(--fill); --gray-300:var(--sep-strong); --gray-500:var(--t2);
+  --radius-sm:var(--r-sm); --radius-md:var(--r-md); --radius-lg:var(--r-lg); --radius-pill:var(--r-pill);
+  --shadow-sm:var(--sh-1); --shadow-md:var(--sh-2); --shadow-lg:var(--sh-3); --shadow-xl:var(--sh-3);
+  --transition-micro:150ms ease-out; --transition-state:300ms var(--ease);
 }
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);font-size:15px;line-height:1.55}
@@ -260,6 +272,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
   *,*::before,*::after{transition-duration:0.01ms !important;animation-duration:0.01ms !important}
   .mail-card:hover,.btn-primary:hover,.btn-approve:hover,.compose-btn:hover{transform:none}
 }
+
 </style>
 </head>
 <body>
@@ -277,7 +290,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
     <div class="push"></div>
     <div class="status" id="userBox" style="border-top:none"></div>
-    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v5 · cálculo en Excel + carga al sistema</span></div>
+    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v6 · Excel + carga al sistema + diseño Tally × Apple</span></div>
   </nav>
 
   <main class="main">
@@ -3225,5 +3238,238 @@ async function genPreviewsCalc(){
   if(!cmp.previews.length) return; renderPreviews(); toast('✅ '+cmp.previews.length+' correo(s) con cálculo adjunto — revisa y envía');
 }
 </script>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   DESIGN SYSTEM · TALLY × APPLE  (4-sep-2026)
+   Port del lenguaje visual de `compendio-growve-poc-v1_1.html`: paleta Tally
+   (violet/ink/cream) + gramática de Apple — grises de sistema, hairlines de
+   .5px, radios 10/16/22/28/pill, sombras difusas de doble capa, tracking
+   negativo en titulares, segmented controls, materiales translúcidos y el
+   easing cubic-bezier(.16,1,.3,1).
+   Nota de escala: el compendio es un documento (17px de base); esta es una app
+   densa de datos, así que se conserva la base de 15px y se porta el resto del
+   sistema (stack tipográfico, tracking, superficies, controles).
+   Todo es CSS: ni un id, clase o handler cambió.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Base y tipografía ───────────────────────────────────────────────────── */
+body{font-family:var(--font);background:var(--bg);color:var(--t1);
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+h1,h2,h3,h4{letter-spacing:-.022em;text-wrap:balance}
+h1{font-size:30px;font-weight:700;letter-spacing:-.034em;line-height:1.08}
+.main h1+.lead,.lead{color:var(--t2);font-size:15px;line-height:1.6;max-width:76ch}
+.detail h3,.cfg-card h3,.dash-layer h2,.dash-modal h3,.kb-modal h3{letter-spacing:-.024em}
+td.num,.dash-card .dc-num,.dash-owners td.num,.cx-table td,table td,
+.dash-card .dc-pct,.cx-result .k b{font-variant-numeric:tabular-nums}
+
+/* ── Superficie canónica (tarjeta Apple: hairline + sombra de doble capa) ── */
+.mail-card,.ctx-card,.cfg-card,.draft-box,.preview-card,.kb-card,.dash-card,
+.dash-owners,.dash-table-wrap,.filter-pop,.cli-results,.cx-panel,.cx-result,
+.cx-drop,.cx-selected{background:var(--card);border:.5px solid var(--hairline);
+  border-radius:var(--r-lg);box-shadow:var(--sh-1)}
+
+/* ── Barra lateral: superficie ink con selección en pastilla ───────────── */
+.nav{background:var(--ink);padding:22px 0;border-right:.5px solid rgba(255,255,255,.07)}
+.nav .logo span{letter-spacing:-.045em}
+.nav .sub{color:rgba(254,252,248,.42);letter-spacing:.08em}
+.nav a{margin:1px 10px;padding:9px 14px;border-radius:var(--r-sm);border-left:0;
+  opacity:1;color:rgba(254,252,248,.62);font-size:13.5px;font-weight:500;letter-spacing:-.006em;
+  transition:background .18s var(--ease),color .18s var(--ease)}
+.nav a:hover{background:rgba(255,255,255,.07);color:var(--cream)}
+.nav a.active{background:var(--violet-500);color:#fff;font-weight:500;
+  box-shadow:0 1px 3px rgba(0,0,0,.28)}
+.nav .status{color:rgba(254,252,248,.45);border-top:.5px solid rgba(255,255,255,.07);
+  padding-top:14px;font-size:11.5px}
+.nav .status b{color:var(--cream);font-weight:500}
+
+/* ── Segmented controls (chips de Bandeja, modo del Dashboard) ─────────── */
+.chips{gap:3px;padding:5px;background:var(--card);border:.5px solid var(--hairline);
+  border-radius:var(--r-pill);box-shadow:var(--sh-1);width:max-content;max-width:100%}
+.chip{border:0;background:transparent;border-radius:var(--r-pill);padding:8px 16px;
+  font-size:13px;font-weight:500;color:var(--t2);letter-spacing:-.004em;
+  transition:background .18s var(--ease),color .18s var(--ease)}
+.chip:hover{background:var(--fill);color:var(--t1)}
+.chip.on{background:var(--ink);color:var(--cream)}
+.chip-n{background:var(--fill);color:var(--t3);border-radius:var(--r-pill);
+  font-size:10.5px;font-weight:700;padding:1px 7px}
+.chip.on .chip-n{background:rgba(254,252,248,.22);color:var(--cream)}
+.chip-sep{background:var(--sep-strong)}
+.dash-seg{padding:4px;background:var(--card);border:.5px solid var(--hairline);
+  border-radius:var(--r-pill);box-shadow:var(--sh-1);gap:2px}
+.dash-seg button{border:0;background:transparent;border-radius:var(--r-pill);
+  padding:7px 15px;font-size:12.5px;font-weight:500;color:var(--t2)}
+.dash-seg button.on{background:var(--ink);color:var(--cream)}
+
+/* ── Botones ─────────────────────────────────────────────────────────────── */
+.btn,.compose-btn{border-radius:var(--r-pill);padding:10px 19px;font-size:13.5px;
+  font-weight:500;letter-spacing:-.006em;
+  transition:transform .18s var(--ease),background .18s var(--ease),box-shadow .18s var(--ease)}
+.btn-primary,.compose-btn{background:var(--violet-500);color:#fff;box-shadow:var(--sh-1)}
+.btn-primary:hover,.compose-btn:hover{background:#7059ff;box-shadow:var(--sh-2);transform:translateY(-1px)}
+.btn-ghost{background:var(--card);color:var(--t1);border:.5px solid var(--sep-strong);box-shadow:none}
+.btn-ghost:hover{background:var(--card-2);border-color:var(--sep-strong)}
+.btn-approve{background:var(--ok);color:#fff;box-shadow:var(--sh-1)}
+.btn-approve:hover{background:#14713e;box-shadow:var(--sh-2);transform:translateY(-1px)}
+.btn:disabled{opacity:.42;box-shadow:none;transform:none}
+.btn:focus-visible,.compose-btn:focus-visible,.chip:focus-visible,.dash-seg button:focus-visible{
+  outline:0;box-shadow:0 0 0 3.5px var(--violet-100)}
+.mini{border-radius:var(--r-pill);font-size:11.5px;font-weight:500;padding:5px 12px;
+  border:.5px solid var(--sep-strong);background:var(--card);color:var(--t1)}
+.mini:hover{background:var(--card-2)}
+.drawer-x{border-radius:50%;background:var(--fill);color:var(--t2);border:0}
+.drawer-x:hover{background:var(--sep);color:var(--t1)}
+
+/* ── Campos ──────────────────────────────────────────────────────────────── */
+input[type=text],input[type=password],input[type=date],input[type=number],select,textarea,
+.cx-input,.dash-ctrl select,.dash-reg input[type=date],.dash-reg input[type=text]{
+  background:var(--card);border:.5px solid var(--sep-strong);border-radius:var(--r-sm);
+  padding:10px 13px;font-size:14px;color:var(--t1);
+  transition:border-color .18s var(--ease),box-shadow .18s var(--ease)}
+input:focus,select:focus,textarea:focus,.cx-input:focus{outline:0;
+  border-color:var(--violet-500);box-shadow:0 0 0 3.5px var(--violet-100)}
+::placeholder{color:var(--t3)}
+.detail label,.cx-step label{font-size:11.5px;font-weight:500;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--t3)}
+
+/* ── Tablas (etiquetas tenues, no cabecera negra) ───────────────────────── */
+table,.cx-table{background:var(--card);border:.5px solid var(--hairline);
+  border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--sh-1);font-size:13.5px}
+th,.cx-table th{background:transparent;color:var(--t3);font-size:11px;font-weight:500;
+  text-transform:uppercase;letter-spacing:.07em;padding:12px 14px;
+  border-bottom:.5px solid var(--sep-strong)}
+td,.cx-table td{padding:11px 14px;border-bottom:.5px solid var(--sep);color:var(--t1)}
+tr:last-child td,.cx-table tr:last-child td{border-bottom:0}
+tr:hover td{background:var(--card-2)}
+.dash-owners tr.on td{background:var(--violet-100)}
+
+/* ── Píldoras de estado (geometría común; cada color conserva su significado) */
+.tag,.pill,.sat-tag,.cx-tag,.pc-status,.src{border-radius:var(--r-pill);font-size:11px;
+  font-weight:700;letter-spacing:.012em;padding:3px 11px;border-width:0}
+.tag.acct{background:var(--fill);color:var(--t2)}
+.pill.none,.sat-tag.sat-sl{background:var(--fill);color:var(--t3);border:.5px dashed var(--sep-strong)}
+.pill.ok,.pill.Aprobado,.cx-tag.ok,.sat-tag.sat-si{background:#eaf8f0;color:#166534}
+.pill.bad,.pill.Rechazado{background:#fde3e3;color:var(--bad)}
+.pill.mid,.cx-tag.warn,.sat-tag.sat-off{background:#fff2ec;color:#b34a12}
+.cx-tag.info,.sat-tag.sat-no{background:#dff5fb;color:#0e6a82}
+.sel-clients .chip{background:var(--violet-100);color:#4326c4;padding:5px 13px;font-weight:500}
+
+/* ── Avisos: bandas de degradado suave, como en el compendio ────────────── */
+.notice,.simband,.cx-alert{border-radius:var(--r-lg);border:.5px solid var(--hairline);
+  box-shadow:var(--sh-1);font-size:13.5px;line-height:1.6}
+.notice.info{background:linear-gradient(158deg,#eef0ff,#fbfcff);border-color:#dcdcff}
+.notice.ok{background:linear-gradient(158deg,#eaf8f0,#fbfefc);border-color:#c6e8d3}
+.notice.warn{background:linear-gradient(158deg,#fff8e1,#fffdf4);border-color:#f2dd9a}
+.cx-alert{background:linear-gradient(158deg,#fff2ec,#fffdfc);border:.5px solid #f3c8b4;
+  border-left:4px solid var(--orange-500)}
+.ctx-card{border-left-width:4px}
+
+/* ── Bandeja ─────────────────────────────────────────────────────────────── */
+.mail-card{padding:15px 17px;border-radius:var(--r-md)}
+.mail-card:hover{box-shadow:var(--sh-2);transform:translateY(-1px)}
+.mail-card.sel{border-color:var(--violet-500);box-shadow:0 0 0 3px var(--violet-100),var(--sh-1)}
+.mail-card .from{font-weight:700;letter-spacing:-.012em;color:var(--t1)}
+.mail-card .date{color:var(--t3);font-size:11.5px}
+.mail-card .subj{color:var(--t1);letter-spacing:-.008em}
+.mail-card .sum{color:var(--t2);line-height:1.5}
+.draft-box{border-radius:var(--r-lg)}
+.preview-card{border-radius:var(--r-lg);padding:20px 22px}
+.msg-original{background:var(--card-2);border:.5px solid var(--hairline);border-radius:var(--r-md)}
+.msg-label{color:var(--t3);letter-spacing:.07em}
+
+/* ── Panel deslizante y modales: material translúcido ───────────────────── */
+#drawerBack,#dashModalBack,#kbConfirmBack{background:rgba(28,28,30,.28);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px)}
+.detail{background:var(--card);border-radius:var(--r-xl) 0 0 var(--r-xl);
+  box-shadow:var(--sh-3);border:0;border-left:.5px solid var(--hairline)}
+.dash-modal,.kb-modal{background:var(--card);border-radius:var(--r-xl);box-shadow:var(--sh-3);
+  border:.5px solid var(--hairline)}
+.filter-pop,.cli-results,.tip .tiptext{border-radius:var(--r-md);box-shadow:var(--sh-2)}
+.tip .tiptext{background:var(--ink);color:var(--cream);border-radius:var(--r-md);
+  box-shadow:var(--sh-3);font-weight:400;line-height:1.5}
+.toast{border-radius:var(--r-pill);background:var(--ink);color:var(--cream);
+  box-shadow:var(--sh-3);font-size:13.5px;font-weight:500}
+
+/* ── Dashboard ───────────────────────────────────────────────────────────── */
+.dash-card{border-radius:var(--r-lg);padding:20px 21px 18px}
+.dash-card:hover{box-shadow:var(--sh-2);transform:translateY(-1px)}
+.dash-card.on{border-color:var(--violet-500);box-shadow:0 0 0 3px var(--violet-100),var(--sh-2)}
+.dash-card .dc-title{font-size:12.5px;font-weight:500;color:var(--t2);line-height:1.35}
+.dash-card .dc-num{font-size:30px;font-weight:700;letter-spacing:-.036em;line-height:1.06}
+.dash-card .dc-num small{color:var(--t3);font-weight:500;letter-spacing:-.01em}
+.dash-card .dc-pct{color:var(--t2);font-weight:500}
+.dash-card .dc-src,.dash-card .dc-note{color:var(--t3);font-size:11.5px;line-height:1.45}
+.dash-bar{height:6px;border-radius:var(--r-pill);background:var(--fill);overflow:hidden}
+.dash-bar i{border-radius:var(--r-pill)}
+.dash-owners,.dash-table-wrap{border-radius:var(--r-lg);overflow:hidden}
+.dash-owners table,.dash-table-wrap table{border:0;box-shadow:none;border-radius:0}
+.dash-layer h2{font-size:22px;letter-spacing:-.026em}
+.dash-empty,.dash-warn{border-radius:var(--r-lg);border:.5px solid var(--hairline);
+  box-shadow:var(--sh-1);color:var(--t2)}
+.dash-prom .pt{font-weight:700;letter-spacing:-.014em}
+.dash-prom .pt small{color:var(--t3);font-weight:500}
+.dash-prom .pd{color:var(--t2)}
+
+/* ── Tareas (kanban) ─────────────────────────────────────────────────────── */
+.kb-col{background:var(--card-2);border:.5px solid var(--hairline);border-radius:var(--r-lg)}
+.kb-col.drag-over{border-color:var(--violet-500);background:var(--violet-100)}
+.kb-head{font-size:11.5px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:var(--t3)}
+.kb-count{background:var(--fill);color:var(--t2);border-radius:var(--r-pill);font-weight:700;font-size:10.5px}
+.kb-card{border-radius:var(--r-md);padding:13px 14px}
+.kb-card:hover{box-shadow:var(--sh-2)}
+.kb-card.dragging{box-shadow:var(--sh-3);transform:scale(1.02) rotate(-.4deg)}
+.kb-title{font-weight:500;letter-spacing:-.01em;color:var(--t1)}
+.kb-meta,.kb-hint,.kb-empty{color:var(--t3);font-size:12px}
+.kb-acts button{border-radius:var(--r-pill);border:.5px solid var(--sep-strong);background:var(--card);color:var(--t2)}
+.kb-acts button:hover{background:var(--card-2);color:var(--t1)}
+
+/* ── Cálculo de impuestos ───────────────────────────────────────────────── */
+.cx-tabs{gap:3px;padding:5px;background:var(--card);border:.5px solid var(--hairline);
+  border-radius:var(--r-pill);box-shadow:var(--sh-1);width:max-content}
+.cx-tab{border:0;background:transparent;border-radius:var(--r-pill);padding:8px 16px;
+  font-size:13px;font-weight:500;color:var(--t2)}
+.cx-tab:hover{background:var(--fill);color:var(--t1)}
+.cx-tab.active{background:var(--ink);color:var(--cream)}
+.cx-steps{gap:4px}
+.cx-steps li{background:var(--card);border:.5px solid var(--hairline);border-radius:var(--r-md);
+  box-shadow:var(--sh-1);color:var(--t3);font-size:12px;font-weight:500;padding:9px 12px;letter-spacing:-.004em}
+.cx-steps li.on{background:var(--ink);color:var(--cream);border-color:transparent}
+.cx-steps li.done{background:#eaf8f0;color:#166534;border-color:#c6e8d3}
+.cx-drop{border:1.5px dashed var(--violet-500);border-radius:var(--r-xl);background:var(--card-2);
+  box-shadow:none;transition:background .18s var(--ease),border-color .18s var(--ease)}
+.cx-drop:hover{background:var(--card)}
+.cx-drop.over{background:var(--violet-100);border-color:var(--violet-500)}
+.cx-drop small{color:var(--t3)}
+.cx-list .it{background:var(--card);border:.5px solid var(--sep);border-top:0;font-size:13.5px}
+.cx-list .it:hover{background:var(--violet-100)}
+.cx-list .it:last-child{border-radius:0 0 var(--r-md) var(--r-md)}
+.cx-selected{background:var(--violet-100);border:.5px solid #cfcaff;border-radius:var(--r-md);
+  box-shadow:none;font-size:13.5px}
+.cx-panel{border-radius:var(--r-lg);padding:16px 18px}
+.cx-panel h4{font-size:13px;font-weight:700;letter-spacing:-.014em}
+.cx-result{background:linear-gradient(158deg,#efecff,#fbfaff);border:.5px solid #dcdcff;
+  border-radius:var(--r-lg);box-shadow:var(--sh-1);padding:18px 20px}
+.cx-result .k b{font-size:26px;font-weight:700;letter-spacing:-.035em}
+.cx-result .k span{color:var(--t2);font-size:12.5px}
+.cx-hint{color:var(--t3);font-size:12px;line-height:1.5}
+.cx-preview{border-radius:var(--r-lg);border:.5px solid var(--hairline);box-shadow:var(--sh-1)}
+.cx-spinner{color:var(--t3)}
+
+/* ── Configuración ──────────────────────────────────────────────────────── */
+.cfg-card{border-radius:var(--r-lg);padding:20px 22px}
+.cfg-card h3{font-size:16px;font-weight:700}
+.cfg-card code{background:var(--fill);border-radius:6px;color:var(--t1);font-size:12px;padding:2px 6px}
+.page-head{border-bottom:.5px solid var(--sep-strong);padding-bottom:18px}
+
+/* ── Botones del módulo de Cálculo (usa .btn y .btn.secondary) ──────────── */
+#cx-nuevo .btn,#cx-lista .btn,.cx-nav .btn{background:var(--violet-500);color:#fff;box-shadow:var(--sh-1)}
+#cx-nuevo .btn:hover,#cx-lista .btn:hover,.cx-nav .btn:hover{background:#7059ff;box-shadow:var(--sh-2);transform:translateY(-1px)}
+.btn.secondary,#cx-nuevo .btn.secondary,#cx-lista .btn.secondary,.cx-nav .btn.secondary{
+  background:var(--card);color:var(--t1);border:.5px solid var(--sep-strong);box-shadow:none}
+.btn.secondary:hover,#cx-nuevo .btn.secondary:hover,.cx-nav .btn.secondary:hover{background:var(--card-2);transform:none}
+.btn:disabled,#cx-nuevo .btn:disabled{opacity:.42;box-shadow:none;transform:none}
+
+/* ── La barra de filtros envuelve en vez de cortarse ────────────────────── */
+.chips{width:auto;flex-wrap:wrap;border-radius:var(--r-lg)}
+</style>
 </body>
 </html>

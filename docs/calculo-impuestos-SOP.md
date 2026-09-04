@@ -36,7 +36,7 @@ Producir cada mes, para cada cliente con ventas, un documento de cálculo de IVA
 
 **Paso 4 · Cálculo.** Revisa los insumos lado a lado (marketplace vs SAT/banco), elige el criterio de IVA (Lectura A por defecto para vendedores con ventas transfronterizas), captura el coeficiente de utilidad si lo tienes y pulsa **Calcular y generar documento**. El motor arma la serie enero→mes con los cálculos previos guardados del mismo RFC (arrastra saldo a favor y acumulados de ISR), genera el documento en los tres idiomas y lo guarda con estado **Borrador**.
 
-**Paso 5 · Entrega.** Ver documento, descargar PDF, pedir corrección (queda en bitácora y avisa por Slack) o **Redactar correo al cliente**: se abre la Bandeja con el cliente elegido, la plantilla saludando a la empresa con el resumen (ventas, IVA, ISR, total, retenciones) y el documento adjunto. Se envía desde la cuenta del owner con copia a customersuccess@.
+**Paso 5 · Entrega.** Ver el resumen, **descargar el Excel**, **Carga en Sistema** (escribe la fila en la tabla `calculo_impuestos` de AppSheet por su API y sube el .xlsx a `calculo_impuestos_Files_`; el `PeriodID` se resuelve consultando la app, nunca se construye, y si el período del cliente no está abierto no se escribe nada), pedir corrección (queda en bitácora y avisa por Slack) o **Redactar correo al cliente**: se abre la Bandeja con el cliente elegido, la plantilla saludando a la empresa con el resumen (ventas, IVA, ISR, total, retenciones) y el documento adjunto. Se envía desde la cuenta del owner con copia a customersuccess@.
 
 **Cierre.** Cuando el cliente responde aprobando, el owner cambia el estado a **Aprobado** (mueve la promesa 3), presenta la declaración y cambia a **Declarado**; el acuse se sube a la misma carpeta.
 
@@ -46,9 +46,9 @@ Producir cada mes, para cada cliente con ventas, un documento de cálculo de IVA
 - **Lectura A vs B:** A toma el IVA trasladado del certificado (orden por orden); B toma el IVA de los CFDI emitidos. La elección es de criterio del owner con el contador; el documento declara cuál se usó. Si se elige A y existen CFDI que trasladan 16% sobre todo, hay que sustituirlos antes de declarar (regla 5).
 - **Conciliación:** transferencias según marketplace vs abonos identificados en el estado de cuenta; la diferencia se muestra, no se explica automáticamente.
 
-## 6. Formato del documento (7 páginas)
-1. Portada (marca Tally, empresa, período, RFC, régimen, canal, estado). 2. Resumen ejecutivo (total a pagar, IVA, ISR, saldo a favor, retenciones, ventas, órdenes con/sin IVA, criterio, qué sigue, alertas). 3. Cómo calculamos (cinco pasos + tabla de fuentes con estado). 4. IVA e ISR renglón por renglón con la fuente de cada uno. 5. Detalle mensual de ventas/retenciones y conciliación bancaria. 6. CFDI emitidos y recibidos del mes. 7. Notas, supuestos y glosario.
-Mismas cifras en ES/EN/中文. Tipografía DM Sans, paleta cream/ink/violet (brand-master §6). Logo: wordmark; ranura para `tally-logotipo-violet.svg` (pendiente de copiar el archivo al repo).
+## 6. Formato del documento (Excel de 7 hojas)
+Hojas: 1. Resumen ejecutivo (total a pagar, IVA, ISR, saldo a favor, retenciones, ventas, órdenes con/sin IVA, criterio, qué sigue, alertas). 3. Cómo calculamos (cinco pasos + tabla de fuentes con estado). 4. IVA e ISR renglón por renglón con la fuente de cada uno. 5. Detalle mensual de ventas/retenciones y conciliación bancaria. 6. CFDI emitidos y recibidos del mes. 7. Notas, supuestos y glosario.
+Mismas cifras en ES/EN/中文. Las hojas de IVA e ISR llevan fórmulas auditables (el cliente puede rastrear cada resultado). El HTML se conserva solo como vista previa en pantalla. Paleta Tally, tipografía Arial para que abra igual en cualquier Excel.
 
 ## 7. Roles (RACI)
 | Actividad | R | A | C | I |
@@ -74,3 +74,8 @@ Mismas cifras en ES/EN/中文. Tipografía DM Sans, paleta cream/ink/violet (bra
 
 ## 10. Qué queda pendiente para la versión 1.1
 Lectura automática de CSV de Mercado Libre; carga masiva de meses históricos; cálculo de actualización y recargos para extemporáneas; firma de aprobación del cliente desde el correo (botón "Apruebo").
+
+## 11. Requisitos técnicos de la carga al sistema
+- `APPSHEET_ACCESS_KEY` en Propiedades del script (AppSheet → Settings → Integrations → Enable API → Application Access Key). Sin ella el botón devuelve el aviso y no escribe nada.
+- La escritura es SIEMPRE por la API de AppSheet: respeta el Ref a `Clientes_por_periodo`, el Enum de `MesPeriodo`, la columna File y las automatizaciones de la app. Nunca se escribe en el Google Sheet.
+- El botón es idempotente: si ya hay cálculo para ese cliente-período, edita esa fila en vez de duplicarla.
