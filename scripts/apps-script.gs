@@ -3503,7 +3503,16 @@ function calcSynEntidad_(body) {
   if (rfc) for (i = 0; i < ents.length; i++) if (String(ents[i].rfc || '').toUpperCase() === rfc) return { ent: ents[i], via: 'rfc' };
   if (nombre) {
     const nn = almNorm_(nombre);
-    if (nn) for (i = 0; i < ents.length; i++) if (almNorm_(ents[i].name || ents[i].legalName || '') === nn) return { ent: ents[i], via: 'nombre' };
+    if (nn) {
+      for (i = 0; i < ents.length; i++) if (almNorm_(ents[i].name || ents[i].legalName || '') === nn) return { ent: ents[i], via: 'nombre' };
+      if (nn.replace(/ /g, '').length >= 6) {                 /* razón social abreviada en un lado u otro */
+        const nc = nn.replace(/ /g, '');
+        for (i = 0; i < ents.length; i++) {
+          const ne = almNorm_(ents[i].name || ents[i].legalName || '').replace(/ /g, '');
+          if (ne.length >= 6 && (ne.indexOf(nc) === 0 || nc.indexOf(ne) === 0)) return { ent: ents[i], via: 'nombre' };
+        }
+      }
+    }
   }
   return { ent: null, total: ents.length };
 }
