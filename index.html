@@ -294,7 +294,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
     <div class="push"></div>
     <div class="status" id="userBox" style="border-top:none"></div>
-    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v11 · estados de cuenta con resumen (Wells Fargo)</span></div>
+    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v12 · generar el cálculo por POST</span></div>
   </nav>
 
   <main class="main">
@@ -3062,7 +3062,14 @@ setInterval(loadAll,120000);
 </script>
 <script>
 /* ═══ helpers del módulo: llamadas con credenciales del usuario; subida de archivos por POST (JSONP no aguanta base64) ═══ */
-function capi(action, payload){ return api(action, Object.assign({auth:{email:AUTH.email,password:AUTH.password}}, payload||{}), 90000); }
+function capi(action, payload){
+  const p = Object.assign({auth:{email:AUTH.email,password:AUTH.password}}, payload||{});
+  /* El JSONP manda el payload dentro de la URL. Con CFDI del mes adentro se pasa del límite
+     y el navegador ni siquiera envía la petición ("no se pudo contactar el Apps Script"),
+     así que arriba de ~6 KB se usa POST, que no tiene ese tope. */
+  try { if (JSON.stringify(p).length > 6000) return capiPost(action, payload || {}); } catch(e){}
+  return api(action, p, 90000);
+}
 async function capiPost(action, payload){
   try{ const r=await fetch(APPS_SCRIPT_URL,{method:'POST',body:JSON.stringify(Object.assign({action,token:API_TOKEN,auth:{email:AUTH.email,password:AUTH.password}},payload||{}))});
        return await r.json(); }catch(e){ return {ok:false,error:'sin respuesta del Apps Script (POST): '+e}; }
@@ -3207,6 +3214,10 @@ async function cxGenerar() {
   const alertas = [];
   if (CX.syntage && CX.syntage.conectado && !CX.syntage.cfdi_recibidos_anio)
     alertas.push(`El SAT no reporta facturas recibidas a nombre de este RFC en ${CX.anio}. El IVA acreditable del período queda en cero hasta que el cliente registre sus gastos con factura a su RFC.`);
+  if (cu === 0)
+    alertas.push('El coeficiente de utilidad se capturó como 0: eso deja el ISR del período en cero por criterio, no por falta de dato. Si no se tiene el coeficiente de la anual anterior, el campo debe quedar vacío y el documento dirá “pendiente”.');
+  if (lectura === 'B' && c.iva_trasladado && syn.emitidos && syn.emitidos.length)
+    alertas.push(`Criterio Lectura B: el IVA cobrado se toma de los CFDI emitidos (${cxFmt((syn.emitidos || []).reduce((a2, x) => a2 + x.iva, 0))}) y no del certificado de retenciones (${cxFmt(c.iva_trasladado)}). La diferencia se declara y se paga; si el cliente vende con órdenes transfronterizas a 0%, revisar la facturación antes de declarar.`);
   if (b && b.moneda && b.moneda !== 'MXN')
     alertas.push(`El estado de cuenta está en ${b.moneda}, no en pesos: sus abonos no son comparables peso a peso con las transferencias que reporta el marketplace en México. La conciliación se presenta como referencia.`);
   if (b && b.abonos_marketplace != null && b.abonos != null && Math.abs(b.abonos_marketplace - b.abonos) > 0.5)
@@ -3216,7 +3227,7 @@ async function cxGenerar() {
   const input = { cliente: { nombre: CX.cliente.nombre, rfc: CX.cliente.rfc, company_id: CX.cliente.company_id, regimen: 'General de Ley Personas Morales (601)', marketplace: 'Amazon México' }, periodo: { mes: CX.mes, anio: CX.anio }, idioma: CX.idioma, estado: 'draft',
     meses: [mesActual], completar_serie: true, isr: { cu: isNaN(cu) ? null : cu, perdidas: 0, pagos_previos: [] }, fuentes, alertas,
     lectura: lectura === 'A' ? { es: 'Lectura A — el IVA cobrado es el que el marketplace reporta orden por orden en el certificado de retenciones.', en: 'Criterion A — VAT collected is what the marketplace reports order by order in the withholding certificate.', zh: '标准 A —— 增值税以平台代扣证明中逐单报告的数据为准。' } : { es: 'Lectura B — el IVA cobrado es el trasladado en los CFDI emitidos.', en: 'Criterion B — VAT collected is the VAT charged on issued CFDI.', zh: '标准 B —— 增值税以已开具 CFDI 中的转嫁税额为准。' } };
-  const r = await capi('calc_generar', { input }); B.disabled = false;
+  const r = await capiPost('calc_generar', { input }); B.disabled = false;
   if (!r.ok) { document.getElementById('cxGenMsg').textContent = '⚠️ ' + r.error; return; }
   CX.calc = r.calculo; CX.calc_id = r.calc_id; CX.archivos = r.archivos; document.getElementById('cxGenMsg').textContent = '';
   const x = r.calculo; document.getElementById('cxResult').innerHTML = `<div class="k"><span>IVA a pagar</span><b>$ ${cxFmt(x.iva.a_pagar)}</b></div><div class="k"><span>ISR a pagar</span><b>${x.isr.a_pagar == null ? 'pendiente CU' : '$ ' + cxFmt(x.isr.a_pagar)}</b></div><div class="k"><span>Saldo a favor que se arrastra</span><b>$ ${cxFmt(x.iva.saldo_favor_arrastre)}</b></div><div class="k"><span>Ventas base</span><b>$ ${cxFmt(x.resumen.ventas_base)}</b></div><p class="cx-hint">Guardado como <b>${r.calc_id}</b> en “Cálculos guardados”. Estado: borrador hasta que el cliente apruebe.</p>`;
