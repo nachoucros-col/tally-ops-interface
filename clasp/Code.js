@@ -2702,9 +2702,9 @@ function almDetalle_(metrica, periodo, owner) {
           resumen: { ventas_base: c.base, ordenes: c.ordenes, ordenes_16: c.ordenes_16, ordenes_0: (c.ordenes != null && c.ordenes_16 != null) ? c.ordenes - c.ordenes_16 : null,
                      isr_retenido_mes: c.isr_retenido, iva_retenido_mes: retenido, ingreso_liquidacion: l.ingreso_neto, transferencias: l.transferencias },
           iva: { base_16: base16, base_0: base0, trasladado, retenido, retenido_anterior: retAnterior, acreditable, saldo_favor_anterior: saldoFavor, resultado, a_pagar: aPagar, saldo_favor_arrastre: arrastre,
-                 src_retenido_anterior: 'Historial capturado por el contador',
+                 src_retenido_anterior: 'Historial capturado por el contador' + (in_.retenciones_pendientes_detalle ? ' · ' + in_.retenciones_pendientes_detalle : ''),
                  ppd_pendiente: f.iva_ppd_pendiente || 0,
-                 src_16: 'Certificado de retenciones ' + (c.folio || ''), src_0: 'Certificado de retenciones', src_trasladado: 'Certificado de retenciones', src_retenido: 'Certificado de retenciones' + (retenidoLiq != null ? ' · liquidación: ' + retenidoLiq.toFixed(2) : ''), src_acreditable: 'CFDI recibidos (SAT / Syntage)' },
+                 src_16: c.src_base || ('Certificado de retenciones ' + (c.folio || '')), src_0: c.src_base || 'Certificado de retenciones', src_trasladado: c.src_base || 'Certificado de retenciones', src_retenido: 'Certificado de retenciones' + (retenidoLiq != null ? ' · liquidación: ' + retenidoLiq.toFixed(2) : ''), src_acreditable: 'CFDI recibidos y pagados (SAT / Syntage)' + (f.iva_99 ? ' · se excluyó ' + Number(f.iva_99).toFixed(2) + ' de facturas con método de pago 99 (no pagadas en el mes)' : ''), iva_no_pagado_99: f.iva_99 || 0 },
           isr: { ingresos_mes: c.base, ingresos_acum: ingresosAcum, cu, utilidad, perdidas: cu !== null ? Math.min(utilidad, perdidas) : null, base: baseISR, isr_acum: isrAcum, retenido_acum: retAcum, pagos_previos: pagosAcum, a_pagar: isrPagar },
           cfdi_emitidos: f.emitidos || [], cfdi_recibidos: f.recibidos || [],
           detalle_meses: detalle.slice(), banco: banco.slice(), serie: serie.slice(),
@@ -3944,8 +3944,8 @@ function calcSyntage_(body) {
   const rfcUso = rfcEnt || rfc;                       /* para clasificar emitidos/recibidos */
   const porMes = {};
   inv.forEach(function (i) {
-    const d = String(i.issuedAt || '').slice(0, 7); porMes[d] = porMes[d] || { emitidos: [], recibidos: [], iva_acreditable_pue: 0, iva_ppd_pendiente: 0 };
-    const row = { fecha: String(i.issuedAt || '').slice(0, 10), quien: (i.issuerName || i.issuerRfc) + ' → ' + (i.receiverName || i.receiverRfc), subtotal: Number(i.subtotal) || 0, iva: Number(i.tax) || 0, total: Number(i.total) || 0, tipo: i.type, pago: i.paymentType, uuid: i.uuid };
+    const d = String(i.issuedAt || '').slice(0, 7); porMes[d] = porMes[d] || { emitidos: [], recibidos: [], iva_acreditable_pue: 0, iva_ppd_pendiente: 0, iva_99: 0, n_99: 0 };
+    const row = { fecha: String(i.issuedAt || '').slice(0, 10), quien: (i.issuerName || i.issuerRfc) + ' → ' + (i.receiverName || i.receiverRfc), subtotal: Number(i.subtotal) || 0, iva: Number(i.tax) || 0, total: Number(i.total) || 0, tipo: i.type, pago: i.paymentType, metodo: String(i.paymentMethod || ''), uuid: i.uuid };
     /* Emisor o receptor: se usan las banderas del catálogo y, si no vienen, el RFC.
        Hay entidades cuyo registro en Syntage no trae RFC y ahí la comparación fallaba. */
     const esEmisor = i.isIssuer === true || i.isIssuer === 1 || i.isIssuer === '1' || String(i.issuerRfc || '').toUpperCase() === rfcUso;
@@ -3953,12 +3953,17 @@ function calcSyntage_(body) {
     if (esEmisor) { if (i.type === 'I' || i.type === 'E') { porMes[d].emitidos.push(row); nEmi++; } }
     else if (esReceptor) {
       if (i.type === 'I' || i.type === 'E') { porMes[d].recibidos.push(row); nRec++; }
-      if (i.type === 'I' && i.paymentType === 'PUE') porMes[d].iva_acreditable_pue += row.iva;
-      if (i.type === 'I' && i.paymentType === 'PPD' && Number(i.dueAmount) > 0) porMes[d].iva_ppd_pendiente += row.iva;
-      if (i.type === 'E' && i.paymentType === 'PUE') porMes[d].iva_acreditable_pue -= row.iva;
+      /* Criterio del contador (y de la ley): solo se acredita el IVA efectivamente pagado.
+         Las facturas con método de pago 99 ("por definir") no se pagaron en el mes: se
+         excluyen del acreditable y se reportan aparte para que el documento lo declare. */
+      const m99 = String(i.paymentMethod || '') === '99';
+      if (m99) { porMes[d].iva_99 += row.iva; porMes[d].n_99++; }
+      if (i.type === 'I' && i.paymentType === 'PUE' && !m99) porMes[d].iva_acreditable_pue += row.iva;
+      if (i.type === 'I' && (i.paymentType === 'PPD' || m99) && Number(i.dueAmount) > 0) porMes[d].iva_ppd_pendiente += row.iva;
+      if (i.type === 'E' && i.paymentType === 'PUE' && !m99) porMes[d].iva_acreditable_pue -= row.iva;
     }
   });
-  Object.keys(porMes).forEach(function (k) { porMes[k].iva_acreditable_pue = calcR2_(porMes[k].iva_acreditable_pue); porMes[k].iva_ppd_pendiente = calcR2_(porMes[k].iva_ppd_pendiente); });
+  Object.keys(porMes).forEach(function (k) { porMes[k].iva_acreditable_pue = calcR2_(porMes[k].iva_acreditable_pue); porMes[k].iva_ppd_pendiente = calcR2_(porMes[k].iva_ppd_pendiente); porMes[k].iva_99 = calcR2_(porMes[k].iva_99); });
   return { ok: true, conectado: true, entity_id: eid, nombre: ent.name || ent.legalName || '', rfc_syntage: rfcEnt, ligado_por: res.via, cfdi_por_mes: porMes,
     cfdi_del_anio: inv.length, cfdi_emitidos_anio: nEmi, cfdi_recibidos_anio: nRec,
     retenciones: (ret._error ? [] : ret).map(function (r) { return { periodo: String(r.periodFrom || '').slice(0, 7), base: Number(r.totalTaxableAmount), retenido: Number(r.totalRetainedAmount), uuid: r.uuid }; }),
