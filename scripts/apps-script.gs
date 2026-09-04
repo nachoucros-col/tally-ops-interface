@@ -3220,7 +3220,7 @@ function calcInflateRaw_(src, off) {
   var DB = [1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577];
   var DX = [0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13];
   var CLC = [16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15];
-  function bit() { if (bitcnt === 0) { bitbuf = src[pos++]; if (bitbuf === undefined) throw new Error('fin'); bitcnt = 8; } var b = bitbuf & 1; bitbuf >>= 1; bitcnt--; return b; }
+  function bit() { if (bitcnt === 0) { bitbuf = src[pos++]; if (bitbuf === undefined) throw new Error('eof'); bitcnt = 8; } var b = bitbuf & 1; bitbuf >>= 1; bitcnt--; return b; }
   function bits(n) { var v = 0; for (var i = 0; i < n; i++) v |= bit() << i; return v; }
   function tree(lengths, num) {
     var counts = [], i; for (i = 0; i < 16; i++) counts[i] = 0;
@@ -3232,8 +3232,8 @@ function calcInflateRaw_(src, off) {
   }
   function sym(t) { var sum = 0, cur = 0, len = 0; do { cur = 2 * cur + bit(); len++; if (len > 15) throw new Error('huffman'); sum += t.c[len]; cur -= t.c[len]; } while (cur >= 0); return t.s[sum + cur]; }
   var fixL = null, fixD = null;
-  function fijo() { if (fixL) return; var l = [], i; for (i = 0; i < 144; i++) l[i] = 8; for (; i < 256; i++) l[i] = 9; for (; i < 280; i++) l[i] = 7; for (; i < 288; i++) l[i] = 8; fixL = tree(l, 288); var d = []; for (i = 0; i < 30; i++) d[i] = 5; fixD = tree(d, 30); }
-  function dinamico() {
+  function fixed() { if (fixL) return; var l = [], i; for (i = 0; i < 144; i++) l[i] = 8; for (; i < 256; i++) l[i] = 9; for (; i < 280; i++) l[i] = 7; for (; i < 288; i++) l[i] = 8; fixL = tree(l, 288); var d = []; for (i = 0; i < 30; i++) d[i] = 5; fixD = tree(d, 30); }
+  function dynamic() {
     var hlit = bits(5) + 257, hdist = bits(5) + 1, hclen = bits(4) + 4, i, l = [];
     for (i = 0; i < 19; i++) l[i] = 0;
     for (i = 0; i < hclen; i++) l[CLC[i]] = bits(3);
@@ -3247,53 +3247,44 @@ function calcInflateRaw_(src, off) {
     }
     return [tree(lengths.slice(0, hlit), hlit), tree(lengths.slice(hlit), hdist)];
   }
-  function bloque(lt, dt) {
+  function block(lt, dt) {
     for (;;) {
       var s = sym(lt);
       if (s === 256) return;
       if (s < 256) out.push(s);
-      else { s -= 257; var len = LB[s] + bits(LX[s]); var ds = sym(dt); var dist = DB[ds] + bits(DX[ds]); var st = out.length - dist; for (var i = 0; i < len; i++) out.push(out[st + i]); }
+      else { s -= 257; var len = LB[s] + bits(LX[s]); var ds = sym(dt); var dist = DB[ds] + bits(DX[ds]); var start = out.length - dist; for (var i = 0; i < len; i++) out.push(out[start + i]); }
     }
   }
-  var ultimo;
+  var last;
   do {
-    ultimo = bit(); var tipo = bits(2);
-    if (tipo === 0) { bitcnt = 0; var len = src[pos] | (src[pos + 1] << 8); pos += 4; for (var i = 0; i < len; i++) out.push(src[pos++]); }
-    else if (tipo === 1) { fijo(); bloque(fixL, fixD); }
-    else if (tipo === 2) { var t = dinamico(); bloque(t[0], t[1]); }
-    else throw new Error('bloque ' + tipo);
-  } while (!ultimo);
+    last = bit(); var type = bits(2);
+    if (type === 0) { bitcnt = 0; var len = src[pos] | (src[pos + 1] << 8); pos += 4; for (var i = 0; i < len; i++) out.push(src[pos++]); }
+    else if (type === 1) { fixed(); block(fixL, fixD); }
+    else if (type === 2) { var t = dynamic(); block(t[0], t[1]); }
+    else throw new Error('tipo de bloque ' + type);
+  } while (!last);
   return out;
 }
-function calcInflate_(src) {
+function calcInflate_(src) {                       /* zlib o crudo */
   var off = 0;
-  if (src.length > 2 && (src[0] & 0x0f) === 8 && (((src[0] << 8) | src[1]) % 31) === 0) off = 2;
+  if (src.length > 2 && (src[0] & 0x0f) === 8 && ((src[0] << 8 | src[1]) % 31) === 0) off = 2;
   try { return calcInflateRaw_(src, off); } catch (e) { if (off === 2) { try { return calcInflateRaw_(src, 0); } catch (e2) {} } throw e; }
 }
 
-/* ── A.2 PDF: objetos, fuentes, ToUnicode ── */
-function calcPdfLatin1_(bytes) {
-  var out = [], i, n = bytes.length, tro = [];
-  for (i = 0; i < n; i++) { tro.push(bytes[i] & 0xff); if (tro.length === 8192) { out.push(String.fromCharCode.apply(null, tro)); tro = []; } }
-  if (tro.length) out.push(String.fromCharCode.apply(null, tro));
-  return out.join('');
-}
-function calcPdfObjetos_(raw) {
+function calcPdfLatin1_(bytes) { var out = [], i, n = bytes.length; for (i = 0; i < n; i += 8192) { out.push(String.fromCharCode.apply(null, bytes.slice(i, Math.min(i + 8192, n)))); } return out.join(''); }
+
+function calcPdfObjetos_(raw) {                                    /* nº de objeto → {dict, streamIni, streamFin} */
   var objs = {}, re = /(\d+)\s+(\d+)\s+obj\b/g, m;
   while ((m = re.exec(raw))) {
     var ini = m.index + m[0].length, fin = raw.indexOf('endobj', ini); if (fin < 0) fin = Math.min(raw.length, ini + 200000);
     var cuerpo = raw.slice(ini, fin), sPos = cuerpo.indexOf('stream');
     var o = { dict: sPos >= 0 ? cuerpo.slice(0, sPos) : cuerpo, ini: ini };
-    if (sPos >= 0) {
-      var d = cuerpo.charCodeAt(sPos + 6) === 13 ? (cuerpo.charCodeAt(sPos + 7) === 10 ? 8 : 7) : (cuerpo.charCodeAt(sPos + 6) === 10 ? 7 : 6);
-      var e = cuerpo.indexOf('endstream');
-      o.sIni = ini + sPos + d; o.sFin = ini + (e >= 0 ? e : cuerpo.length);
-    }
+    if (sPos >= 0) { var d = cuerpo.charAt(sPos + 6) === '\r' ? (cuerpo.charAt(sPos + 7) === '\n' ? 8 : 7) : (cuerpo.charAt(sPos + 6) === '\n' ? 7 : 6); o.sIni = ini + sPos + d; o.sFin = ini + (cuerpo.indexOf('endstream') >= 0 ? cuerpo.indexOf('endstream') : cuerpo.length); }
     objs[m[1]] = o;
   }
   return objs;
 }
-function calcPdfA85_(arr) {                                  /* ASCII85Decode */
+function calcPdfA85_(arr) {
   var out = [], t = 0, n = 0, i, c, ini = 0;
   if (arr.length > 1 && arr[0] === 60 && arr[1] === 126) ini = 2;
   for (i = ini; i < arr.length; i++) {
@@ -3331,22 +3322,21 @@ function calcPdfStream_(raw, o) {
   }
   return arr;
 }
-function calcPdfToUnicode_(txt) {
+function calcPdfToUnicode_(txt) {                                  /* CMap → {código: carácter} */
   var map = {}, m, re = /beginbfchar([\s\S]*?)endbfchar/g, r2 = /beginbfrange([\s\S]*?)endbfrange/g;
-  function uni(h) { var out = '', i; for (i = 0; i + 4 <= h.length; i += 4) { var c = parseInt(h.substr(i, 4), 16); if (c >= 0xd800 && c < 0xdc00 && i + 8 <= h.length) { out += String.fromCharCode(c, parseInt(h.substr(i + 4, 4), 16)); i += 4; } else out += String.fromCharCode(c); } return out; }
+  function uni(h) { var out = '', i; for (i = 0; i + 4 <= h.length; i += 4) { var c = parseInt(h.substr(i, 4), 16); if (c >= 0xd800 && c < 0xdc00 && i + 8 <= h.length) { var lo = parseInt(h.substr(i + 4, 4), 16); out += String.fromCharCode(c, lo); i += 4; } else out += String.fromCharCode(c); } return out; }
   while ((m = re.exec(txt))) { var p = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]*)>/g, q; while ((q = p.exec(m[1]))) map[parseInt(q[1], 16)] = uni(q[2]); }
   while ((m = r2.exec(txt))) {
     var p2 = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*(<[0-9A-Fa-f]*>|\[[\s\S]*?\])/g, q2;
     while ((q2 = p2.exec(m[1]))) {
       var a = parseInt(q2[1], 16), b = parseInt(q2[2], 16), v = q2[3];
       if (v.charAt(0) === '[') { var lst = v.match(/<([0-9A-Fa-f]*)>/g) || [], k; for (k = 0; k < lst.length && a + k <= b; k++) map[a + k] = uni(lst[k].replace(/[<>]/g, '')); }
-      else { var base = v.replace(/[<>]/g, ''); for (var c = a; c <= b && c - a < 65536; c++) { var h = (parseInt(base, 16) + (c - a)).toString(16); while (h.length < base.length) h = '0' + h; map[c] = uni(h); } }
+      else { var base = v.replace(/[<>]/g, ''); for (var c = a; c <= b && c - a < 70000; c++) { var h = (parseInt(base, 16) + (c - a)).toString(16); while (h.length < base.length) h = '0' + h; map[c] = uni(h); } }
     }
   }
   return map;
 }
-function calcPdfTieneClaves_(o) { var n = 0, k; for (k in o) if (Object.prototype.hasOwnProperty.call(o, k)) { n++; break; } return n > 0; }
-function calcPdfFuentes_(raw, objs) {
+function calcPdfFuentes_(raw, objs) {                              /* nombre de recurso → {uni, dosBytes} */
   var fuentes = {}, m, re = /\/Font\s*<<([\s\S]{0,4000}?)>>/g;
   while ((m = re.exec(raw))) {
     var p = /\/([A-Za-z0-9#+._-]+)\s+(\d+)\s+\d+\s+R/g, q;
@@ -3354,19 +3344,35 @@ function calcPdfFuentes_(raw, objs) {
       var o = objs[q[2]]; if (!o) continue;
       var f = { uni: null, dosBytes: /\/Identity-H|\/Type0/.test(o.dict) };
       var tu = o.dict.match(/\/ToUnicode\s+(\d+)\s+\d+\s+R/);
-      if (tu && objs[tu[1]]) { var st = calcPdfStream_(raw, objs[tu[1]]); if (st) { var mp = calcPdfToUnicode_(calcPdfLatin1_(st)); if (calcPdfTieneClaves_(mp)) f.uni = mp; } }
+      if (tu && objs[tu[1]]) { var st = calcPdfStream_(raw, objs[tu[1]]); if (st) { var t = [], i; for (i = 0; i < st.length; i++) t.push(String.fromCharCode(st[i])); var mp = calcPdfToUnicode_(t.join('')); if (Object.keys(mp).length) f.uni = mp; } }
+      if (!f.uni && /\/DescendantFonts/.test(o.dict)) {
+        var df = o.dict.match(/\/DescendantFonts\s*\[\s*(\d+)\s+\d+\s+R/);
+        if (df && objs[df[1]]) f.dosBytes = true;
+      }
       fuentes[q[1]] = f;
     }
   }
   return fuentes;
 }
-
-/* ── A.3 flujo de contenido → segmentos con posición ── */
-function calcPdfSegmentos_(cs, fuentes) {
-  var segs = [], i = 0, n = cs.length, ops = [], tm = null, tlm = null, TL = 0, fAct = null, ctm = [0, 0], pila = [];
+/* Tokeniza un flujo de contenido y devuelve segmentos {x, y, partes:[{codigos, fuente}]} */
+function calcPdfMul_(m, n) {                                   /* m × n, matrices 3x2 del PDF */
+  return [m[0] * n[0] + m[1] * n[2], m[0] * n[1] + m[1] * n[3],
+          m[2] * n[0] + m[3] * n[2], m[2] * n[1] + m[3] * n[3],
+          m[4] * n[0] + m[5] * n[2] + n[4], m[4] * n[1] + m[5] * n[3] + n[5]];
+}
+/* Recorre un flujo de contenido con las matrices reales del PDF (CTM y matriz de texto),
+   así funcionan también las páginas escaladas o rotadas y los XObjects colocados con cm. */
+function calcPdfSegmentos_(cs, fuentes, xobjs, raw, objs, prof, ctmBase) {
+  prof = prof || 0;
+  var IDENT = [1, 0, 0, 1, 0, 0];
+  var segs = [], i = 0, n = cs.length, ops = [], tm = null, tlm = null, TL = 0, fAct = null;
+  var ctm = ctmBase ? ctmBase.slice(0) : IDENT.slice(0), pila = [];
   var DELIM = ' \t\r\n\f()<>[]{}/%';
-  function nl(tx, ty) { tlm = [tlm[0] + tx, tlm[1] + ty]; tm = [tlm[0], tlm[1]]; }
-  function poner(partes) { if (tm) segs.push({ x: ctm[0] + tm[0], y: ctm[1] + tm[1], partes: partes }); }
+  function poner(partes) {
+    if (!tm) return;
+    var M = calcPdfMul_(tm, ctm);
+    segs.push({ x: M[4], y: M[5], rot: Math.abs(M[1]) > Math.abs(M[0]), partes: partes });
+  }
   function literal() {
     var out = [], esc = false, depth = 1; i++;
     while (i < n) {
@@ -3401,33 +3407,52 @@ function calcPdfSegmentos_(cs, fuentes) {
     i = j;
     if (/^-?[\d.]+$/.test(t)) { ops.push(parseFloat(t)); continue; }
     if (t.charAt(0) === '/') { ops.push(t); continue; }
-    if (t === 'q') { pila.push([ctm[0], ctm[1]]); }
+    if (t === 'q') pila.push(ctm.slice(0));
     else if (t === 'Q') { if (pila.length) ctm = pila.pop(); }
-    else if (t === 'cm') { var c6 = nums(6); if (c6.length === 6) ctm = [ctm[0] + c6[4], ctm[1] + c6[5]]; }
-    else if (t === 'BT') { tm = [0, 0]; tlm = [0, 0]; }
+    else if (t === 'cm') { var c6 = nums(6); if (c6.length === 6) ctm = calcPdfMul_(c6, ctm); }
+    else if (t === 'BT') { tm = IDENT.slice(0); tlm = IDENT.slice(0); }
     else if (t === 'Tf') { var nm = null, k1; for (k1 = ops.length - 1; k1 >= 0; k1--) if (typeof ops[k1] === 'string' && ops[k1].charAt(0) === '/') { nm = ops[k1].slice(1); break; } fAct = nm; }
-    else if (t === 'Tm') { var a6 = nums(6); if (a6.length === 6) { tlm = [a6[4], a6[5]]; tm = [a6[4], a6[5]]; } }
-    else if (t === 'Td' || t === 'TD') { var a2 = nums(2); if (a2.length === 2 && tlm) { if (t === 'TD') TL = -a2[1]; nl(a2[0], a2[1]); } }
+    else if (t === 'Tm') { var m6 = nums(6); if (m6.length === 6) { tlm = m6.slice(0); tm = m6.slice(0); } }
+    else if (t === 'Td' || t === 'TD') { var a2 = nums(2); if (a2.length === 2 && tlm) { if (t === 'TD') TL = -a2[1]; tlm = calcPdfMul_([1, 0, 0, 1, a2[0], a2[1]], tlm); tm = tlm.slice(0); } }
     else if (t === 'TL') { var a1 = nums(1); if (a1.length) TL = a1[0]; }
-    else if (t === 'T*') { if (tlm) nl(0, -TL); }
-    else if (t === 'Tj' || t === "'" || t === '"') { if (t !== 'Tj' && tlm) nl(0, -TL); var s1 = null, k2; for (k2 = ops.length - 1; k2 >= 0; k2--) if (ops[k2] && typeof ops[k2] === 'object' && ops[k2].s !== undefined) { s1 = ops[k2]; break; } if (s1) poner([s1]); }
+    else if (t === 'T*') { if (tlm) { tlm = calcPdfMul_([1, 0, 0, 1, 0, -TL], tlm); tm = tlm.slice(0); } }
+    else if (t === 'Tj' || t === "'" || t === '"') {
+      if (t !== 'Tj' && tlm) { tlm = calcPdfMul_([1, 0, 0, 1, 0, -TL], tlm); tm = tlm.slice(0); }
+      var s1 = null, k2; for (k2 = ops.length - 1; k2 >= 0; k2--) if (ops[k2] && typeof ops[k2] === 'object' && ops[k2].s !== undefined) { s1 = ops[k2]; break; }
+      if (s1) poner([s1]);
+    }
     else if (t === 'TJ') { var partes = [], k3; for (k3 = 0; k3 < ops.length; k3++) if (ops[k3] && typeof ops[k3] === 'object' && ops[k3].s !== undefined) partes.push(ops[k3]); if (partes.length) poner(partes); }
+    else if (t === 'Do' && xobjs && prof < 3) {
+      var nmx = null, kd;
+      for (kd = ops.length - 1; kd >= 0; kd--) if (typeof ops[kd] === 'string' && ops[kd].charAt(0) === '/') { nmx = ops[kd].slice(1); break; }
+      var refx = nmx && xobjs[nmx], ox = (refx && objs) ? objs[refx] : null;
+      if (ox && ox.sIni != null && !/\/Subtype\s*\/Image/.test(ox.dict)) {
+        var stx = calcPdfStream_(raw, ox);
+        if (stx && stx.length) {
+          var mx = ox.dict.match(/\/Matrix\s*\[\s*(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)/);
+          var base = mx ? calcPdfMul_([+mx[1], +mx[2], +mx[3], +mx[4], +mx[5], +mx[6]], ctm) : ctm;
+          segs = segs.concat(calcPdfSegmentos_(calcPdfLatin1_(stx), fuentes, calcPdfXObjs_(ox.dict), raw, objs, prof + 1, base));
+        }
+      }
+    }
     ops = [];
   }
   return segs;
 }
+
 function calcPdfDecodifica_(parte, fuentes, offset) {
-  var f = (parte.f && fuentes[parte.f]) || null, s = parte.s, cods = [], out = [], i;
+  var f = (parte.f && fuentes[parte.f]) || null, s = parte.s, out = [], i;
+  var codigos = [];
   if (s && s.hex !== undefined) {
     var h = s.hex, dos = (f && f.dosBytes) || (h.length >= 4 && /^(00..)+$/.test(h));
-    if (dos) { for (i = 0; i + 4 <= h.length; i += 4) cods.push(parseInt(h.substr(i, 4), 16)); }
-    else { for (i = 0; i + 2 <= h.length; i += 2) cods.push(parseInt(h.substr(i, 2), 16)); }
+    if (dos) { for (i = 0; i + 4 <= h.length; i += 4) codigos.push(parseInt(h.substr(i, 4), 16)); }
+    else { for (i = 0; i + 2 <= h.length; i += 2) codigos.push(parseInt(h.substr(i, 2), 16)); }
   } else if (s && s.length !== undefined) {
-    if (f && f.dosBytes) { for (i = 0; i + 1 < s.length; i += 2) cods.push((s[i] << 8) | s[i + 1]); }
-    else cods = s;
+    if (f && f.dosBytes) { for (i = 0; i + 1 < s.length; i += 2) codigos.push((s[i] << 8) | s[i + 1]); }
+    else codigos = s;
   }
-  for (i = 0; i < cods.length; i++) {
-    var c = cods[i];
+  for (i = 0; i < codigos.length; i++) {
+    var c = codigos[i];
     if (f && f.uni && f.uni[c] !== undefined) { out.push(f.uni[c]); continue; }
     if (offset) { var v = c + offset; out.push(v >= 32 && v < 127 ? String.fromCharCode(v) : (c === 3 ? ' ' : '?')); }
     else out.push(c >= 32 && c < 127 ? String.fromCharCode(c) : (c === 9 || c === 10 ? ' ' : (c > 160 && c < 256 ? String.fromCharCode(c) : '?')));
@@ -3435,40 +3460,104 @@ function calcPdfDecodifica_(parte, fuentes, offset) {
   return out.join('');
 }
 function calcPdfLineas_(segs, fuentes, offset) {
-  var porY = {}, i;
-  for (i = 0; i < segs.length; i++) { var y = Math.round(segs[i].y * 2) / 2; (porY[y] = porY[y] || []).push(segs[i]); }
-  var ys = [], k; for (k in porY) if (Object.prototype.hasOwnProperty.call(porY, k)) ys.push(Number(k));
-  ys.sort(function (a, b) { return b - a; });
+  /* Renglones por cercanía (2 puntos). Si el texto está girado 90° (páginas rotadas), los
+     renglones corren en vertical: se agrupa por x y se ordena por y. */
+  var rot = 0, i, j;
+  for (i = 0; i < segs.length; i++) if (segs[i].rot) rot++;
+  var girado = rot > segs.length / 2;
+  var arr = segs.slice(0).sort(girado
+    ? function (a, b) { return (b.x - a.x) || (a.y - b.y); }
+    : function (a, b) { return (b.y - a.y) || (a.x - b.x); });
+  var eje = function (s) { return girado ? s.x : s.y; };
+  var grupos = [], cur = [], curK = null;
+  for (i = 0; i < arr.length; i++) {
+    if (curK === null) { curK = eje(arr[i]); cur.push(arr[i]); }
+    else if (Math.abs(eje(arr[i]) - curK) <= 2) cur.push(arr[i]);
+    else { grupos.push(cur); cur = [arr[i]]; curK = eje(arr[i]); }
+  }
+  if (cur.length) grupos.push(cur);
   var lineas = [];
-  for (i = 0; i < ys.length; i++) {
-    var fila = porY[ys[i]].sort(function (a, b) { return a.x - b.x; }), txt = [], j;
+  for (i = 0; i < grupos.length; i++) {
+    var fila = grupos[i].sort(girado ? function (a, b) { return a.y - b.y; } : function (a, b) { return a.x - b.x; }), txt = [];
     for (j = 0; j < fila.length; j++) { var t = '', q; for (q = 0; q < fila[j].partes.length; q++) t += calcPdfDecodifica_(fila[j].partes[q], fuentes, offset); if (t.length) txt.push(t); }
     var l = txt.join(' ').replace(/\s+/g, ' ').replace(/^ | $/g, '');
     if (l.length) lineas.push(l);
   }
   return lineas.join('\n');
 }
-var CALC_DICC = ['MXN','USD','Collection','Statement','BALANCE','DATE','Transfer','Amazon','Payment','Total','Account','Saldo','Ingresos','Gastos','retenido','Folio','fiscal','Description','currency','Ventas','Tarifas','IVA','ISR','RFC','Periodo','Payoneer','Balance','Impuesto','Monto','Receptor','Emisor'];
-function calcPuntuaTexto_(t) { var s = 0, i; for (i = 0; i < CALC_DICC.length; i++) { var m = t.match(new RegExp(CALC_DICC[i], 'g')); if (m) s += m.length; } return s; }
-/** Texto de la capa nativa del PDF. Devuelve '' si el PDF es escaneado o no se pudo leer. */
+var CALC_DICC = ['MXN','Collection','Statement','BALANCE','DATE','Transfer','Amazon','Payment','Total','Account','Saldo','Ingresos','Gastos','retenido','Folio','fiscal','Description','currency','Ventas','Tarifas','IVA','ISR','RFC','Periodo','Payoneer','Balance','Impuesto'];
+function calcPuntuaTexto_(t) { var s = 0, i; for (i = 0; i < CALC_DICC.length; i++) { var re = new RegExp(CALC_DICC[i], 'g'), m = t.match(re); if (m) s += m.length; } return s; }
+/* Un PDF de formulario (AcroForm) guarda las etiquetas en el contenido de la página y los
+   VALORES en el appearance stream de cada campo, cada uno en su objeto y con su propio
+   sistema de coordenadas. Leídos por separado se pierde qué valor va con qué etiqueta:
+   aquí cada apariencia se coloca en el punto que indica el /Rect del campo. */
+function calcPdfXObjs_(dict) {
+  var out = {}, m = dict.match(/\/XObject\s*<<([\s\S]{0,40000}?)>>/);
+  if (!m) return out;
+  var re = /\/([A-Za-z0-9#+._-]+)\s+(\d+)\s+\d+\s+R/g, q;
+  while ((q = re.exec(m[1]))) out[q[1]] = q[2];
+  return out;
+}
+function calcPdfRefs_(txt) { var r = [], m, re = /(\d+)\s+\d+\s+R/g; while ((m = re.exec(txt))) r.push(m[1]); return r; }
+function calcPdfArrayDe_(raw, objs, dict, llave) {
+  var m = dict.match(new RegExp('\\/' + llave + '\\s*(\\[[^\\]]*\\]|\\d+\\s+\\d+\\s+R)'));
+  if (!m) return [];
+  var v = m[1];
+  if (v.charAt(0) === '[') return calcPdfRefs_(v);
+  var ref = calcPdfRefs_(v)[0], o = objs[ref];
+  if (o && /^\s*\[/.test(o.dict)) return calcPdfRefs_(o.dict);
+  return ref ? [ref] : [];
+}
+function calcPdfPaginasSegs_(raw, objs, fuentes, tope) {
+  var claves = Object.keys(objs).sort(function (a, b) { return objs[a].ini - objs[b].ini; });
+  var pags = [], i, j, q, total = 0, truncado = false, esPagina = [];
+  for (i = 0; i < claves.length; i++) if (/\/Type\s*\/Page[^s]/.test(objs[claves[i]].dict)) esPagina.push(claves[i]);
+  if (!esPagina.length) return null;
+  for (i = 0; i < esPagina.length; i++) {
+    var pg = objs[esPagina[i]], segs = [];
+    var conts = calcPdfArrayDe_(raw, objs, pg.dict, 'Contents');
+    for (j = 0; j < conts.length; j++) {
+      var oc = objs[conts[j]]; if (!oc || oc.sIni == null) continue;
+      var stc = calcPdfStream_(raw, oc); if (!stc || !stc.length) continue;
+      segs = segs.concat(calcPdfSegmentos_(calcPdfLatin1_(stc), fuentes, calcPdfXObjs_(pg.dict), raw, objs, 0));
+    }
+    var annots = calcPdfArrayDe_(raw, objs, pg.dict, 'Annots');
+    for (j = 0; j < annots.length; j++) {
+      var oa = objs[annots[j]]; if (!oa) continue;
+      var mr = oa.dict.match(/\/Rect\s*\[\s*(-?[\d.]+)\s+(-?[\d.]+)/);
+      var ap = oa.dict.match(/\/AP\s*<<[\s\S]{0,200}?\/N\s+(\d+)\s+\d+\s+R/);
+      if (!mr || !ap) continue;
+      var oap = objs[ap[1]]; if (!oap || oap.sIni == null) continue;
+      var sta = calcPdfStream_(raw, oap); if (!sta || !sta.length) continue;
+      var x0 = parseFloat(mr[1]), y0 = parseFloat(mr[2]);
+      segs = segs.concat(calcPdfSegmentos_(calcPdfLatin1_(sta), fuentes, calcPdfXObjs_(oa.dict), raw, objs, 1, [1, 0, 0, 1, x0, y0]));
+    }
+    if (segs.length) { pags.push(segs); total += segs.length; }
+    if (total > tope) { truncado = true; break; }
+  }
+  return { paginas: pags, truncado: truncado };
+}
 function calcPdfTexto_(bytes) {
-  if (!bytes || bytes.length > 12000000) return '';
   var raw = calcPdfLatin1_(bytes), objs = calcPdfObjetos_(raw), fuentes = calcPdfFuentes_(raw, objs);
-  var paginas = [], claves = [], k, truncado = false;
-  for (k in objs) if (Object.prototype.hasOwnProperty.call(objs, k)) claves.push(k);
-  claves.sort(function (a, b) { return objs[a].ini - objs[b].ini; });
-  for (k = 0; k < claves.length; k++) {
-    var o = objs[claves[k]]; if (o.sIni == null) continue;
-    if (/\/Image|\/DCTDecode|\/JPXDecode|\/CCITT|\/ObjStm|\/XRef|\/FontFile|\/Metadata/.test(o.dict)) continue;
-    var st = calcPdfStream_(raw, o); if (!st || !st.length) continue;
-    var cs = calcPdfLatin1_(st); if (cs.indexOf('Tj') < 0 && cs.indexOf('TJ') < 0) continue;
-    var sg = calcPdfSegmentos_(cs, fuentes); if (sg.length) paginas.push(sg);
-    if (paginas.length >= 15) { truncado = true; break; }     /* certificados de miles de renglones: los totales están al inicio */
+  var paginas = [], k, truncado = false, segsTot = 0;
+  var porPag = calcPdfPaginasSegs_(raw, objs, fuentes, 20000);
+  if (porPag && porPag.paginas.length) { paginas = porPag.paginas; truncado = porPag.truncado; }
+  if (!paginas.length) {                                   /* respaldo: cada flujo con texto como una página */
+    var claves = Object.keys(objs).sort(function (a, b) { return objs[a].ini - objs[b].ini; });
+    for (k = 0; k < claves.length; k++) {
+      var o = objs[claves[k]]; if (o.sIni == null) continue;
+      if (/\/Subtype\s*\/Image|\/DCTDecode|\/JPXDecode|\/CCITT|\/ObjStm|\/XRef|\/FontFile|\/Metadata/.test(o.dict)) continue;
+      var st = calcPdfStream_(raw, o); if (!st || !st.length) continue;
+      var cs = calcPdfLatin1_(st); if (cs.indexOf('Tj') < 0 && cs.indexOf('TJ') < 0) continue;
+      var sg = calcPdfSegmentos_(cs, fuentes); if (sg.length) { paginas.push(sg); segsTot += sg.length; }
+      if (segsTot > 20000) { truncado = true; break; }
+    }
   }
   if (!paginas.length) return '';
   function todo(off) { var r = [], q; for (q = 0; q < paginas.length; q++) r.push(calcPdfLineas_(paginas[q], fuentes, off)); return r.join('\n'); }
-  var mejor = todo(0), mejorP = calcPuntuaTexto_(mejor), offs = [29, 31, -29, 28, 30], z;
-  for (z = 0; z < offs.length; z++) { var cand = todo(offs[z]), p = calcPuntuaTexto_(cand); if (p > mejorP) { mejor = cand; mejorP = p; } }
+  var mejor = todo(0), mejorP = calcPuntuaTexto_(mejor);
+  var offs = [29, 31, -29, 28, 30], i3;
+  for (i3 = 0; i3 < offs.length; i3++) { var cand = todo(offs[i3]), p = calcPuntuaTexto_(cand); if (p > mejorP) { mejor = cand; mejorP = p; } }
   return truncado ? mejor + '\n[texto truncado: solo se leyeron las primeras paginas]' : mejor;
 }
 function calcTextoNativo_(fileId) {
