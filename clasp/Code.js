@@ -3536,62 +3536,77 @@ function calcDescargar_(body) {
   return { ok: true, nombre: x.nombre, mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', b64: Utilities.base64Encode(blob.getBytes()) };
 }
 
-/* ═══════════ "Carga en Sistema" → tabla calculo_impuestos de AppSheet ═══════════ */
+/* ═══════════ "Carga en Sistema" → tabla calculo_impuestos vía API de AppSheet ═══════════
+   Se escribe SIEMPRE por la API de AppSheet (nunca sobre el Google Sheet) para que la app
+   aplique su propia estructura: Ref a Clientes_por_periodo, Enum de MesPeriodo, columna File
+   y sus automatizaciones. El PeriodID NO se construye: se resuelve consultando la app, porque
+   el formato cambió con el tiempo (2025-07_AZ005337 con cero · 2026-4_AZ006552 sin cero).
+   Requiere en Propiedades del script: APPSHEET_ACCESS_KEY (AppSheet → Settings → Integrations
+   → Enable API → Application Access Key). APPSHEET_APP_ID ya viene por defecto.            */
+const CALC_APPSHEET_APP = 'b70ebc3a-1a74-4e28-895a-0fd786727110';   // app "Accounting Team"
+
+function appsheetApi_(tabla, accion, rows, selector) {
+  const props = PropertiesService.getScriptProperties();
+  const key = props.getProperty('APPSHEET_ACCESS_KEY');
+  if (!key) return { _error: 'Falta APPSHEET_ACCESS_KEY en Propiedades del script (AppSheet → Settings → Integrations → Enable API → Application Access Key).' };
+  const app = props.getProperty('APPSHEET_APP_ID') || CALC_APPSHEET_APP;
+  const propsApi = { Locale: 'es-MX', Timezone: 'Central Standard Time (Mexico)' };
+  if (selector) propsApi.Selector = selector;
+  const r = UrlFetchApp.fetch('https://api.appsheet.com/api/v2/apps/' + app + '/tables/' + encodeURIComponent(tabla) + '/Action',
+    { method: 'post', contentType: 'application/json', headers: { ApplicationAccessKey: key },
+      payload: JSON.stringify({ Action: accion, Properties: propsApi, Rows: rows || [] }), muteHttpExceptions: true });
+  const code = r.getResponseCode(), txt = r.getContentText();
+  if (code >= 300) return { _error: 'AppSheet ' + code + ': ' + String(txt).slice(0, 300) };
+  if (!txt) return {};
+  try { return JSON.parse(txt); } catch (e) { return { _raw: String(txt).slice(0, 300) }; }
+}
+function appsheetFilas_(resp) { return (resp && (resp.Rows || (resp.Response && resp.Response.Rows))) || []; }
+
 function calcAppsheetPush_(body, u) {
   const g = calcGet_(body); if (!g.ok) return g;
   const fila = g.fila;
-  if (!fila.company_id) return { ok: false, error: 'Este cálculo no tiene Company_Id del sistema (cliente capturado a mano). Asígnale su ficha en el padrón antes de cargarlo.' };
-  const sh = hojaDeTabla(CALC_APPSHEET_TABLA);
-  if (!sh) return { ok: false, error: 'No encontré la pestaña ' + CALC_APPSHEET_TABLA + ' (ni en el DataModel ni en accounting_reports_clients).' };
-
-  const lang = body.idioma || fila.idioma || 'es';
-  const x = calcXlsxAsegurar_(fila, g.calculo, lang);
+  if (!fila.company_id) return { ok: false, error: 'Este cálculo no tiene Company_Id del sistema (cliente capturado a mano). Vincúlalo a su ficha del padrón antes de cargarlo.' };
   const anio = Number(fila.anio), mes = Number(fila.mes);
   const MES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-  const periodId = almPeriodIdAppSheet_(fila.periodo, fila.company_id);      // 2026-8_AZ007386
-  const mm = ('0' + mes).slice(-2);
 
-  // Fila existente para el mismo cliente-período → se actualiza (el botón es idempotente)
-  const nc = Math.max(1, sh.getLastColumn());
-  const head = sh.getRange(1, 1, 1, nc).getValues()[0].map(String);
-  const norm = function (s) { return String(s || '').toLowerCase().replace(/[áàä]/g, 'a').replace(/[éèë]/g, 'e').replace(/[íìï]/g, 'i').replace(/[óòö]/g, 'o').replace(/[úùü]/g, 'u').replace(/[^a-z0-9]/g, ''); };
-  const idx = {}; head.forEach(function (h, j) { idx[norm(h)] = j; });
-  const need = ['companyid', 'calcimpid', 'documento'];
-  for (var k = 0; k < need.length; k++) if (idx[need[k]] === undefined) return { ok: false, error: 'La pestaña ' + CALC_APPSHEET_TABLA + ' no tiene la columna ' + need[k] + '. Encabezados: ' + head.join(', ') };
-  const nFilas = Math.max(0, sh.getLastRow() - 1);
-  const datos = nFilas ? sh.getRange(2, 1, nFilas, nc).getValues() : [];
-  var filaExistente = 0, calcImpId = '';
-  for (var i = 0; i < datos.length; i++) {
-    if (String(datos[i][idx.companyid]).trim() === periodId) { filaExistente = i + 2; calcImpId = String(datos[i][idx.calcimpid] || '').trim(); break; }
-  }
-  if (!calcImpId) calcImpId = Utilities.getUuid().replace(/-/g, '').slice(0, 8);
+  // 1 · Resolver el período real del cliente en la app (llave del Ref). Sin él no se escribe nada.
+  const per = appsheetApi_('Clientes_por_periodo', 'Find', [],
+    'Filter("Clientes_por_periodo", AND([Company_id] = "' + fila.company_id + '", [Mes_num] = ' + mes + ', [AñoPeríodo] = ' + anio + '))');
+  if (per._error) return { ok: false, error: per._error };
+  const filasPer = appsheetFilas_(per);
+  if (!filasPer.length) return { ok: false, error: 'En el sistema no existe el período ' + MES_ES[mes - 1] + ' ' + anio + ' para ' + fila.company_id + '. Ábrelo en AppSheet (Clientes_por_periodo) y vuelve a intentar; no creo el registro para no dejar la referencia colgando.' };
+  const periodId = String(filasPer[0].PeriodID || '').trim();
+  const nombreCliente = String(filasPer[0].NombreCliente || '').trim() || calcNombreCorto_(fila.nombre);
+  if (!periodId) return { ok: false, error: 'El período existe pero sin PeriodID legible; revísalo en AppSheet.' };
 
-  // Archivo en calculo_impuestos_Files_ con la convención del equipo
-  const nombreBonito = calcNombreCorto_(fila.nombre) + ' - Tax Calculation ' + mm + anio + '.xlsx';
-  const hhmmss = Utilities.formatDate(new Date(), 'America/Mexico_City', 'HHmmss');
-  const nombreAppsheet = calcImpId + '.Documento.' + hhmmss + '. ' + nombreBonito;
+  // 2 · ¿Ya hay cálculo cargado para ese período? (el botón es idempotente)
+  const ex = appsheetApi_('calculo_impuestos', 'Find', [], 'Filter("calculo_impuestos", [company_id] = "' + periodId + '")');
+  if (ex._error) return { ok: false, error: ex._error };
+  const filasEx = appsheetFilas_(ex);
+  const calcImpId = filasEx.length ? String(filasEx[0].calc_imp_id || '').trim() : Utilities.getUuid().replace(/-/g, '').slice(0, 8);
+
+  // 3 · El Excel va a la carpeta de archivos de la tabla, con la convención del equipo
+  const x = calcXlsxAsegurar_(fila, g.calculo, body.idioma || fila.idioma);
+  const nombreBonito = nombreCliente + ' - Tax Calculation ' + ('0' + mes).slice(-2) + anio + '.xlsx';
+  const nombreAppsheet = calcImpId + '.Documento.' + Utilities.formatDate(new Date(), 'America/Mexico_City', 'HHmmss') + '. ' + nombreBonito;
   const carpeta = DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty('CALC_APPSHEET_FILES') || CALC_APPSHEET_FILES);
   const archivo = carpeta.createFile((x.blob || DriveApp.getFileById(x.id).getBlob()).copyBlob().setName(nombreAppsheet));
   const ruta = CALC_APPSHEET_TABLA + '_Files_/' + nombreAppsheet;
 
-  const valores = {};
-  valores[idx.companyid] = periodId;
-  if (idx.companyperiodid !== undefined) valores[idx.companyperiodid] = anio + '-' + MES_ES[mes - 1];
-  valores[idx.calcimpid] = calcImpId;
-  if (idx.mesperiodo !== undefined) valores[idx.mesperiodo] = MES_ES[mes - 1];
-  if (idx.anoperiodo !== undefined) valores[idx.anoperiodo] = String(anio);
-  valores[idx.documento] = ruta;
-  if (idx.fechadecarga !== undefined) valores[idx.fechadecarga] = Utilities.formatDate(new Date(), 'America/Mexico_City', 'MM/dd/yyyy');
+  // 4 · Alta o edición por la API (solo las columnas existentes; id_prov se deja a la app)
+  const row = { calc_imp_id: calcImpId, company_id: periodId, Company_period_id: anio + '-' + MES_ES[mes - 1],
+                MesPeriodo: MES_ES[mes - 1], 'AñoPeríodo': anio, Documento: ruta,
+                'Fecha de carga': Utilities.formatDate(new Date(), 'America/Mexico_City', 'yyyy-MM-dd') };
+  const res = appsheetApi_('calculo_impuestos', filasEx.length ? 'Edit' : 'Add', [row]);
+  if (res._error) { try { archivo.setTrashed(true); } catch (e) {} return { ok: false, error: res._error }; }
+  const creada = appsheetFilas_(res)[0] || {};
+  const docOk = String(creada.Documento || '').indexOf(nombreAppsheet) >= 0 || String(creada.Documento || '') === ruta;
 
-  if (filaExistente) {
-    Object.keys(valores).forEach(function (j) { sh.getRange(filaExistente, Number(j) + 1).setValue(valores[j]); });
-  } else {
-    const nueva = head.map(function (h, j) { return valores[j] !== undefined ? valores[j] : ''; });
-    sh.appendRow(nueva);
-  }
   almAsegurarCols_('calculos_impuestos', CALC_COLS_V2);
-  almUpsert_('calculos_impuestos', ['calc_id'], [{ calc_id: fila.calc_id, appsheet_calc_imp_id: calcImpId, appsheet_ruta: ruta, appsheet_cargado_en: new Date().toISOString(), actualizado_en: new Date().toISOString() }]);
-  try { almLog_('calc_appsheet_push', 'ok', fila.calc_id + ' → ' + periodId + ' (' + (filaExistente ? 'actualizada' : 'nueva') + ')'); } catch (e) {}
-  return { ok: true, calc_imp_id: calcImpId, company_id: periodId, ruta: ruta, actualizada: !!filaExistente,
-           archivo_url: archivo.getUrl(), nombre: nombreBonito, mes: MES_ES[mes - 1], anio: String(anio) };
+  almUpsert_('calculos_impuestos', ['calc_id'], [{ calc_id: fila.calc_id, appsheet_calc_imp_id: calcImpId, appsheet_ruta: ruta,
+    appsheet_cargado_en: new Date().toISOString(), actualizado_en: new Date().toISOString() }]);
+  try { almLog_('calc_appsheet_push', 'ok', fila.calc_id + ' → ' + periodId + ' (' + (filasEx.length ? 'editada' : 'nueva') + ', doc ' + (docOk ? 'ok' : 'revisar') + ') por ' + (u && u.email)); } catch (e) {}
+  return { ok: true, calc_imp_id: calcImpId, company_id: periodId, cliente_appsheet: nombreCliente, ruta: ruta,
+           actualizada: !!filasEx.length, doc_vinculado: docOk, archivo_url: archivo.getUrl(),
+           nombre: nombreBonito, mes: MES_ES[mes - 1], anio: String(anio) };
 }
