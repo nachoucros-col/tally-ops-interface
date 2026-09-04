@@ -269,6 +269,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <div class="sub">Interfaz Contable</div>
     <a href="#dashboard" data-view="dashboard">📊 Dashboard</a>
     <a href="#bandeja" class="active" data-view="bandeja">📥 Bandeja</a>
+    <a href="#calculo" data-view="calculo">🧮 Cálculo de impuestos</a>
     <a href="#sc" data-view="sc" style="display:none">📦 Documentación</a><!-- oculto por orden de Juan 29-jul-2026, hasta nueva orden -->
     <a href="#tareas" data-view="tareas">✅ Tareas</a>
     <a href="#log" data-view="log" style="display:none">🕐 Actividad</a>
@@ -276,7 +277,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
     <div class="push"></div>
     <div class="status" id="userBox" style="border-top:none"></div>
-    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 2-sep v3 · dashboard 5 promesas</span></div>
+    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v4 · cálculo de impuestos</span></div>
   </nav>
 
   <main class="main">
@@ -404,6 +405,124 @@ tr:hover td{background:rgba(96,71,255,.04)}
     </section>
 
     <!-- ══ CONFIG ══ -->
+<section class="view" id="view-calculo">
+  <h1>Cálculo de impuestos</h1>
+  <p class="lead">Fabrica el cálculo mensual de un cliente en cinco pasos: cliente → documentos → SAT (Syntage) → cálculo → entrega. El documento sale en español, inglés o chino y queda guardado aquí para filtrarlo, corregirlo o descargarlo.</p>
+
+  <div class="cx-tabs"><button class="cx-tab active" data-cxtab="nuevo">➕ Nuevo cálculo</button><button class="cx-tab" data-cxtab="lista">📁 Cálculos guardados</button></div>
+
+  <!-- ═══ NUEVO CÁLCULO (asistente) ═══ -->
+  <div id="cx-nuevo">
+    <ol class="cx-steps">
+      <li class="on" data-s="1">1 · Cliente</li><li data-s="2">2 · Documentos</li><li data-s="3">3 · SAT / Syntage</li><li data-s="4">4 · Cálculo</li><li data-s="5">5 · Entrega</li>
+    </ol>
+
+    <!-- Paso 1 -->
+    <div class="cx-step" data-step="1">
+      <label>¿Para qué cliente es? Escribe el RFC o el nombre</label>
+      <input id="cxRfc" class="cx-input" placeholder="EES251001N28" autocomplete="off" oninput="cxBuscarCliente(this.value)">
+      <div id="cxClienteLista" class="cx-list"></div>
+      <div id="cxClienteSel" class="cx-selected" style="display:none"></div>
+      <div class="cx-row">
+        <label>Período</label>
+        <select id="cxMes" class="cx-input"></select><select id="cxAnio" class="cx-input"></select>
+        <label>Idioma del documento</label>
+        <select id="cxIdioma" class="cx-input"><option value="es">Español</option><option value="en">English</option><option value="zh">中文</option></select>
+      </div>
+      <div class="cx-nav"><button class="btn" onclick="cxGo(2)" id="cxNext1" disabled>Continuar →</button></div>
+    </div>
+
+    <!-- Paso 2 -->
+    <div class="cx-step" data-step="2" style="display:none">
+      <label>Sube los reportes del marketplace y el estado de cuenta del mes</label>
+      <div id="cxDrop" class="cx-drop" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="cxDrop(event)" onclick="document.getElementById('cxFile').click()">
+        <div class="cx-drop-ico">⬆️</div>
+        <div><b>Arrastra los documentos aquí</b> o haz clic para elegirlos</div>
+        <small>Resumen mensual de Seller Central · Certificado de retenciones · Estado de cuenta bancario (PDF, CSV o imagen)</small>
+        <input type="file" id="cxFile" multiple accept=".pdf,.csv,.png,.jpg,.jpeg,.xlsx,.numbers" style="display:none" onchange="cxFiles(this.files)">
+      </div>
+      <table class="cx-table" id="cxDocs" style="display:none"><thead><tr><th>Archivo</th><th>Tipo detectado</th><th>Lectura</th><th>Datos clave</th><th></th></tr></thead><tbody></tbody></table>
+      <div class="cx-hint" id="cxDocsHint">Sin documentos todavía. Se necesitan al menos el resumen del marketplace y el certificado de retenciones del mes.</div>
+      <div class="cx-nav"><button class="btn secondary" onclick="cxGo(1)">← Atrás</button><button class="btn" onclick="cxGo(3)" id="cxNext2" disabled>Continuar →</button></div>
+    </div>
+
+    <!-- Paso 3 -->
+    <div class="cx-step" data-step="3" style="display:none">
+      <label>Lo que el SAT tiene registrado del RFC (vía Syntage)</label>
+      <div id="cxSyntage" class="cx-panel"><div class="cx-spinner">Consultando Syntage…</div></div>
+      <!-- Alerta cuando el cliente NO está conectado -->
+      <div id="cxSynAlert" class="cx-alert" style="display:none">
+        <b>Este cliente no está reportado en Syntage.</b> Sin la conexión, el cálculo se hace solo con los documentos del marketplace y el banco; no se pueden validar facturas ni declaraciones.
+        <p>¿Deseas que Juan apruebe que este cliente se incluya en Syntage?</p>
+        <label>CIEC del cliente <small>(solo si no está ya en el sistema; se manda a Juan por una liga de un solo uso, no en texto plano)</small></label>
+        <input id="cxCiec" class="cx-input" type="password" autocomplete="new-password" placeholder="••••••••">
+        <div class="cx-nav"><button class="btn" onclick="cxSolicitarSyntage()">Sí, pedir la conexión</button><button class="btn secondary" onclick="cxGo(4)">No, continuar sin SAT</button></div>
+        <div id="cxSynMsg" class="cx-hint"></div>
+      </div>
+      <div class="cx-nav"><button class="btn secondary" onclick="cxGo(2)">← Atrás</button><button class="btn" onclick="cxGo(4)" id="cxNext3">Continuar →</button></div>
+    </div>
+
+    <!-- Paso 4 -->
+    <div class="cx-step" data-step="4" style="display:none">
+      <label>Revisa los insumos y genera el cálculo</label>
+      <div class="cx-grid2">
+        <div class="cx-panel"><h4>Del marketplace</h4><div id="cxResumenMk"></div></div>
+        <div class="cx-panel"><h4>Del SAT y del banco</h4><div id="cxResumenSat"></div></div>
+      </div>
+      <div class="cx-row">
+        <label>Criterio de IVA</label>
+        <select id="cxLectura" class="cx-input"><option value="A">Lectura A — IVA según certificado del marketplace (recomendada para vendedores con ventas transfronterizas)</option><option value="B">Lectura B — IVA según lo facturado en CFDI</option></select>
+        <label>Coeficiente de utilidad (anual anterior)</label><input id="cxCU" class="cx-input" placeholder="0.0000 · vacío = pendiente" style="max-width:220px">
+      </div>
+      <div class="cx-nav"><button class="btn secondary" onclick="cxGo(3)">← Atrás</button><button class="btn" onclick="cxGenerar()" id="cxBtnGen">🧮 Calcular y generar documento</button></div>
+      <div id="cxGenMsg" class="cx-hint"></div>
+    </div>
+
+    <!-- Paso 5 -->
+    <div class="cx-step" data-step="5" style="display:none">
+      <div class="cx-result" id="cxResult"></div>
+      <div class="cx-nav">
+        <button class="btn" onclick="cxDescargar()">⬇️ Descargar (PDF)</button>
+        <button class="btn secondary" onclick="cxVer()">👁️ Ver documento</button>
+        <button class="btn secondary" onclick="cxIrCorreo()">✉️ Redactar correo al cliente</button>
+        <button class="btn secondary" onclick="cxCorregir()">✏️ Pedir corrección</button>
+      </div>
+      <iframe id="cxPreview" class="cx-preview" style="display:none"></iframe>
+    </div>
+  </div>
+
+  <!-- ═══ CÁLCULOS GUARDADOS ═══ -->
+  <div id="cx-lista" style="display:none">
+    <div class="cx-filters">
+      <input class="cx-input" id="cxFNombre" placeholder="Cliente (nombre)" oninput="cxListar()">
+      <input class="cx-input" id="cxFRfc" placeholder="RFC" oninput="cxListar()">
+      <select class="cx-input" id="cxFMes" onchange="cxListar()"><option value="">Mes</option></select>
+      <select class="cx-input" id="cxFAnio" onchange="cxListar()"><option value="">Año</option></select>
+      <select class="cx-input" id="cxFEstado" onchange="cxListar()"><option value="">Estado</option><option value="draft">Borrador</option><option value="correccion">En corrección</option><option value="approved">Aprobado por cliente</option><option value="filed">Declarado</option></select>
+    </div>
+    <table class="cx-table" id="cxTabla"><thead><tr><th>Cliente</th><th>RFC</th><th>Período</th><th>IVA a pagar</th><th>ISR a pagar</th><th>Saldo a favor</th><th>Estado</th><th>Idioma</th><th>Actualizado</th><th></th></tr></thead><tbody></tbody></table>
+  </div>
+</section>
+
+<style>
+  .cx-tabs{display:flex;gap:6px;margin:12px 0 18px}.cx-tab{border:1px solid #e6e2da;background:#fff;border-radius:999px;padding:6px 14px;cursor:pointer;font:inherit}.cx-tab.active{background:#6047ff;color:#fefcf8;border-color:#6047ff}
+  .cx-steps{display:flex;gap:6px;list-style:none;padding:0;margin:0 0 18px;font-size:12px}.cx-steps li{flex:1;padding:8px 10px;border-radius:8px;background:#f3f1ec;color:#6b6b6b}.cx-steps li.on{background:#dcdcff;color:#212121;font-weight:500}.cx-steps li.done{background:#c8e8ce}
+  .cx-step label{display:block;font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.05em;color:#6b6b6b;margin:14px 0 6px}
+  .cx-input{width:100%;max-width:520px;padding:10px 12px;border:1px solid #e6e2da;border-radius:10px;font:inherit;background:#fff}.cx-row{display:grid;grid-template-columns:auto 1fr 1fr auto 1fr;gap:10px;align-items:end;margin-top:8px}.cx-row label{margin:0}
+  .cx-list{max-width:520px}.cx-list .it{padding:8px 12px;border:1px solid #e6e2da;border-top:none;background:#fff;cursor:pointer;display:flex;justify-content:space-between}.cx-list .it:hover{background:#dcdcff}
+  .cx-selected{margin-top:8px;padding:10px 14px;border-radius:10px;background:#dcdcff;max-width:520px}
+  .cx-drop{border:2px dashed #6047ff;border-radius:16px;padding:34px;text-align:center;background:#fff;cursor:pointer;max-width:720px}.cx-drop.over{background:#dcdcff}.cx-drop-ico{font-size:28px}.cx-drop small{display:block;color:#6b6b6b;margin-top:6px}
+  .cx-table{width:100%;border-collapse:collapse;margin-top:14px;font-size:13px;font-feature-settings:'tnum' 1}.cx-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#6b6b6b;padding:6px 8px;border-bottom:2px solid #212121}.cx-table td{padding:8px;border-bottom:1px solid #e6e2da;vertical-align:top}
+  .cx-hint{font-size:12px;color:#6b6b6b;margin-top:8px}.cx-nav{display:flex;gap:8px;margin-top:16px}
+  .cx-panel{background:#fff;border:1px solid #e6e2da;border-radius:12px;padding:14px 16px}.cx-panel h4{margin:0 0 8px;font-size:13px}.cx-grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .cx-alert{margin-top:14px;padding:16px;border-radius:12px;background:#fcddd6;border-left:4px solid #ff8248;max-width:720px}
+  .cx-result{background:#dcdcff;border-radius:12px;padding:16px 18px}.cx-result .k{display:inline-block;margin-right:24px}.cx-result .k b{display:block;font-size:22px;font-feature-settings:'tnum' 1}
+  .cx-preview{width:100%;height:80vh;border:1px solid #e6e2da;border-radius:12px;margin-top:14px;background:#fff}
+  .cx-filters{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:8px;margin-bottom:6px}.cx-spinner{color:#6b6b6b}
+  .cx-tag{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11px;background:#f3f1ec}.cx-tag.ok{background:#c8e8ce}.cx-tag.warn{background:#fcddd6}.cx-tag.info{background:#dcf8ff}
+</style>
+
+
     <section class="view" id="view-config">
       <h1>Configuración</h1>
       <div class="cfg-card"><h3>Base de datos</h3>
@@ -1025,10 +1144,11 @@ function renderCompose(){
 
     <label>2 · ¿Cómo lo redactamos?</label>
     <div class="chips" style="margin-bottom:6px">
-      <button class="chip ${cmp.mode!=='ia'?'on':''}" onclick="cmp.mode='tpl';renderCompose()">📄 Con plantilla</button>
+      <button class="chip ${(cmp.mode!=='ia'&&cmp.mode!=='calc')?'on':''}" onclick="cmp.mode='tpl';renderCompose()">📄 Con plantilla</button>
       <button class="chip ${cmp.mode==='ia'?'on':''}" onclick="cmp.mode='ia';renderCompose()">✨ Redacción libre con IA</button>
+      <button class="chip ${cmp.mode==='calc'?'on':''}" onclick="cmp.mode='calc';renderCompose()">🧮 Cálculo de impuestos</button>
     </div>
-    ${cmp.mode==='ia'?`
+    ${cmp.mode==='calc'?calcComposeHtml():cmp.mode==='ia'?`
     <label>3 · Objetivo y contexto del correo</label>
     <textarea id="iaPrompt" rows="5" placeholder="Ej: Avísale que su declaración de junio ya fue presentada, comparte que detectamos ventas crecientes y proponle una sesión de 30 min la próxima semana para revisar su estrategia fiscal.">${esc(cmp.iaPrompt||'')}</textarea>
     <div class="notice info" style="margin-top:8px">🤖 La IA redacta asunto y cuerpo personalizados por cliente. Idioma: IN→español, AZ→inglés por default (cambiable en cada preview). Revisas, editas y envías — nada sale sin tu aprobación.</div>
@@ -1400,7 +1520,7 @@ async function genPreviews(){
 async function verificarRecursos(){
   for(const p of cmp.previews){
     const datos=(cmp.tpl==='IA')?(cmp.iaDatos||[]):[];
-    const docs=p.adjuntos||[];
+    const docs=(p.adjuntos||[]).filter(a=>!a.calc_id);
     if(!p.company_id||String(p.company_id).startsWith('CUSTOM')||(!datos.length&&!docs.length)){ p.faltantes=[]; continue; }
     const r=await api('verificar_recursos',{company_id:p.company_id,datos,docs});
     p.faltantes=(r.ok&&r.faltantes)?r.faltantes:[];
@@ -1434,7 +1554,7 @@ function renderPreviews(){
           <option value="en" ${p.idioma!=='es'?'selected':''}>Inglés</option>
           <option value="es" ${p.idioma==='es'?'selected':''}>Español</option>
         </select>
-        ${(p.adjuntos&&p.adjuntos.length)?`<span style="font-size:12px">📎 adjuntará: ${p.adjuntos.map(a=>esc(tablaLabel(a.tabla))).join(', ')}</span>`:''}
+        ${(p.adjuntos&&p.adjuntos.length)?`<span style="font-size:12px">📎 adjuntará: ${p.adjuntos.map(a=>esc(a.calc_id?(a.label||'Cálculo de impuestos'):tablaLabel(a.tabla))).join(', ')}</span>`:''}
       </div>
       <input type="text" id="sub-${i}" value="${esc(p.subject)}">
       <textarea id="body-${i}" rows="10">${esc(p.body)}</textarea>
@@ -2519,6 +2639,564 @@ api('__health',{}).then(()=>{});
 
 loadAll();
 setInterval(loadAll,120000);
+</script>
+<script>
+/* ============================================================================
+   Tally · Motor determinista del cálculo de impuestos (sin IA en los números)
+   Entrada normalizada (lo que el backend arma con OCR + Syntage + banco) y
+   salida = objeto `calculo` que consume calculo-render.js.
+   Funciona en navegador, Node y Apps Script (V8).
+   Criterio por defecto: "Lectura A" — el IVA trasladado es el que el
+   marketplace reporta por orden en el certificado de retenciones.
+   ============================================================================ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.TallyCalculoEngine = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+
+  const r2 = n => Math.round((Number(n) || 0) * 100) / 100;
+
+  /**
+   * @param {Object} in_
+   *  cliente:  {nombre, rfc, company_id, regimen, marketplace}
+   *  periodo:  {mes, anio}
+   *  meses: [{mes, anio, cert:{ordenes, base, ordenes_16, iva_trasladado, isr_retenido, iva_retenido, folio},
+   *                       liq:{ingreso_neto, gastos_netos, transferencias, iva_retenido, isr_retenido},
+   *                       cfdi:{emitidos:[{fecha,quien,subtotal,iva,total}], recibidos:[...], iva_acreditable_pue, iva_ppd_pendiente},
+   *                       banco:{abonos, cuenta, nota} | null }]   // orden cronológico, ene..mes del cálculo
+   *  isr: {cu, perdidas, pagos_previos:[{mes, importe}]}
+   *  saldo_favor_inicial: number (IVA a favor antes del primer mes de la serie)
+   *  fuentes: [{nombre, es, en, zh, que_es, que_en, que_zh, estado}]
+   *  idioma, estado, emitido
+   */
+  function calcular(in_) {
+    const meses = (in_.meses || []).slice().sort((a, b) => (a.anio - b.anio) || (a.mes - b.mes));
+    const target = in_.periodo;
+    let saldoFavor = Number(in_.saldo_favor_inicial) || 0;
+    let ingresosAcum = 0, retAcum = 0, pagosAcum = 0;
+    const cu = (in_.isr && typeof in_.isr.cu === 'number') ? in_.isr.cu : null;
+    const perdidas = (in_.isr && Number(in_.isr.perdidas)) || 0;
+    const pagosPrev = {}; ((in_.isr && in_.isr.pagos_previos) || []).forEach(p => { pagosPrev[p.anio + '-' + p.mes] = Number(p.importe) || 0; });
+
+    const detalle = [], banco = [], serie = [];
+    let out = null;
+    meses.forEach(m => {
+      const c = m.cert || {}, l = m.liq || {}, f = m.cfdi || {};
+      const base16 = r2((c.iva_trasladado || 0) / 0.16);
+      const base0 = r2((c.base || 0) - base16);
+      const trasladado = r2(c.iva_trasladado || 0);
+      const retenido = r2(l.iva_retenido != null ? l.iva_retenido : (c.iva_retenido || 0));
+      const acreditable = r2(f.iva_acreditable_pue || 0);
+      const resultado = r2(trasladado - retenido - acreditable);
+      const posicion = r2(resultado - saldoFavor);
+      const aPagar = Math.max(0, posicion);
+      const arrastre = Math.max(0, -posicion);
+
+      ingresosAcum = r2(ingresosAcum + (c.base || 0));
+      retAcum = r2(retAcum + (c.isr_retenido || 0));
+      pagosAcum = r2(pagosAcum + (pagosPrev[m.anio + '-' + m.mes] || 0));
+      let utilidad = null, baseISR = null, isrAcum = null, isrPagar = null;
+      if (cu !== null) {
+        utilidad = r2(ingresosAcum * cu);
+        const perd = Math.min(utilidad, perdidas);
+        baseISR = Math.max(0, r2(utilidad - perd));
+        isrAcum = r2(baseISR * 0.30);
+        isrPagar = Math.max(0, r2(isrAcum - retAcum - pagosAcum));
+      }
+
+      detalle.push({ mes: m.mes, anio: m.anio, ordenes: c.ordenes, base: c.base, iva: trasladado, iva_ret: retenido, isr_ret: c.isr_retenido });
+      banco.push({ mes: m.mes, anio: m.anio, esperado: l.transferencias, real: m.banco ? m.banco.abonos : null, nota: m.banco ? (m.banco.nota || m.banco.cuenta || '') : '' });
+      serie.push({ mes: m.mes, anio: m.anio, iva_a_pagar: aPagar, arrastre, isr_a_pagar: isrPagar });
+
+      if (m.mes === target.mes && m.anio === target.anio) {
+        out = {
+          cliente: in_.cliente, periodo: target, idioma: in_.idioma || 'es', estado: in_.estado || 'draft', emitido: in_.emitido || new Date().toISOString().slice(0, 10),
+          logo_svg: in_.logo_svg || null, lectura: in_.lectura || null, fuentes: in_.fuentes || [], alertas: in_.alertas || [], notas: in_.notas || [],
+          resumen: { ventas_base: c.base, ordenes: c.ordenes, ordenes_16: c.ordenes_16, ordenes_0: (c.ordenes != null && c.ordenes_16 != null) ? c.ordenes - c.ordenes_16 : null,
+                     isr_retenido_mes: c.isr_retenido, iva_retenido_mes: retenido, ingreso_liquidacion: l.ingreso_neto, transferencias: l.transferencias },
+          iva: { base_16: base16, base_0: base0, trasladado, retenido, acreditable, saldo_favor_anterior: saldoFavor, resultado, a_pagar: aPagar, saldo_favor_arrastre: arrastre,
+                 ppd_pendiente: f.iva_ppd_pendiente || 0,
+                 src_16: 'Certificado de retenciones ' + (c.folio || ''), src_0: 'Certificado de retenciones', src_trasladado: 'Certificado de retenciones', src_retenido: 'Liquidación del marketplace', src_acreditable: 'CFDI recibidos (SAT / Syntage)' },
+          isr: { ingresos_mes: c.base, ingresos_acum: ingresosAcum, cu, utilidad, perdidas: cu !== null ? Math.min(utilidad, perdidas) : null, base: baseISR, isr_acum: isrAcum, retenido_acum: retAcum, pagos_previos: pagosAcum, a_pagar: isrPagar },
+          cfdi_emitidos: f.emitidos || [], cfdi_recibidos: f.recibidos || [],
+          detalle_meses: detalle.slice(), banco: banco.slice(), serie: serie.slice()
+        };
+      }
+      saldoFavor = arrastre;
+    });
+    if (!out) throw new Error('El período solicitado no está en la serie de meses');
+    return out;
+  }
+
+  return { calcular };
+});
+
+</script>
+<script>
+/* ============================================================================
+   Tally · Cálculo de impuestos — renderizador del formato (ES / EN / 中文)
+   Uso en navegador:  window.TallyCalculo.render(calculo, 'es') -> HTML string
+   Uso en Node:       require('./calculo-render.js').render(calculo, 'en')
+   El mismo archivo alimenta la vista previa en Tally Ops, el PDF (imprimir)
+   y el adjunto que se manda por correo. Un solo lugar para el formato.
+   Marca: brand-master.md §6 (cream / ink / violet; DM Sans Light+Bold;
+   máximo 3 colores por vista). Logo: wordmark tipográfico con ranura para
+   el SVG oficial (tally-logotipo-violet.svg) vía calculo.logo_svg.
+   ============================================================================ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.TallyCalculo = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+
+  const I18N = {
+    es: {
+      doc_title: 'Cálculo de impuestos', subtitle: 'Papel de trabajo mensual · IVA e ISR', period: 'Período', prepared: 'Preparado por Tally', issued: 'Fecha de emisión',
+      rfc: 'RFC', regime: 'Régimen', marketplace: 'Canal de venta', status: 'Estado', status_draft: 'Borrador para revisión', status_approved: 'Aprobado por el cliente', status_filed: 'Declarado',
+      lang_note: 'Documento disponible en español, inglés y chino. Las cifras son idénticas en los tres.',
+      exec_title: 'Resumen ejecutivo', exec_lead: 'Lo que pagas este mes, en tres líneas.',
+      kpi_iva: 'IVA a pagar', kpi_isr: 'ISR a pagar', kpi_total: 'Total a pagar', kpi_favor: 'Saldo a favor de IVA que se arrastra', kpi_ret: 'Impuestos ya retenidos por el marketplace',
+      exec_sales: 'Ventas del mes (base sin IVA)', exec_orders: 'Órdenes', exec_domestic: 'Órdenes con IVA 16% (venta nacional)', exec_cross: 'Órdenes sin IVA (transfronterizas)',
+      exec_next: 'Qué sigue', exec_next_1: 'Revisas este documento y nos confirmas tu aprobación (o tus dudas) respondiendo al correo.', exec_next_2: 'Con tu aprobación presentamos la declaración ante el SAT y te enviamos el acuse.', exec_next_3: 'El saldo a favor se acredita mes a mes en tu declaración; no requiere ningún trámite tuyo.',
+      how_title: 'Cómo calculamos tus impuestos', how_lead: 'De dónde sale cada número y por qué.',
+      src_title: 'Fuentes de información', src_col_src: 'Fuente', src_col_what: 'Qué aporta', src_col_status: 'Estado',
+      src_ok: 'Recibida', src_missing: 'Pendiente', src_partial: 'Parcial',
+      how_steps_title: 'Los cinco pasos', how_step_1: 'Tomamos tus ventas del mes desde el certificado de retenciones de Amazon: cada orden, con o sin IVA.',
+      how_step_2: 'Identificamos el IVA que cobraste (solo órdenes con 16%) y el que ya te retuvo el marketplace.',
+      how_step_3: 'Restamos el IVA que pagaste en tus gastos con factura (CFDI) a nombre de tu empresa; eso es IVA acreditable.',
+      how_step_4: 'Para ISR sumamos tus ingresos acumulados del año, aplicamos el coeficiente de utilidad y restamos las retenciones ya hechas.',
+      how_step_5: 'Cruzamos todo contra tu estado de cuenta bancario y contra lo que el SAT tiene registrado de tu RFC.',
+      iva_title: 'IVA — impuesto al valor agregado', iva_lead: 'Pago definitivo del mes.',
+      isr_title: 'ISR — impuesto sobre la renta', isr_lead: 'Pago provisional del mes, calculado sobre el acumulado del año.',
+      col_concept: 'Concepto', col_amount: 'Importe (MXN)', col_source: 'De dónde sale',
+      iva_r1: 'Ventas con IVA 16% (base)', iva_r2: 'Ventas sin IVA (tasa 0% / transfronterizas)', iva_r3: 'IVA que cobraste (16%)', iva_r4: 'IVA retenido por el marketplace', iva_r5: 'IVA acreditable (tus gastos con CFDI)', iva_r6: 'Saldo a favor del mes anterior', iva_r7: 'Resultado del mes', iva_r8: 'IVA a pagar', iva_r9: 'Saldo a favor que se arrastra',
+      isr_r1: 'Ingresos del mes (base sin IVA)', isr_r2: 'Ingresos acumulados del año', isr_r3: 'Coeficiente de utilidad', isr_r4: 'Utilidad fiscal estimada', isr_r5: 'Pérdidas fiscales aplicadas', isr_r6: 'Base gravable', isr_r7: 'ISR acumulado (30%)', isr_r8: 'ISR retenido por el marketplace (acumulado)', isr_r9: 'Pagos provisionales anteriores', isr_r10: 'ISR a pagar',
+      isr_no_cu: 'Pendiente: coeficiente de utilidad de la declaración anual. Sin él no se determina pago provisional.',
+      detail_title: 'Detalle de ventas y retenciones', detail_lead: 'Lo que reporta el marketplace, mes a mes.',
+      col_month: 'Mes', col_orders: 'Órdenes', col_base: 'Base sin IVA', col_iva: 'IVA cobrado', col_isr_ret: 'ISR retenido', col_iva_ret: 'IVA retenido', col_total: 'Total',
+      cfdi_title: 'Facturas (CFDI) registradas en el SAT', cfdi_lead: 'Lo que el SAT ve de tu empresa este mes.',
+      cfdi_issued: 'Facturas emitidas por tu empresa', cfdi_received: 'Facturas recibidas (gastos)', col_date: 'Fecha', col_who: 'Emisor / receptor', col_subtotal: 'Subtotal', col_none: 'Sin facturas en el período',
+      bank_title: 'Conciliación bancaria', bank_lead: 'Lo que el marketplace dice que te depositó contra lo que llegó al banco.', col_bank_expected: 'Depósitos según marketplace', col_bank_actual: 'Abonos en el estado de cuenta', col_diff: 'Diferencia', bank_missing: 'Sin estado de cuenta del mes',
+      notes_title: 'Notas y supuestos', notes_lead: 'Lo que debes saber para leer bien las cifras.',
+      glossary_title: 'Glosario', gl_iva: 'IVA', gl_iva_d: 'Impuesto al valor agregado, 16%. Lo cobras al vender y lo pagas al comprar; al SAT se entera la diferencia.', gl_isr: 'ISR', gl_isr_d: 'Impuesto sobre la renta. Se paga mensualmente a cuenta (provisional) y se ajusta en la declaración anual.', gl_cfdi: 'CFDI', gl_cfdi_d: 'Factura electrónica mexicana. Solo lo que tiene CFDI a nombre de tu empresa se deduce o acredita.', gl_ret: 'Retención', gl_ret_d: 'Impuesto que el marketplace descuenta de tus ventas y entrega al SAT en tu nombre; se resta de lo que te toca pagar.', gl_favor: 'Saldo a favor', gl_favor_d: 'IVA que pagaste de más y se acredita contra meses siguientes. No se solicita en devolución: se aplica solo.', gl_cu: 'Coeficiente de utilidad', gl_cu_d: 'Porcentaje de utilidad del año anterior con el que el SAT estima tu utilidad de este año para el pago provisional.',
+      footer: 'Tally prepara, calcula y da seguimiento. Las declaraciones se presentan ante el SAT con tu aprobación previa. Este documento no sustituye la declaración ni el acuse.',
+      page: 'Página', of: 'de', months: ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'],
+      pending: 'pendiente', na: 'n/d', reading: 'Criterio aplicado'
+    },
+    en: {
+      doc_title: 'Tax calculation', subtitle: 'Monthly working paper · VAT and Income Tax', period: 'Period', prepared: 'Prepared by Tally', issued: 'Issue date',
+      rfc: 'Tax ID (RFC)', regime: 'Tax regime', marketplace: 'Sales channel', status: 'Status', status_draft: 'Draft for your review', status_approved: 'Approved by client', status_filed: 'Filed with SAT',
+      lang_note: 'Available in Spanish, English and Chinese. Figures are identical in all three.',
+      exec_title: 'Executive summary', exec_lead: 'What you pay this month, in three lines.',
+      kpi_iva: 'VAT payable', kpi_isr: 'Income tax payable', kpi_total: 'Total payable', kpi_favor: 'VAT credit carried forward', kpi_ret: 'Taxes already withheld by the marketplace',
+      exec_sales: 'Sales for the month (net of VAT)', exec_orders: 'Orders', exec_domestic: 'Orders with 16% VAT (domestic)', exec_cross: 'Orders without VAT (cross-border)',
+      exec_next: 'What happens next', exec_next_1: 'You review this document and confirm your approval (or questions) by replying to the email.', exec_next_2: 'With your approval we file the return with SAT and send you the receipt.', exec_next_3: 'Any VAT credit is applied automatically month to month in your return; nothing is required from you.',
+      how_title: 'How we calculate your taxes', how_lead: 'Where every number comes from, and why.',
+      src_title: 'Data sources', src_col_src: 'Source', src_col_what: 'What it provides', src_col_status: 'Status', src_ok: 'Received', src_missing: 'Pending', src_partial: 'Partial',
+      how_steps_title: 'The five steps', how_step_1: 'We take your sales for the month from Amazon\'s withholding certificate: every order, with or without VAT.',
+      how_step_2: 'We identify the VAT you collected (16% orders only) and the VAT the marketplace already withheld.',
+      how_step_3: 'We subtract the VAT you paid on expenses invoiced (CFDI) to your company; that is creditable VAT.',
+      how_step_4: 'For income tax we add your year-to-date income, apply the profit coefficient and subtract withholdings already made.',
+      how_step_5: 'We reconcile everything against your bank statement and against what SAT has on record for your RFC.',
+      iva_title: 'VAT — value added tax', iva_lead: 'Definitive monthly payment.', isr_title: 'Income tax (ISR)', isr_lead: 'Provisional monthly payment, computed on year-to-date figures.',
+      col_concept: 'Item', col_amount: 'Amount (MXN)', col_source: 'Source',
+      iva_r1: 'Sales with 16% VAT (base)', iva_r2: 'Sales without VAT (0% / cross-border)', iva_r3: 'VAT you collected (16%)', iva_r4: 'VAT withheld by the marketplace', iva_r5: 'Creditable VAT (your CFDI expenses)', iva_r6: 'Credit balance from prior month', iva_r7: 'Result for the month', iva_r8: 'VAT payable', iva_r9: 'Credit carried forward',
+      isr_r1: 'Income for the month (net of VAT)', isr_r2: 'Year-to-date income', isr_r3: 'Profit coefficient', isr_r4: 'Estimated taxable profit', isr_r5: 'Tax losses applied', isr_r6: 'Taxable base', isr_r7: 'Cumulative income tax (30%)', isr_r8: 'Income tax withheld by marketplace (cumulative)', isr_r9: 'Prior provisional payments', isr_r10: 'Income tax payable',
+      isr_no_cu: 'Pending: profit coefficient from the annual return. Without it no provisional payment can be determined.',
+      detail_title: 'Sales and withholding detail', detail_lead: 'What the marketplace reports, month by month.',
+      col_month: 'Month', col_orders: 'Orders', col_base: 'Base (net of VAT)', col_iva: 'VAT collected', col_isr_ret: 'Income tax withheld', col_iva_ret: 'VAT withheld', col_total: 'Total',
+      cfdi_title: 'Invoices (CFDI) on record with SAT', cfdi_lead: 'What SAT sees of your company this month.', cfdi_issued: 'Invoices issued by your company', cfdi_received: 'Invoices received (expenses)', col_date: 'Date', col_who: 'Issuer / receiver', col_subtotal: 'Subtotal', col_none: 'No invoices in the period',
+      bank_title: 'Bank reconciliation', bank_lead: 'What the marketplace says it paid you versus what reached the bank.', col_bank_expected: 'Payouts per marketplace', col_bank_actual: 'Credits on bank statement', col_diff: 'Difference', bank_missing: 'No bank statement for the month',
+      notes_title: 'Notes and assumptions', notes_lead: 'What you need to know to read the figures correctly.',
+      glossary_title: 'Glossary', gl_iva: 'VAT (IVA)', gl_iva_d: 'Value added tax, 16%. You collect it when you sell and pay it when you buy; the difference is remitted to SAT.', gl_isr: 'ISR', gl_isr_d: 'Mexican income tax. Paid monthly on account (provisional) and settled in the annual return.', gl_cfdi: 'CFDI', gl_cfdi_d: 'Mexican electronic invoice. Only expenses with a CFDI issued to your company are deductible or creditable.', gl_ret: 'Withholding', gl_ret_d: 'Tax the marketplace deducts from your sales and remits to SAT on your behalf; it reduces what you owe.', gl_favor: 'Credit balance', gl_favor_d: 'VAT you overpaid, applied against following months. Not claimed as a refund: it is applied automatically.', gl_cu: 'Profit coefficient', gl_cu_d: 'Last year\'s profit ratio SAT uses to estimate this year\'s profit for provisional payments.',
+      footer: 'Tally prepares, calculates and follows up. Returns are filed with SAT only after your approval. This document is not the tax return or the filing receipt.',
+      page: 'Page', of: 'of', months: ['January','February','March','April','May','June','July','August','September','October','November','December'],
+      pending: 'pending', na: 'n/a', reading: 'Criterion applied'
+    },
+    zh: {
+      doc_title: '税务计算', subtitle: '月度工作底稿 · 增值税与所得税', period: '期间', prepared: 'Tally 编制', issued: '出具日期',
+      rfc: '税号 (RFC)', regime: '税制', marketplace: '销售渠道', status: '状态', status_draft: '待您审阅的草稿', status_approved: '客户已批准', status_filed: '已向 SAT 申报',
+      lang_note: '本文件提供西班牙语、英语和中文版本，三个版本的数字完全一致。',
+      exec_title: '执行摘要', exec_lead: '本月应缴税款，三行看懂。',
+      kpi_iva: '应缴增值税', kpi_isr: '应缴所得税', kpi_total: '应缴总额', kpi_favor: '结转下期的增值税留抵', kpi_ret: '平台已代扣的税款',
+      exec_sales: '本月销售额（不含增值税）', exec_orders: '订单数', exec_domestic: '含 16% 增值税订单（本地销售）', exec_cross: '不含增值税订单（跨境）',
+      exec_next: '接下来', exec_next_1: '您审阅本文件后，回复邮件确认批准（或提出疑问）。', exec_next_2: '获得您的批准后，我们向 SAT 提交申报并把回执发给您。', exec_next_3: '增值税留抵会在您的申报中逐月自动抵扣，无需您办理任何手续。',
+      how_title: '我们如何计算您的税款', how_lead: '每个数字的来源与依据。',
+      src_title: '数据来源', src_col_src: '来源', src_col_what: '提供的信息', src_col_status: '状态', src_ok: '已收到', src_missing: '待提供', src_partial: '部分',
+      how_steps_title: '五个步骤', how_step_1: '从亚马逊代扣证明中提取本月每一笔订单的销售额，区分含税与不含税。',
+      how_step_2: '识别您实际收取的增值税（仅 16% 订单）以及平台已代扣的增值税。',
+      how_step_3: '扣减以贵公司名义开具发票 (CFDI) 的费用所含增值税，即可抵扣进项税。',
+      how_step_4: '所得税方面，累计年初至今收入，乘以利润系数，再扣减已被代扣的税款。',
+      how_step_5: '将全部数据与您的银行对账单及 SAT 对贵公司税号的登记记录进行核对。',
+      iva_title: '增值税 (IVA)', iva_lead: '月度最终缴纳。', isr_title: '所得税 (ISR)', isr_lead: '月度预缴，按年初至今累计数计算。',
+      col_concept: '项目', col_amount: '金额 (MXN)', col_source: '来源',
+      iva_r1: '含 16% 增值税销售额（计税基础）', iva_r2: '不含增值税销售额（0% / 跨境）', iva_r3: '您收取的增值税 (16%)', iva_r4: '平台代扣的增值税', iva_r5: '可抵扣进项税（有 CFDI 的费用）', iva_r6: '上月留抵', iva_r7: '本月结果', iva_r8: '应缴增值税', iva_r9: '结转下期留抵',
+      isr_r1: '本月收入（不含增值税）', isr_r2: '年初至今累计收入', isr_r3: '利润系数', isr_r4: '预计应税利润', isr_r5: '已抵减的税务亏损', isr_r6: '应税基础', isr_r7: '累计所得税 (30%)', isr_r8: '平台代扣所得税（累计）', isr_r9: '此前预缴税款', isr_r10: '应缴所得税',
+      isr_no_cu: '待定：年度申报中的利润系数。缺少该系数无法确定预缴税款。',
+      detail_title: '销售与代扣明细', detail_lead: '平台逐月报告的数据。',
+      col_month: '月份', col_orders: '订单', col_base: '不含税基础', col_iva: '收取增值税', col_isr_ret: '代扣所得税', col_iva_ret: '代扣增值税', col_total: '合计',
+      cfdi_title: 'SAT 登记的发票 (CFDI)', cfdi_lead: 'SAT 本月看到的贵公司情况。', cfdi_issued: '贵公司开具的发票', cfdi_received: '收到的发票（费用）', col_date: '日期', col_who: '开票方 / 受票方', col_subtotal: '小计', col_none: '本期无发票',
+      bank_title: '银行对账', bank_lead: '平台声称的付款与实际到账的对比。', col_bank_expected: '平台付款', col_bank_actual: '银行对账单入账', col_diff: '差额', bank_missing: '缺少本月银行对账单',
+      notes_title: '说明与假设', notes_lead: '正确阅读数字所需了解的事项。',
+      glossary_title: '术语表', gl_iva: '增值税 (IVA)', gl_iva_d: '税率 16%。销售时收取，采购时支付，差额缴纳给 SAT。', gl_isr: '所得税 (ISR)', gl_isr_d: '墨西哥所得税。按月预缴，年度申报时清算。', gl_cfdi: 'CFDI', gl_cfdi_d: '墨西哥电子发票。只有开具给贵公司的 CFDI 才可扣除或抵扣。', gl_ret: '代扣', gl_ret_d: '平台从您的销售额中扣除并代您缴给 SAT 的税款，可从应缴额中减除。', gl_favor: '留抵', gl_favor_d: '多缴的增值税，用于抵扣后续月份。不申请退税，自动抵扣。', gl_cu: '利润系数', gl_cu_d: 'SAT 用上一年度的利润率估算本年度利润，以计算预缴税款。',
+      footer: 'Tally 负责编制、计算与跟进。申报仅在获得您批准后向 SAT 提交。本文件不构成纳税申报表或申报回执。',
+      page: '第', of: '页 / 共', months: ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'],
+      pending: '待定', na: '无', reading: '适用标准'
+    }
+  };
+
+  const fmt = (n, lang) => (n === null || n === undefined || n === '' || isNaN(n)) ? '—'
+    : new Intl.NumberFormat(lang === 'zh' ? 'zh-CN' : lang === 'en' ? 'en-US' : 'es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+  const money = (n, lang) => { if (n === null || n === undefined || isNaN(n)) return '—'; const s = fmt(Math.abs(n), lang); return n < 0 ? '(' + s + ')' : s; };
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const pct = (n, d = 4) => (n === null || n === undefined || isNaN(n)) ? '—' : (Number(n)).toFixed(d);
+
+  const CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+  :root{--violet:#6047ff;--violet-100:#dcdcff;--cyan:#5ed7ff;--cyan-100:#dcf8ff;--green:#49d475;--green-100:#c8e8ce;--orange:#ff8248;--orange-100:#fcddd6;--ink:#212121;--cream:#fefcf8;--line:#e6e2da;--muted:#6b6b6b}
+  *{box-sizing:border-box} html,body{margin:0;background:var(--cream);color:var(--ink);font-family:'DM Sans','Noto Sans SC','Noto Sans CJK SC','PingFang SC','Helvetica Neue',Arial,sans-serif;font-size:11pt;line-height:1.5}
+  .page{width:210mm;min-height:297mm;padding:18mm 18mm 20mm;margin:0 auto;background:var(--cream);position:relative;page-break-after:always}
+  .page:last-child{page-break-after:auto}
+  .wordmark{font-weight:700;letter-spacing:-.03em;color:var(--violet);font-size:26px;line-height:1} .wordmark svg{height:26px;width:auto;display:block}
+  .eyebrow{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  h1{font-size:40px;font-weight:700;line-height:1.05;letter-spacing:-.015em;margin:8px 0 6px;text-wrap:balance} h1 .light{font-weight:300}
+  h2{font-size:24px;font-weight:700;line-height:1.1;letter-spacing:-.01em;margin:0 0 4px;text-wrap:balance}
+  h3{font-size:14px;font-weight:500;margin:18px 0 6px}
+  .lead{font-size:14px;color:var(--muted);margin:0 0 18px}
+  .cover{display:flex;flex-direction:column;justify-content:space-between;background:var(--ink);color:var(--cream)}
+  .cover .wordmark{color:var(--cream)} .cover .eyebrow{color:#c9c4ff} .cover h1{font-size:56px;color:var(--cream)} .cover .meta{display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;margin-top:28px;font-size:13px}
+  .cover .meta b{display:block;font-weight:500;color:#c9c4ff;font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
+  .cover .pill{display:inline-block;background:var(--violet);color:var(--cream);border-radius:999px;padding:4px 12px;font-size:12px;font-weight:500}
+  .cover .bar{height:6px;background:linear-gradient(90deg,var(--violet-100),var(--cyan-100));border-radius:3px;margin:22px 0}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0}
+  .kpi{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:#fff}
+  .kpi.big{grid-column:span 1;background:var(--violet-100);border-color:var(--violet-100)}
+  .kpi .l{font-size:11px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.04em} .kpi .v{font-size:26px;font-weight:700;letter-spacing:-.01em;font-feature-settings:'tnum' 1;margin-top:4px}
+  .kpi .s{font-size:11px;color:var(--muted);margin-top:2px}
+  table{width:100%;border-collapse:collapse;font-size:10.5pt;font-feature-settings:'tnum' 1} th{text-align:left;font-weight:500;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:6px 8px;border-bottom:2px solid var(--ink)}
+  td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top} td.n,th.n{text-align:right;white-space:nowrap} tr.total td{font-weight:700;border-top:2px solid var(--ink);border-bottom:none}
+  tr.hl td{background:var(--violet-100)} .src{color:var(--muted);font-size:9.5pt}
+  .tag{display:inline-block;border-radius:999px;padding:1px 8px;font-size:10px;font-weight:500} .tag.ok{background:var(--green-100)} .tag.miss{background:var(--orange-100)} .tag.part{background:var(--cyan-100)}
+  .steps{counter-reset:s;display:grid;gap:8px;margin:8px 0 0} .step{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start} .step:before{counter-increment:s;content:counter(s);width:28px;height:28px;border-radius:50%;background:var(--violet);color:var(--cream);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+  .note{border-left:3px solid var(--violet);padding:6px 12px;margin:8px 0;background:#fff;font-size:10.5pt} .warn{border-left-color:var(--orange)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .foot{position:absolute;left:18mm;right:18mm;bottom:10mm;font-size:9px;color:var(--muted);display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:6px}
+  .gl dt{font-weight:700;margin-top:8px} .gl dd{margin:0;color:#444}
+  @media print{body{background:#fff} .page{margin:0;box-shadow:none} @page{size:A4;margin:0}}
+  @media screen{.page{box-shadow:0 2px 14px rgba(0,0,0,.08);margin:16px auto}}
+  `;
+
+  function statusLabel(t, s) { return s === 'approved' ? t.status_approved : s === 'filed' ? t.status_filed : t.status_draft; }
+
+  function render(c, lang) {
+    lang = I18N[lang] ? lang : 'es'; const t = I18N[lang];
+    const m = money, cl = c.cliente || {}, p = c.periodo || {}, iva = c.iva || {}, isr = c.isr || {}, r = c.resumen || {};
+    const periodLabel = (t.months[(p.mes || 1) - 1] || '') + ' ' + (p.anio || '');
+    const logo = c.logo_svg ? c.logo_svg : 'Tally';
+    const foot = (n, total) => `<div class="foot"><span>${esc(cl.nombre || '')} · ${esc(t.doc_title)} · ${esc(periodLabel)}</span><span>${esc(t.page)} ${n} ${esc(t.of)} ${total}</span></div>`;
+    const pages = [];
+    const src = (c.fuentes || []).map(f => `<tr><td>${esc(f[lang] || f.nombre)}</td><td class="src">${esc(f['que_' + lang] || f.que || '')}</td><td><span class="tag ${f.estado === 'ok' ? 'ok' : f.estado === 'partial' ? 'part' : 'miss'}">${f.estado === 'ok' ? t.src_ok : f.estado === 'partial' ? t.src_partial : t.src_missing}</span></td></tr>`).join('');
+    const total = (iva.a_pagar || 0) + (typeof isr.a_pagar === 'number' ? isr.a_pagar : 0);
+
+    // 1 · Portada
+    pages.push(`<section class="page cover">
+      <div><div class="wordmark">${logo}</div></div>
+      <div>
+        <div class="eyebrow">${esc(t.doc_title)} · ${esc(t.subtitle)}</div>
+        <h1><span class="light">${esc(cl.nombre || '')}</span><br>${esc(periodLabel)}</h1>
+        <div class="bar"></div>
+        <span class="pill">${esc(statusLabel(t, c.estado))}</span>
+        <div class="meta">
+          <div><b>${esc(t.rfc)}</b>${esc(cl.rfc || '')}</div>
+          <div><b>${esc(t.regime)}</b>${esc(cl.regimen || '—')}</div>
+          <div><b>${esc(t.marketplace)}</b>${esc(cl.marketplace || '—')}</div>
+          <div><b>${esc(t.issued)}</b>${esc(c.emitido || '')}</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#c9c4ff">${esc(t.prepared)} · ${esc(t.lang_note)}</div>
+    </section>`);
+
+    // 2 · Resumen ejecutivo
+    pages.push(`<section class="page">
+      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
+      <h2>${esc(t.exec_title)}</h2><p class="lead">${esc(t.exec_lead)}</p>
+      <div class="kpis">
+        <div class="kpi big"><div class="l">${esc(t.kpi_total)}</div><div class="v">$ ${m(total, lang)}</div><div class="s">MXN</div></div>
+        <div class="kpi"><div class="l">${esc(t.kpi_iva)}</div><div class="v">$ ${m(iva.a_pagar, lang)}</div><div class="s">${esc(t.kpi_favor)}: $ ${m(iva.saldo_favor_arrastre, lang)}</div></div>
+        <div class="kpi"><div class="l">${esc(t.kpi_isr)}</div><div class="v">${typeof isr.a_pagar === 'number' ? '$ ' + m(isr.a_pagar, lang) : esc(t.pending)}</div><div class="s">${esc(t.kpi_ret)}: $ ${m((r.isr_retenido_mes || 0) + (r.iva_retenido_mes || 0), lang)}</div></div>
+      </div>
+      <table><tbody>
+        <tr><td>${esc(t.exec_sales)}</td><td class="n">$ ${m(r.ventas_base, lang)}</td></tr>
+        <tr><td>${esc(t.exec_orders)}</td><td class="n">${r.ordenes != null ? r.ordenes : '—'}</td></tr>
+        <tr><td>${esc(t.exec_domestic)}</td><td class="n">${r.ordenes_16 != null ? r.ordenes_16 : '—'}</td></tr>
+        <tr><td>${esc(t.exec_cross)}</td><td class="n">${r.ordenes_0 != null ? r.ordenes_0 : '—'}</td></tr>
+      </tbody></table>
+      ${c.lectura && c.lectura[lang] ? `<div class="note"><b>${esc(t.reading)}:</b> ${esc(c.lectura[lang])}</div>` : ''}
+      <h3>${esc(t.exec_next)}</h3>
+      <div class="steps"><div class="step"><div>${esc(t.exec_next_1)}</div></div><div class="step"><div>${esc(t.exec_next_2)}</div></div><div class="step"><div>${esc(t.exec_next_3)}</div></div></div>
+      ${(c.alertas && c.alertas.length) ? c.alertas.map(a => `<div class="note warn">${esc(a[lang] || a.es || a)}</div>`).join('') : ''}
+    </section>`);
+
+    // 3 · Cómo calculamos
+    pages.push(`<section class="page">
+      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
+      <h2>${esc(t.how_title)}</h2><p class="lead">${esc(t.how_lead)}</p>
+      <h3>${esc(t.how_steps_title)}</h3>
+      <div class="steps">${[1,2,3,4,5].map(i => `<div class="step"><div>${esc(t['how_step_' + i])}</div></div>`).join('')}</div>
+      <h3>${esc(t.src_title)}</h3>
+      <table><thead><tr><th>${esc(t.src_col_src)}</th><th>${esc(t.src_col_what)}</th><th>${esc(t.src_col_status)}</th></tr></thead><tbody>${src}</tbody></table>
+    </section>`);
+
+    // 4 · IVA e ISR
+    const ivaRows = [
+      [t.iva_r1, iva.base_16, iva.src_16], [t.iva_r2, iva.base_0, iva.src_0], [t.iva_r3, iva.trasladado, iva.src_trasladado],
+      [t.iva_r4, -(iva.retenido || 0), iva.src_retenido], [t.iva_r5, -(iva.acreditable || 0), iva.src_acreditable], [t.iva_r6, -(iva.saldo_favor_anterior || 0), ''],
+    ];
+    const isrRows = [
+      [t.isr_r1, isr.ingresos_mes], [t.isr_r2, isr.ingresos_acum], [t.isr_r3, isr.cu != null ? pct(isr.cu) : t.pending, 'raw'], [t.isr_r4, isr.utilidad], [t.isr_r5, -(isr.perdidas || 0)],
+      [t.isr_r6, isr.base], [t.isr_r7, isr.isr_acum], [t.isr_r8, -(isr.retenido_acum || 0)], [t.isr_r9, -(isr.pagos_previos || 0)],
+    ];
+    pages.push(`<section class="page">
+      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
+      <h2>${esc(t.iva_title)}</h2><p class="lead">${esc(t.iva_lead)}</p>
+      <table><thead><tr><th>${esc(t.col_concept)}</th><th class="n">${esc(t.col_amount)}</th><th>${esc(t.col_source)}</th></tr></thead><tbody>
+        ${ivaRows.map(x => `<tr><td>${esc(x[0])}</td><td class="n">${m(x[1], lang)}</td><td class="src">${esc(x[2] || '')}</td></tr>`).join('')}
+        <tr><td>${esc(t.iva_r7)}</td><td class="n">${m(iva.resultado, lang)}</td><td></td></tr>
+        <tr class="total hl"><td>${esc(t.iva_r8)}</td><td class="n">$ ${m(iva.a_pagar, lang)}</td><td></td></tr>
+        <tr><td>${esc(t.iva_r9)}</td><td class="n">${m(iva.saldo_favor_arrastre, lang)}</td><td></td></tr>
+      </tbody></table>
+      <h2 style="margin-top:26px">${esc(t.isr_title)}</h2><p class="lead">${esc(t.isr_lead)}</p>
+      ${isr.cu == null ? `<div class="note warn">${esc(t.isr_no_cu)}</div>` : ''}
+      <table><thead><tr><th>${esc(t.col_concept)}</th><th class="n">${esc(t.col_amount)}</th></tr></thead><tbody>
+        ${isrRows.map(x => `<tr><td>${esc(x[0])}</td><td class="n">${x[2] === 'raw' ? esc(x[1]) : (typeof x[1] === 'number' ? m(x[1], lang) : esc(t.pending))}</td></tr>`).join('')}
+        <tr class="total hl"><td>${esc(t.isr_r10)}</td><td class="n">${typeof isr.a_pagar === 'number' ? '$ ' + m(isr.a_pagar, lang) : esc(t.pending)}</td></tr>
+      </tbody></table>
+    </section>`);
+
+    // 5 · Detalle ventas/retenciones + banco
+    const det = (c.detalle_meses || []).map(d => `<tr><td>${esc(t.months[d.mes - 1])}</td><td class="n">${d.ordenes != null ? d.ordenes : '—'}</td><td class="n">${m(d.base, lang)}</td><td class="n">${m(d.iva, lang)}</td><td class="n">${m(d.iva_ret, lang)}</td><td class="n">${m(d.isr_ret, lang)}</td></tr>`).join('');
+    const bank = (c.banco || []).map(b => `<tr><td>${esc(t.months[b.mes - 1])}</td><td class="n">${m(b.esperado, lang)}</td><td class="n">${b.real == null ? '<span class="tag miss">' + esc(t.bank_missing) + '</span>' : m(b.real, lang)}</td><td class="n">${b.real == null ? '—' : m(b.esperado - b.real, lang)}</td><td class="src">${esc(b.nota || '')}</td></tr>`).join('');
+    pages.push(`<section class="page">
+      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
+      <h2>${esc(t.detail_title)}</h2><p class="lead">${esc(t.detail_lead)}</p>
+      <table><thead><tr><th>${esc(t.col_month)}</th><th class="n">${esc(t.col_orders)}</th><th class="n">${esc(t.col_base)}</th><th class="n">${esc(t.col_iva)}</th><th class="n">${esc(t.col_iva_ret)}</th><th class="n">${esc(t.col_isr_ret)}</th></tr></thead><tbody>${det}</tbody></table>
+      <h2 style="margin-top:26px">${esc(t.bank_title)}</h2><p class="lead">${esc(t.bank_lead)}</p>
+      <table><thead><tr><th>${esc(t.col_month)}</th><th class="n">${esc(t.col_bank_expected)}</th><th class="n">${esc(t.col_bank_actual)}</th><th class="n">${esc(t.col_diff)}</th><th></th></tr></thead><tbody>${bank}</tbody></table>
+    </section>`);
+
+    // 6 · CFDI
+    const cf = (arr) => (arr && arr.length) ? arr.map(x => `<tr><td>${esc(x.fecha)}</td><td>${esc(x.quien)}</td><td class="n">${m(x.subtotal, lang)}</td><td class="n">${m(x.iva, lang)}</td><td class="n">${m(x.total, lang)}</td></tr>`).join('') : `<tr><td colspan="5" class="src">${esc(t.col_none)}</td></tr>`;
+    pages.push(`<section class="page">
+      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
+      <h2>${esc(t.cfdi_title)}</h2><p class="lead">${esc(t.cfdi_lead)}</p>
+      <h3>${esc(t.cfdi_issued)}</h3>
+      <table><thead><tr><th>${esc(t.col_date)}</th><th>${esc(t.col_who)}</th><th class="n">${esc(t.col_subtotal)}</th><th class="n">IVA</th><th class="n">${esc(t.col_total)}</th></tr></thead><tbody>${cf(c.cfdi_emitidos)}</tbody></table>
+      <h3>${esc(t.cfdi_received)}</h3>
+      <table><thead><tr><th>${esc(t.col_date)}</th><th>${esc(t.col_who)}</th><th class="n">${esc(t.col_subtotal)}</th><th class="n">IVA</th><th class="n">${esc(t.col_total)}</th></tr></thead><tbody>${cf(c.cfdi_recibidos)}</tbody></table>
+    </section>`);
+
+    // 7 · Notas + glosario
+    pages.push(`<section class="page">
+      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
+      <h2>${esc(t.notes_title)}</h2><p class="lead">${esc(t.notes_lead)}</p>
+      ${(c.notas || []).map(n => `<div class="note">${esc(n[lang] || n.es || n)}</div>`).join('')}
+      <h2 style="margin-top:26px">${esc(t.glossary_title)}</h2>
+      <dl class="gl two">${['iva','isr','cfdi','ret','favor','cu'].map(k => `<div><dt>${esc(t['gl_' + k])}</dt><dd>${esc(t['gl_' + k + '_d'])}</dd></div>`).join('')}</dl>
+      <p class="src" style="margin-top:24px">${esc(t.footer)}</p>
+    </section>`);
+
+    const n = pages.length;
+    const html = pages.map((pg, i) => pg.replace('</section>', foot(i + 1, n) + '</section>')).join('\n');
+    return `<!doctype html><html lang="${lang === 'zh' ? 'zh-CN' : lang}"><head><meta charset="utf-8"><title>${esc(cl.nombre || '')} · ${esc(t.doc_title)} · ${esc(periodLabel)}</title><style>${CSS}</style></head><body>${html}</body></html>`;
+  }
+
+  /* Resumen corto para la plantilla de correo (Bandeja → Redactar) */
+  function emailSummary(c, lang) {
+    lang = I18N[lang] ? lang : 'es'; const t = I18N[lang]; const p = c.periodo || {}, iva = c.iva || {}, isr = c.isr || {}, r = c.resumen || {};
+    const periodLabel = (t.months[(p.mes || 1) - 1] || '') + ' ' + (p.anio || '');
+    const total = (iva.a_pagar || 0) + (typeof isr.a_pagar === 'number' ? isr.a_pagar : 0);
+    const L = {
+      es: { hi: 'Hola, equipo de', intro: `Adjuntamos el cálculo de impuestos de ${periodLabel}. Lo relevante:`, ok: 'Si están de acuerdo, respondan este correo con su aprobación y presentamos la declaración. Si tienen preguntas, aquí mismo las resolvemos.', bye: 'Saludos,\nEquipo de Contabilidad · Tally' },
+      en: { hi: 'Hello team at', intro: `Attached is your tax calculation for ${periodLabel}. The highlights:`, ok: 'If you agree, reply to this email with your approval and we will file the return. If you have questions, we will answer them right here.', bye: 'Best regards,\nAccounting Team · Tally' },
+      zh: { hi: '您好，', intro: `附件为 ${periodLabel} 的税务计算。要点如下：`, ok: '如无异议，请回复本邮件确认批准，我们将提交申报。如有疑问，欢迎在此邮件中提出。', bye: '此致\nTally 会计团队' }
+    }[lang];
+    const lines = [
+      `• ${t.exec_sales}: $ ${money(r.ventas_base, lang)} MXN`,
+      `• ${t.kpi_iva}: $ ${money(iva.a_pagar, lang)} MXN` + (iva.saldo_favor_arrastre ? ` (${t.kpi_favor}: $ ${money(iva.saldo_favor_arrastre, lang)})` : ''),
+      `• ${t.kpi_isr}: ${typeof isr.a_pagar === 'number' ? '$ ' + money(isr.a_pagar, lang) + ' MXN' : t.pending}`,
+      `• ${t.kpi_total}: $ ${money(total, lang)} MXN`,
+      `• ${t.kpi_ret}: $ ${money((r.isr_retenido_mes || 0) + (r.iva_retenido_mes || 0), lang)} MXN`
+    ];
+    const subject = `${c.cliente && c.cliente.nombre ? c.cliente.nombre + ' · ' : ''}${t.doc_title} · ${periodLabel}`;
+    const body = `${L.hi} ${c.cliente ? c.cliente.nombre : ''}:\n\n${L.intro}\n\n${lines.join('\n')}\n\n${L.ok}\n\n${L.bye}`;
+    return { subject, body };
+  }
+
+  return { render, emailSummary, I18N, money };
+});
+
+</script>
+<script>
+/* ═══ helpers del módulo: llamadas con credenciales del usuario; subida de archivos por POST (JSONP no aguanta base64) ═══ */
+function capi(action, payload){ return api(action, Object.assign({auth:{email:AUTH.email,password:AUTH.password}}, payload||{}), 90000); }
+async function capiPost(action, payload){
+  try{ const r=await fetch(APPS_SCRIPT_URL,{method:'POST',body:JSON.stringify(Object.assign({action,token:API_TOKEN,auth:{email:AUTH.email,password:AUTH.password}},payload||{}))});
+       return await r.json(); }catch(e){ return {ok:false,error:'sin respuesta del Apps Script (POST): '+e}; }
+}
+</script>
+<script>
+/* ══════════════ estado del asistente ══════════════ */
+const CX = { cliente: null, mes: null, anio: null, idioma: 'es', docs: [], syntage: null, calc: null, calc_id: null, archivos: null };
+const CX_MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const cxFmt = n => (n == null || isNaN(n)) ? '—' : new Intl.NumberFormat('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+
+function cxInit() {
+  const now = new Date(), prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  ['cxMes', 'cxFMes'].forEach(id => { const s = document.getElementById(id); CX_MESES.forEach((m, i) => s.insertAdjacentHTML('beforeend', `<option value="${i + 1}">${m}</option>`)); });
+  ['cxAnio', 'cxFAnio'].forEach(id => { const s = document.getElementById(id); for (let y = now.getFullYear(); y >= 2024; y--) s.insertAdjacentHTML('beforeend', `<option>${y}</option>`); });
+  document.getElementById('cxMes').value = prev.getMonth() + 1; document.getElementById('cxAnio').value = prev.getFullYear();
+  document.querySelectorAll('.cx-tab').forEach(b => b.onclick = () => { document.querySelectorAll('.cx-tab').forEach(x => x.classList.remove('active')); b.classList.add('active'); document.getElementById('cx-nuevo').style.display = b.dataset.cxtab === 'nuevo' ? '' : 'none'; document.getElementById('cx-lista').style.display = b.dataset.cxtab === 'lista' ? '' : 'none'; if (b.dataset.cxtab === 'lista') cxListar(); });
+  if (location.hash.startsWith('#ciec=')) cxRevelarCiec(location.hash.slice(6));
+}
+function cxGo(n) {
+  if (n === 3 && !CX.syntage) cxConsultarSyntage();
+  if (n === 4) cxResumenInsumos();
+  document.querySelectorAll('.cx-step').forEach(s => s.style.display = s.dataset.step == n ? '' : 'none');
+  document.querySelectorAll('.cx-steps li').forEach(li => { li.classList.toggle('on', li.dataset.s == n); li.classList.toggle('done', li.dataset.s < n); });
+}
+
+/* ══════════════ paso 1 · cliente ══════════════ */
+let cxT;
+function cxBuscarCliente(q) { clearTimeout(cxT); if (q.length < 3) return; cxT = setTimeout(async () => { const r = await capi('calc_clientes', { q }); const L = document.getElementById('cxClienteLista'); L.innerHTML = (r.clientes || []).map(c => `<div class="it" onclick='cxElegir(${JSON.stringify(c)})'><span><b>${c.nombre}</b> · ${c.rfc}</span><span class="cx-tag ${c.syntage ? 'ok' : 'warn'}">${c.syntage ? 'SAT conectado' : 'Sin Syntage'}</span></div>`).join('') || '<div class="cx-hint">Sin coincidencias en el padrón. Puedes continuar con el RFC tal cual.</div>'; }, 250); }
+function cxElegir(c) { CX.cliente = c; document.getElementById('cxClienteLista').innerHTML = ''; document.getElementById('cxRfc').value = c.rfc; const S = document.getElementById('cxClienteSel'); S.style.display = ''; S.innerHTML = `<b>${c.nombre}</b> · ${c.rfc} · ${c.owner || 'sin owner'} · <span class="cx-tag ${c.syntage ? 'ok' : 'warn'}">${c.syntage ? 'Conectado a Syntage' : 'No conectado a Syntage'}</span>`; document.getElementById('cxNext1').disabled = false; }
+
+/* ══════════════ paso 2 · documentos ══════════════ */
+function cxDrop(ev) { ev.preventDefault(); document.getElementById('cxDrop').classList.remove('over'); cxFiles(ev.dataTransfer.files); }
+async function cxFiles(files) {
+  CX.mes = +document.getElementById('cxMes').value; CX.anio = +document.getElementById('cxAnio').value; CX.idioma = document.getElementById('cxIdioma').value;
+  const periodo = `${CX.anio}-${String(CX.mes).padStart(2, '0')}`; const T = document.getElementById('cxDocs'); T.style.display = ''; document.getElementById('cxDocsHint').textContent = 'Subiendo y leyendo…';
+  for (const f of files) {
+    const b64 = await new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(f); });
+    const up = await capiPost('calc_upload', { rfc: CX.cliente.rfc, periodo, nombre: f.name, mime: f.type, base64: b64 });
+    const row = { file_id: up.file_id, nombre: f.name, tipo: '…', datos: null }; CX.docs.push(row); cxPintarDocs();
+    const ex = await capi('calc_extraer', { file_ids: [up.file_id] }); Object.assign(row, ex.documentos[0]); cxPintarDocs();
+  }
+  const tipos = CX.docs.map(d => d.tipo); const ok = tipos.includes('resumen_marketplace') && tipos.includes('certificado_retenciones');
+  document.getElementById('cxNext2').disabled = !ok; document.getElementById('cxDocsHint').textContent = ok ? 'Listo. Revisa que los datos clave coincidan con el PDF antes de continuar.' : 'Falta el resumen del marketplace o el certificado de retenciones del mes.';
+}
+const CX_TIPO = { resumen_marketplace: 'Resumen del marketplace', certificado_retenciones: 'Certificado de retenciones', estado_cuenta: 'Estado de cuenta', otro: 'Otro', '…': 'Leyendo…' };
+function cxPintarDocs() {
+  document.querySelector('#cxDocs tbody').innerHTML = CX.docs.map((d, i) => { const k = d.datos || {}; const clave = d.tipo === 'certificado_retenciones' ? `Base ${cxFmt(k.base)} · ${k.ordenes || '?'} órdenes · ISR ret. ${cxFmt(k.isr_retenido)} · IVA ${cxFmt(k.iva_trasladado)}` : d.tipo === 'resumen_marketplace' ? `Ingreso neto ${cxFmt(k.ingreso_neto)} · Transferencias ${cxFmt(k.transferencias)}` : d.tipo === 'estado_cuenta' ? `Abonos ${cxFmt(k.abonos)} (${k.movimientos || 0} mov.) ${k.cuenta || ''}` : '';
+    return `<tr><td>${d.nombre}</td><td><select onchange="CX.docs[${i}].tipo=this.value" class="cx-input" style="max-width:220px">${Object.keys(CX_TIPO).filter(t => t !== '…').map(t => `<option value="${t}" ${t === d.tipo ? 'selected' : ''}>${CX_TIPO[t]}</option>`).join('')}</select></td><td><span class="cx-tag ${d.ok ? 'ok' : d.tipo === '…' ? 'info' : 'warn'}">${d.tipo === '…' ? 'leyendo' : d.ok ? 'leído' : 'no legible'}</span></td><td>${clave}</td><td><button class="btn secondary" onclick="CX.docs.splice(${i},1);cxPintarDocs()">✕</button></td></tr>`; }).join('');
+}
+
+/* ══════════════ paso 3 · Syntage ══════════════ */
+async function cxConsultarSyntage() {
+  const P = document.getElementById('cxSyntage'); P.innerHTML = '<div class="cx-spinner">Consultando Syntage…</div>'; document.getElementById('cxSynAlert').style.display = 'none';
+  const r = await capi('calc_syntage', { rfc: CX.cliente.rfc, anio: CX.anio, mes: CX.mes }); CX.syntage = r;
+  if (!r.ok) { P.innerHTML = `<span class="cx-tag warn">Error</span> ${r.error || ''}`; return; }
+  if (!r.conectado) { P.innerHTML = '<span class="cx-tag warn">RFC no conectado a Syntage</span>'; document.getElementById('cxSynAlert').style.display = ''; return; }
+  const k = `${CX.anio}-${String(CX.mes).padStart(2, '0')}`; const m = (r.cfdi_por_mes || {})[k] || { emitidos: [], recibidos: [], iva_acreditable_pue: 0 };
+  const dec = (r.declaraciones || []).filter(d => d.periodicidad === 'Mensual' && String(d.ejercicio) === String(CX.anio));
+  P.innerHTML = `<span class="cx-tag ok">Conectado · ${r.nombre}</span>
+    <table class="cx-table"><tr><td>CFDI emitidos en ${CX_MESES[CX.mes - 1]}</td><td>${m.emitidos.length} · IVA trasladado ${cxFmt(m.emitidos.reduce((a, x) => a + x.iva, 0))}</td></tr>
+    <tr><td>CFDI recibidos</td><td>${m.recibidos.length} · IVA acreditable (PUE) ${cxFmt(m.iva_acreditable_pue)}${m.iva_ppd_pendiente ? ` · PPD pendiente ${cxFmt(m.iva_ppd_pendiente)}` : ''}</td></tr>
+    <tr><td>Certificados de retención en el SAT</td><td>${(r.retenciones || []).filter(x => x.periodo === k).length ? 'coincide con el mes' : 'no aparece el del mes'}</td></tr>
+    <tr><td>Declaraciones mensuales ${CX.anio} registradas</td><td>${dec.length ? dec.map(d => d.periodo + ' (' + d.presentada + ')').join(', ') : '<span class="cx-tag warn">ninguna</span>'}</td></tr></table>`;
+}
+async function cxSolicitarSyntage() {
+  const M = document.getElementById('cxSynMsg'); M.textContent = 'Enviando solicitud a Juan…';
+  const r = await capi('calc_solicitar_syntage', { rfc: CX.cliente.rfc, nombre: CX.cliente.nombre, ciec: document.getElementById('cxCiec').value });
+  document.getElementById('cxCiec').value = '';
+  M.innerHTML = r.enviado ? '✅ Juan recibió la solicitud en Slack. Cuando conecte al cliente (≈5 min), vuelve a este paso y pulsa “Reintentar”. <button class="btn secondary" onclick="CX.syntage=null;cxConsultarSyntage()">Reintentar</button>' : ('⚠️ No se pudo notificar: ' + (r.error || ''));
+}
+async function cxRevelarCiec(token) { const r = await capi('calc_revelar_ciec', { token }); alert(r.ok ? `CIEC de ${r.nombre} (${r.rfc}):\n\n${r.ciec}\n\nEsta liga ya no volverá a mostrarla.` : ('No se pudo revelar: ' + r.error)); location.hash = '#calculo'; }
+
+/* ══════════════ paso 4 · insumos y generación ══════════════ */
+function cxDoc(tipo) { return (CX.docs.find(d => d.tipo === tipo) || {}).datos || null; }
+function cxResumenInsumos() {
+  const c = cxDoc('certificado_retenciones') || {}, l = cxDoc('resumen_marketplace') || {}, b = cxDoc('estado_cuenta');
+  document.getElementById('cxResumenMk').innerHTML = `<table class="cx-table"><tr><td>Base del mes (sin IVA)</td><td>${cxFmt(c.base)}</td></tr><tr><td>Órdenes · con IVA 16%</td><td>${c.ordenes || '—'} · ${c.ordenes_16 ?? '—'}</td></tr><tr><td>IVA trasladado según certificado</td><td>${cxFmt(c.iva_trasladado)}</td></tr><tr><td>ISR retenido</td><td>${cxFmt(c.isr_retenido)}</td></tr><tr><td>IVA retenido (liquidación)</td><td>${cxFmt(l.iva_retenido)}</td></tr><tr><td>Transferencias al banco</td><td>${cxFmt(l.transferencias)}</td></tr></table>`;
+  const k = `${CX.anio}-${String(CX.mes).padStart(2, '0')}`; const m = CX.syntage && CX.syntage.conectado ? (CX.syntage.cfdi_por_mes[k] || {}) : null;
+  document.getElementById('cxResumenSat').innerHTML = `<table class="cx-table"><tr><td>IVA acreditable (CFDI PUE)</td><td>${m ? cxFmt(m.iva_acreditable_pue) : '<span class="cx-tag warn">sin Syntage</span>'}</td></tr><tr><td>IVA trasladado en CFDI emitidos</td><td>${m ? cxFmt((m.emitidos || []).reduce((a, x) => a + x.iva, 0)) : '—'}</td></tr><tr><td>Abonos del marketplace en el banco</td><td>${b ? cxFmt(b.abonos) + ' · ' + (b.cuenta || '') : '<span class="cx-tag warn">sin estado de cuenta</span>'}</td></tr></table>`;
+}
+async function cxGenerar() {
+  const B = document.getElementById('cxBtnGen'); B.disabled = true; document.getElementById('cxGenMsg').textContent = 'Calculando…';
+  const c = cxDoc('certificado_retenciones') || {}, l = cxDoc('resumen_marketplace') || {}, b = cxDoc('estado_cuenta');
+  const k = `${CX.anio}-${String(CX.mes).padStart(2, '0')}`; const syn = CX.syntage && CX.syntage.conectado ? (CX.syntage.cfdi_por_mes[k] || {}) : {};
+  const lectura = document.getElementById('cxLectura').value; const cu = parseFloat(document.getElementById('cxCU').value);
+  // Serie de meses: el backend completa ene..mes-1 con cálculos previos guardados del mismo RFC (saldo a favor y acumulados). Aquí va el mes actual.
+  const mesActual = { mes: CX.mes, anio: CX.anio,
+    cert: lectura === 'A' ? c : Object.assign({}, c, { iva_trasladado: (syn.emitidos || []).reduce((a, x) => a + x.iva, 0) }),
+    liq: l, cfdi: { emitidos: syn.emitidos || [], recibidos: syn.recibidos || [], iva_acreditable_pue: syn.iva_acreditable_pue || 0, iva_ppd_pendiente: syn.iva_ppd_pendiente || 0 },
+    banco: b ? { abonos: b.abonos, cuenta: b.cuenta } : null };
+  const fuentes = [
+    { es: 'Resumen mensual del marketplace', en: 'Marketplace monthly summary', zh: '平台月度汇总', que_es: 'Ventas, tarifas, depósitos y retenciones liquidadas', que_en: 'Sales, fees, payouts and settled withholdings', que_zh: '销售、费用、付款与已结算代扣', estado: cxDoc('resumen_marketplace') ? 'ok' : 'missing' },
+    { es: 'Certificado de retenciones', en: 'Withholding certificate', zh: '代扣证明', que_es: 'Base por orden, IVA cobrado, ISR e IVA retenidos', que_en: 'Per-order base, VAT collected, taxes withheld', que_zh: '逐单基础、收取增值税、代扣税款', estado: cxDoc('certificado_retenciones') ? 'ok' : 'missing' },
+    { es: 'SAT vía Syntage', en: 'SAT via Syntage', zh: 'SAT（Syntage）', que_es: 'CFDI emitidos y recibidos, declaraciones', que_en: 'CFDI issued/received, returns', que_zh: '发票与申报', estado: CX.syntage && CX.syntage.conectado ? 'ok' : 'missing' },
+    { es: 'Estado de cuenta bancario', en: 'Bank statement', zh: '银行对账单', que_es: 'Depósitos recibidos del marketplace', que_en: 'Payouts received', que_zh: '收到的平台付款', estado: b ? 'ok' : 'missing' },
+    { es: 'Declaración anual anterior (coeficiente de utilidad)', en: 'Prior annual return (profit coefficient)', zh: '上年度申报（利润系数）', que_es: 'Determina el ISR provisional', que_en: 'Determines provisional income tax', que_zh: '决定所得税预缴', estado: isNaN(cu) ? 'missing' : 'ok' },
+  ];
+  const input = { cliente: { nombre: CX.cliente.nombre, rfc: CX.cliente.rfc, company_id: CX.cliente.company_id, regimen: 'General de Ley Personas Morales (601)', marketplace: 'Amazon México' }, periodo: { mes: CX.mes, anio: CX.anio }, idioma: CX.idioma, estado: 'draft',
+    meses: [mesActual], completar_serie: true, isr: { cu: isNaN(cu) ? null : cu, perdidas: 0, pagos_previos: [] }, fuentes,
+    lectura: lectura === 'A' ? { es: 'Lectura A — el IVA cobrado es el que el marketplace reporta orden por orden en el certificado de retenciones.', en: 'Criterion A — VAT collected is what the marketplace reports order by order in the withholding certificate.', zh: '标准 A —— 增值税以平台代扣证明中逐单报告的数据为准。' } : { es: 'Lectura B — el IVA cobrado es el trasladado en los CFDI emitidos.', en: 'Criterion B — VAT collected is the VAT charged on issued CFDI.', zh: '标准 B —— 增值税以已开具 CFDI 中的转嫁税额为准。' } };
+  const r = await capi('calc_generar', { input }); B.disabled = false;
+  if (!r.ok) { document.getElementById('cxGenMsg').textContent = '⚠️ ' + r.error; return; }
+  CX.calc = r.calculo; CX.calc_id = r.calc_id; CX.archivos = r.archivos; document.getElementById('cxGenMsg').textContent = '';
+  const x = r.calculo; document.getElementById('cxResult').innerHTML = `<div class="k"><span>IVA a pagar</span><b>$ ${cxFmt(x.iva.a_pagar)}</b></div><div class="k"><span>ISR a pagar</span><b>${x.isr.a_pagar == null ? 'pendiente CU' : '$ ' + cxFmt(x.isr.a_pagar)}</b></div><div class="k"><span>Saldo a favor que se arrastra</span><b>$ ${cxFmt(x.iva.saldo_favor_arrastre)}</b></div><div class="k"><span>Ventas base</span><b>$ ${cxFmt(x.resumen.ventas_base)}</b></div><p class="cx-hint">Guardado como <b>${r.calc_id}</b> en “Cálculos guardados”. Estado: borrador hasta que el cliente apruebe.</p>`;
+  cxGo(5);
+}
+
+/* ══════════════ paso 5 · entrega ══════════════ */
+function cxVer() { const f = document.getElementById('cxPreview'); f.style.display = ''; f.srcdoc = TallyCalculo.render(CX.calc, CX.idioma); }
+function cxDescargar() { const w = window.open('', '_blank'); w.document.write(TallyCalculo.render(CX.calc, CX.idioma)); w.document.close(); setTimeout(() => w.print(), 600); }  // “Guardar como PDF” con la tipografía exacta; el PDF del servidor queda en Drive como respaldo
+async function cxCorregir() { const t = prompt('¿Qué hay que corregir en este cálculo?'); if (!t) return; const r = await capi('calc_correccion', { calc_id: CX.calc_id, texto: t }); alert(r.ok ? 'Corrección registrada. Se avisó por Slack.' : ('Error: ' + r.error)); }
+function cxIrCorreo() { cxCorreoDe(CX.calc_id, CX.idioma); }
+
+/* ══════════════ lista y filtros ══════════════ */
+async function cxListar() {
+  const f = { nombre: document.getElementById('cxFNombre').value, rfc: document.getElementById('cxFRfc').value, mes: document.getElementById('cxFMes').value, anio: document.getElementById('cxFAnio').value, estado: document.getElementById('cxFEstado').value };
+  const r = await capi('calc_listar', f); CX.lista = r.calculos || []; const E = { draft: 'Borrador', correccion: 'En corrección', approved: 'Aprobado', filed: 'Declarado' };
+  document.querySelector('#cxTabla tbody').innerHTML = (r.calculos || []).map(c => `<tr><td><b>${c.nombre}</b></td><td>${c.rfc}</td><td>${CX_MESES[c.mes - 1]} ${c.anio}</td><td>${cxFmt(+c.iva_a_pagar)}</td><td>${c.isr_a_pagar === '' ? 'pendiente' : cxFmt(+c.isr_a_pagar)}</td><td>${cxFmt(+c.saldo_favor)}</td><td><span class="cx-tag ${c.estado === 'approved' || c.estado === 'filed' ? 'ok' : c.estado === 'correccion' ? 'warn' : 'info'}">${E[c.estado] || c.estado}</span></td><td>${c.idioma}</td><td>${String(c.actualizado_en).slice(0, 10)}</td>
+    <td><button class="btn secondary" onclick="cxAbrir('${c.calc_id}')">Abrir</button> <button class="btn secondary" onclick="cxCorreoDe('${c.calc_id}','${c.idioma}')">✉️</button></td></tr>`).join('') || '<tr><td colspan="10" class="cx-hint">Sin cálculos con esos filtros.</td></tr>';
+}
+async function cxAbrir(id) { const r = await capi('calc_get', { calc_id: id }); if (!r.ok) return alert(r.error); CX.calc = r.calculo; CX.calc_id = id; CX.idioma = r.fila.idioma; CX.cliente = { nombre: r.fila.nombre, rfc: r.fila.rfc, company_id: r.fila.company_id }; document.querySelector('[data-cxtab="nuevo"]').click(); cxGo(5); document.getElementById('cxResult').innerHTML = `<div class="k"><span>${r.fila.nombre} · ${CX_MESES[r.fila.mes - 1]} ${r.fila.anio}</span></div><div class="k"><span>IVA a pagar</span><b>$ ${cxFmt(+r.fila.iva_a_pagar)}</b></div><div class="k"><span>ISR a pagar</span><b>${r.fila.isr_a_pagar === '' ? 'pendiente CU' : '$ ' + cxFmt(+r.fila.isr_a_pagar)}</b></div>${r.fila.correcciones ? `<p class="cx-hint">Correcciones:<br>${String(r.fila.correcciones).replace(/\n/g, '<br>')}</p>` : ''}`; cxVer(); }
+function cxCorreoDe(id, idioma) {
+  const fila=(CX.lista||[]).find(x=>x.calc_id===id)||{calc_id:id,idioma:idioma,company_id:(CX.cliente||{}).company_id,nombre:(CX.cliente||{}).nombre};
+  document.querySelector('.nav a[data-view="bandeja"]').click();
+  openCompose(); cmp.mode='calc'; cmp.calcPre={calc_id:id,idioma:idioma||fila.idioma};
+  const c=CLIENTES.find(x=>x.company_id===fila.company_id); if(c) cmp.clients=[c];
+  renderCompose();
+}
+
+document.addEventListener('DOMContentLoaded', cxInit);
+</script>
+<script>
+/* ═══ Compose · modo Cálculo de impuestos: elige el cálculo guardado de cada cliente → plantilla con resumen + documento adjunto ═══ */
+let CALC_LISTA_CMP=null;
+function calcComposeHtml(){
+  if(CALC_LISTA_CMP===null){ CALC_LISTA_CMP=[]; capi('calc_listar',{}).then(r=>{ CALC_LISTA_CMP=r.calculos||[]; if(cmp.mode==='calc') renderCompose(); }); }
+  const M=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  cmp.calcSel=cmp.calcSel||{};
+  if(cmp.calcPre){ const c=CALC_LISTA_CMP.find(x=>x.calc_id===cmp.calcPre.calc_id); if(c){ cmp.calcSel[c.company_id]={calc_id:c.calc_id,idioma:cmp.calcPre.idioma||c.idioma}; } }
+  const reales=cmp.clients.filter(c=>!c.custom);
+  if(!reales.length) return `<div class="notice info" style="margin-top:8px">🧮 Agrega en el paso 1 el cliente del directorio al que le enviarás su cálculo de impuestos.</div>`;
+  return `<label>3 · Cálculo a adjuntar por cliente</label>
+  ${reales.map(c=>{ const opts=CALC_LISTA_CMP.filter(x=>x.company_id===c.company_id||(x.rfc&&c.rfc&&String(x.rfc).toUpperCase()===String(c.rfc).toUpperCase())); const sel=cmp.calcSel[c.company_id]||{};
+    return `<div style="display:flex;gap:8px;align-items:center;margin:6px 0"><span style="flex:1;font-size:13px"><b>${esc(c.cliente)}</b></span>
+      <select style="flex:1.4" onchange="cmp.calcSel['${c.company_id}']=Object.assign(cmp.calcSel['${c.company_id}']||{},{calc_id:this.value})"><option value="">— período —</option>${opts.map(x=>`<option value="${x.calc_id}" ${sel.calc_id===x.calc_id?'selected':''}>${M[Number(x.mes)-1]} ${x.anio} · ${x.estado}</option>`).join('')}</select>
+      <select style="width:auto" onchange="cmp.calcSel['${c.company_id}']=Object.assign(cmp.calcSel['${c.company_id}']||{},{idioma:this.value})"><option value="es" ${sel.idioma==='es'?'selected':''}>Español</option><option value="en" ${(!sel.idioma||sel.idioma==='en')?'selected':''}>English</option><option value="zh" ${sel.idioma==='zh'?'selected':''}>中文</option></select></div>`; }).join('')}
+  ${CALC_LISTA_CMP.length?'':'<div class="notice info">Todavía no hay cálculos guardados. Fabrica uno en 🧮 Cálculo de impuestos.</div>'}
+  <div class="notice info" style="margin-top:8px">La plantilla saluda a la empresa e incluye ventas, IVA, ISR, total y retenciones del mes; el documento va adjunto en el idioma elegido.</div>
+  <div class="btn-row"><button class="btn btn-primary" onclick="genPreviewsCalc()">Generar correo(s) con cálculo adjunto</button><button class="btn btn-ghost" onclick="cancelCompose()">Cancelar</button></div>
+  <div id="iaStatus"></div>`;
+}
+async function genPreviewsCalc(){
+  const reales=cmp.clients.filter(c=>!c.custom); cmp.previews=[]; cmp.cat=cmp.cat||'Seguimiento proceso'; cmp.tpl='CALC';
+  for(const c of reales){ const sel=(cmp.calcSel||{})[c.company_id]; if(!sel||!sel.calc_id){ toast('⚠️ '+c.cliente+': elige el período del cálculo'); continue; }
+    const r=await capi('calc_correo',{calc_id:sel.calc_id,idioma:sel.idioma||'en'}); if(!r.ok){ toast('❌ '+c.cliente+': '+(r.error||'error')); continue; }
+    cmp.previews.push({company_id:c.company_id,cliente:c.cliente,to:c.contacto_email||'',cc:c.cc_email||'',subject:r.asunto,body:r.cuerpo,adjuntos:[{calc_id:sel.calc_id,idioma:r.idioma,label:r.adjunto_nombre||'Cálculo de impuestos'}],idioma:r.idioma==='zh'?'zh':r.idioma,status:'',sent:false,faltantes:[]}); }
+  if(!cmp.previews.length) return; renderPreviews(); toast('✅ '+cmp.previews.length+' correo(s) con cálculo adjunto — revisa y envía');
+}
 </script>
 </body>
 </html>
