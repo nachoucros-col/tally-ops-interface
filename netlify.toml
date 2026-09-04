@@ -9,7 +9,7 @@
   # diff salía vacío → TODOS los deploys desde el 10-ago quedaron "Skipped" y el sitio se quedó en la
   # versión subida a mano (Netlify Drop). Ahora: si no se puede comparar, se construye; si se puede y no
   # hay cambios en los archivos servidos, se omite.
-  ignore = "if [ -z \"$CACHED_COMMIT_REF\" ] || [ \"$CACHED_COMMIT_REF\" = \"$COMMIT_REF\" ]; then exit 1; fi; git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- index.html retro-julio.html netlify.toml '*.png'"
+  ignore = "if [ -z \"$CACHED_COMMIT_REF\" ] || [ \"$CACHED_COMMIT_REF\" = \"$COMMIT_REF\" ]; then exit 1; fi; git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- index.html retro-julio.html netlify.toml images '*.png'"
 
 [[headers]]
   for = "/*"
