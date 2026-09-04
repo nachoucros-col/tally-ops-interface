@@ -294,7 +294,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
     <div class="push"></div>
     <div class="status" id="userBox" style="border-top:none"></div>
-    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v15 · varios períodos, documentos del sistema y contexto</span></div>
+    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v16 · varios períodos, documentos del sistema y contexto</span></div>
   </nav>
 
   <main class="main">
@@ -465,8 +465,8 @@ tr:hover td{background:rgba(96,71,255,.04)}
       <div class="cx-panel" id="cxSysPanel" style="margin-top:14px">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <b>Documentos que ya están en el sistema</b>
-          <button class="btn secondary" onclick="cxDocsSistema()">Buscar en AppSheet</button>
-          <span class="cx-hint" id="cxSysMsg" style="margin:0">Los que el equipo ya cargó, sin descargarlos ni volverlos a subir.</span>
+          <button class="btn secondary" onclick="cxDocsSistema()">Buscar en el Sistema</button>
+          <span class="cx-hint" id="cxSysMsg" style="margin:0">Los que el equipo ya cargó: se usan directo, sin descargarlos ni volverlos a subir.</span>
         </div>
         <div id="cxSysLista"></div>
       </div>
@@ -3171,10 +3171,11 @@ function cxTodoElEjercicio() { const hoy = new Date(), n = (+document.getElement
 function cxPeriodos() { return CX.meses.slice().sort((a, b) => a - b).map(m => ({ anio: CX.anio, mes: m })); }
 
 /* ══════════════ documentos que ya están en el sistema ══════════════ */
+const CX_ORIGEN = { 'Retenciones_por_periodo': 'Certificados de retenciones', 'Reportes_de_venta': 'Reportes de venta del marketplace', 'Estados_cuenta': 'Estados de cuenta', 'declaracion_periodo': 'Declaraciones y acuses', 'Solicitud Docs Contabilidad': 'Documentos solicitados al cliente' };
 async function cxDocsSistema() {
   const L = document.getElementById('cxSysLista'), M = document.getElementById('cxSysMsg');
   if (!CX.cliente) { M.textContent = 'Primero elige el cliente.'; return; }
-  M.textContent = 'Buscando en las tablas del sistema…'; L.innerHTML = '';
+  M.textContent = 'Buscando en el sistema…'; L.innerHTML = '';
   const r = await capi('calc_docs_sistema', { company_id: CX.cliente.company_id || '', periodos: cxPeriodos() });
   if (!r.ok) { M.innerHTML = '⚠️ ' + (r.error || 'no pude consultar'); return; }
   CX.sistema = r.documentos || [];
@@ -3183,7 +3184,7 @@ async function cxDocsSistema() {
   M.textContent = '';
   const filas = CX.sistema.map((d, i) => `<tr><td>${d.file_id ? `<input type="checkbox" id="cxSys${i}" ${d.tipo === 'otro' ? '' : 'checked'}>` : '—'}</td>
     <td>${CX_TIPO[d.tipo] || d.tipo}</td><td>${d.mes_nombre || d.periodo} ${d.anio || ''}</td><td><small>${d.archivo}</small></td>
-    <td><small>${d.tabla}${d.fecha ? ' · ' + d.fecha : ''}</small></td>
+    <td><small>${CX_ORIGEN[d.tabla] || d.tabla}${d.fecha ? ' · cargado ' + d.fecha : ''}</small></td>
     <td>${d.file_id ? `<span class="cx-tag ok">disponible</span>` : `<span class="cx-tag warn">el archivo no está en Drive</span>`}</td></tr>`).join('');
   L.innerHTML = `<table class="cx-table"><thead><tr><th></th><th>Rubro</th><th>Período</th><th>Archivo</th><th>Origen</th><th></th></tr></thead><tbody>${filas}</tbody></table>
     <div class="cx-nav"><button class="btn" onclick="cxUsarDocsSistema()">Usar los seleccionados →</button></div>
@@ -3195,7 +3196,7 @@ async function cxUsarDocsSistema() {
   if (!ids.length) { document.getElementById('cxSysMsg').textContent = 'No hay documentos seleccionados.'; return; }
   const T = document.getElementById('cxDocs'); T.style.display = '';
   document.getElementById('cxDocsHint').textContent = `Leyendo ${ids.length} documento(s) del sistema…`;
-  metas.forEach((d, k) => CX.docs.push({ file_id: d.file_id, nombre: d.archivo, tipo: '…', datos: null, mes: d.mes, anio: d.anio, origen: d.tabla }));
+  metas.forEach((d, k) => CX.docs.push({ file_id: d.file_id, nombre: d.archivo, tipo: '…', datos: null, mes: d.mes, anio: d.anio, origen: 'del sistema · ' + (CX_ORIGEN[d.tabla] || d.tabla) }));
   cxPintarDocs();
   const r = await capi('calc_extraer', { file_ids: ids });
   (r.documentos || []).forEach(dd => { const row = CX.docs.filter(x => x.file_id === dd.file_id)[0]; if (row) Object.assign(row, dd, { origen: row.origen, mes: row.mes, anio: row.anio }); });
