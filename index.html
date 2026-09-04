@@ -277,7 +277,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
     <div class="push"></div>
     <div class="status" id="userBox" style="border-top:none"></div>
-    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v4.2 · cálculo de impuestos</span></div>
+    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v5 · cálculo en Excel + carga al sistema</span></div>
   </nav>
 
   <main class="main">
@@ -407,7 +407,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <!-- ══ CONFIG ══ -->
 <section class="view" id="view-calculo">
   <h1>Cálculo de impuestos</h1>
-  <p class="lead">Fabrica el cálculo mensual de un cliente en cinco pasos: cliente → documentos → SAT (Syntage) → cálculo → entrega. El documento sale en español, inglés o chino y queda guardado aquí para filtrarlo, corregirlo o descargarlo.</p>
+  <p class="lead">Fabrica el cálculo mensual de un cliente en cinco pasos: cliente → documentos → SAT (Syntage) → cálculo → entrega. El documento final es un <b>Excel</b> en español, inglés o chino; queda guardado aquí para filtrarlo, corregirlo, descargarlo o cargarlo en el sistema.</p>
 
   <div class="cx-tabs"><button class="cx-tab active" data-cxtab="nuevo">➕ Nuevo cálculo</button><button class="cx-tab" data-cxtab="lista">📁 Cálculos guardados</button></div>
 
@@ -482,11 +482,13 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <div class="cx-step" data-step="5" style="display:none">
       <div class="cx-result" id="cxResult"></div>
       <div class="cx-nav">
-        <button class="btn" onclick="cxDescargar()">⬇️ Descargar (PDF)</button>
-        <button class="btn secondary" onclick="cxVer()">👁️ Ver documento</button>
+        <button class="btn" onclick="cxDescargar()" id="cxBtnXlsx">⬇️ Descargar Excel</button>
+        <button class="btn" onclick="cxCargarSistema()" id="cxBtnSis">📤 Carga en Sistema</button>
+        <button class="btn secondary" onclick="cxVer()">👁️ Ver resumen</button>
         <button class="btn secondary" onclick="cxIrCorreo()">✉️ Redactar correo al cliente</button>
         <button class="btn secondary" onclick="cxCorregir()">✏️ Pedir corrección</button>
       </div>
+      <div id="cxSisMsg" class="cx-hint"></div>
       <iframe id="cxPreview" class="cx-preview" style="display:none"></iframe>
     </div>
   </div>
@@ -3154,7 +3156,26 @@ async function cxGenerar() {
 
 /* ══════════════ paso 5 · entrega ══════════════ */
 function cxVer() { const f = document.getElementById('cxPreview'); f.style.display = ''; f.srcdoc = TallyCalculo.render(CX.calc, CX.idioma); }
-function cxDescargar() { const w = window.open('', '_blank'); w.document.write(TallyCalculo.render(CX.calc, CX.idioma)); w.document.close(); setTimeout(() => w.print(), 600); }  // “Guardar como PDF” con la tipografía exacta; el PDF del servidor queda en Drive como respaldo
+async function cxDescargar() {
+  const b = document.getElementById('cxBtnXlsx'); const t0 = b.textContent; b.disabled = true; b.textContent = '⏳ Generando Excel…';
+  const r = await capi('calc_descargar', { calc_id: CX.calc_id, idioma: CX.idioma });
+  b.disabled = false; b.textContent = t0;
+  if (!r.ok) { document.getElementById('cxSisMsg').textContent = '⚠️ ' + (r.error || 'no se pudo generar el Excel'); return; }
+  const bin = atob(r.b64), arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  const url = URL.createObjectURL(new Blob([arr], { type: r.mime }));
+  const a = document.createElement('a'); a.href = url; a.download = r.nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+async function cxCargarSistema() {
+  if (!CX.calc_id) return;
+  if (!confirm('Se cargará el Excel de este cálculo en la tabla calculo_impuestos del sistema (AppSheet), en el período del cliente. ¿Continuar?')) return;
+  const b = document.getElementById('cxBtnSis'), M = document.getElementById('cxSisMsg'); const t0 = b.textContent;
+  b.disabled = true; b.textContent = '⏳ Cargando…'; M.textContent = '';
+  const r = await capi('calc_appsheet_push', { calc_id: CX.calc_id, idioma: CX.idioma });
+  b.disabled = false; b.textContent = t0;
+  M.innerHTML = r.ok
+    ? `✅ ${r.actualizada ? 'Actualizado' : 'Cargado'} en el sistema · <b>${r.nombre}</b> · período <b>${r.company_id}</b> (${r.mes} ${r.anio}) · id ${r.calc_imp_id}. Ya se ve en AppSheet en la tabla calculo_impuestos.`
+    : '⚠️ ' + (r.error || 'no se pudo cargar');
+}
 async function cxCorregir() { const t = prompt('¿Qué hay que corregir en este cálculo?'); if (!t) return; const r = await capi('calc_correccion', { calc_id: CX.calc_id, texto: t }); alert(r.ok ? 'Corrección registrada. Se avisó por Slack.' : ('Error: ' + r.error)); }
 function cxIrCorreo() { cxCorreoDe(CX.calc_id, CX.idioma); }
 
@@ -3162,7 +3183,7 @@ function cxIrCorreo() { cxCorreoDe(CX.calc_id, CX.idioma); }
 async function cxListar() {
   const f = { nombre: document.getElementById('cxFNombre').value, rfc: document.getElementById('cxFRfc').value, mes: document.getElementById('cxFMes').value, anio: document.getElementById('cxFAnio').value, estado: document.getElementById('cxFEstado').value };
   const r = await capi('calc_listar', f); CX.lista = r.calculos || []; const E = { draft: 'Borrador', correccion: 'En corrección', approved: 'Aprobado', filed: 'Declarado' };
-  document.querySelector('#cxTabla tbody').innerHTML = (r.calculos || []).map(c => `<tr><td><b>${c.nombre}</b></td><td>${c.rfc}</td><td>${CX_MESES[c.mes - 1]} ${c.anio}</td><td>${cxFmt(+c.iva_a_pagar)}</td><td>${c.isr_a_pagar === '' ? 'pendiente' : cxFmt(+c.isr_a_pagar)}</td><td>${cxFmt(+c.saldo_favor)}</td><td><span class="cx-tag ${c.estado === 'approved' || c.estado === 'filed' ? 'ok' : c.estado === 'correccion' ? 'warn' : 'info'}">${E[c.estado] || c.estado}</span></td><td>${c.idioma}</td><td>${String(c.actualizado_en).slice(0, 10)}</td>
+  document.querySelector('#cxTabla tbody').innerHTML = (r.calculos || []).map(c => `<tr><td><b>${c.nombre}</b></td><td>${c.rfc}</td><td>${CX_MESES[c.mes - 1]} ${c.anio}</td><td>${cxFmt(+c.iva_a_pagar)}</td><td>${c.isr_a_pagar === '' ? 'pendiente' : cxFmt(+c.isr_a_pagar)}</td><td>${cxFmt(+c.saldo_favor)}</td><td><span class="cx-tag ${c.estado === 'approved' || c.estado === 'filed' ? 'ok' : c.estado === 'correccion' ? 'warn' : 'info'}">${E[c.estado] || c.estado}</span></td><td>${c.idioma}</td><td>${String(c.actualizado_en).slice(0, 10)}${c.appsheet_calc_imp_id ? ' <span class="cx-tag ok" title="Cargado en la tabla calculo_impuestos de AppSheet">en sistema</span>' : ''}</td>
     <td><button class="btn secondary" onclick="cxAbrir('${c.calc_id}')">Abrir</button> <button class="btn secondary" onclick="cxCorreoDe('${c.calc_id}','${c.idioma}')">✉️</button></td></tr>`).join('') || '<tr><td colspan="10" class="cx-hint">Sin cálculos con esos filtros.</td></tr>';
 }
 async function cxAbrir(id) { const r = await capi('calc_get', { calc_id: id }); if (!r.ok) return alert(r.error); CX.calc = r.calculo; CX.calc_id = id; CX.idioma = r.fila.idioma; CX.cliente = { nombre: r.fila.nombre, rfc: r.fila.rfc, company_id: r.fila.company_id }; document.querySelector('[data-cxtab="nuevo"]').click(); cxGo(5); document.getElementById('cxResult').innerHTML = `<div class="k"><span>${r.fila.nombre} · ${CX_MESES[r.fila.mes - 1]} ${r.fila.anio}</span></div><div class="k"><span>IVA a pagar</span><b>$ ${cxFmt(+r.fila.iva_a_pagar)}</b></div><div class="k"><span>ISR a pagar</span><b>${r.fila.isr_a_pagar === '' ? 'pendiente CU' : '$ ' + cxFmt(+r.fila.isr_a_pagar)}</b></div>${r.fila.correcciones ? `<p class="cx-hint">Correcciones:<br>${String(r.fila.correcciones).replace(/\n/g, '<br>')}</p>` : ''}`; cxVer(); }
