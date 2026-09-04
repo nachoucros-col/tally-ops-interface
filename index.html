@@ -277,7 +277,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
     <div class="push"></div>
     <div class="status" id="userBox" style="border-top:none"></div>
-    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v4.1 · cálculo de impuestos</span></div>
+    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v4.2 · cálculo de impuestos</span></div>
   </nav>
 
   <main class="main">
@@ -3066,14 +3066,14 @@ function cxGo(n) {
 
 /* ══════════════ paso 1 · cliente ══════════════ */
 let cxT;
-function cxBuscarCliente(q) { clearTimeout(cxT); q = String(q || '').trim(); if (q.length < 3) return; cxT = setTimeout(async () => {
+function cxBuscarCliente(q) { clearTimeout(cxT); q = String(q || '').trim(); CX.cliente = null; document.getElementById('cxClienteSel').style.display = 'none'; document.getElementById('cxNext1').disabled = true; const L0 = document.getElementById('cxClienteLista'); if (q.length < 3) { L0.innerHTML = ''; return; } L0.innerHTML = '<div class="cx-hint">Buscando en el padrón…</div>'; cxT = setTimeout(async () => {
   const r = await capi('calc_clientes', { q }); const L = document.getElementById('cxClienteLista');
   if (!r.ok) { L.innerHTML = `<div class="cx-hint">⚠️ No pude leer el padrón: ${r.error || 'error del servidor'}. Puedes continuar con el RFC tal cual.</div>` + cxManualHtml(q); return; }
-  const items = (r.clientes || []).map(c => `<div class="it" onclick='cxElegir(${JSON.stringify(c)})'><span><b>${c.nombre}</b> · ${c.rfc}</span><span class="cx-tag ${c.syntage ? 'ok' : 'warn'}">${c.syntage ? 'SAT conectado' : 'Sin Syntage'}</span></div>`).join('');
+  const items = (r.clientes || []).map(c => `<div class="it" onclick='cxElegir(${JSON.stringify(c).replace(/'/g, "&#39;")})'><span><b>${c.nombre}</b> · ${c.rfc || '<i>sin RFC en el padrón</i>'}${c.company_id ? ' · ' + c.company_id : ''}${c.owner ? ' · ' + c.owner : ''}</span><span class="cx-tag ${c.syntage ? 'ok' : 'warn'}">${c.syntage ? 'SAT conectado' : 'Sin Syntage'}</span></div>`).join('');
   L.innerHTML = items || ('<div class="cx-hint">Sin coincidencias en el padrón.</div>' + cxManualHtml(q));
 }, 250); }
 function cxManualHtml(q) { const rfc = q.toUpperCase().replace(/\s+/g, ''); if (!/^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/.test(rfc)) return '<div class="cx-hint">Escribe un RFC válido (12 o 13 caracteres) para continuar sin padrón.</div>'; return `<div class="it" onclick='cxElegir({company_id:"",rfc:"${rfc}",nombre:"${rfc}",owner:"",syntage:false,manual:true})'><span>➕ <b>Usar este RFC tal cual</b> · ${rfc} <small>(sin ficha en el padrón; el nombre se toma de Syntage si está conectado)</small></span><span class="cx-tag warn">manual</span></div>`; }
-function cxElegir(c) { CX.cliente = c; document.getElementById('cxClienteLista').innerHTML = ''; document.getElementById('cxRfc').value = c.rfc; const S = document.getElementById('cxClienteSel'); S.style.display = ''; S.innerHTML = `<b>${c.nombre}</b> · ${c.rfc} · ${c.owner || 'sin owner'} · <span class="cx-tag ${c.syntage ? 'ok' : 'warn'}">${c.syntage ? 'Conectado a Syntage' : 'No conectado a Syntage'}</span>`; document.getElementById('cxNext1').disabled = false; }
+function cxElegir(c) { if (!c.rfc) { const r = prompt('Este cliente no tiene RFC en el padrón. Escribe su RFC (12 o 13 caracteres):', ''); const rfc = String(r || '').toUpperCase().replace(/\s+/g, ''); if (!/^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/.test(rfc)) { alert('RFC no válido. No se seleccionó el cliente.'); return; } c.rfc = rfc; c.rfc_origen = 'capturado'; } CX.cliente = c; document.getElementById('cxClienteLista').innerHTML = ''; document.getElementById('cxRfc').value = c.rfc; const S = document.getElementById('cxClienteSel'); S.style.display = ''; S.innerHTML = `<b>${c.nombre}</b> · ${c.rfc} · ${c.owner || 'sin owner'} · <span class="cx-tag ${c.syntage ? 'ok' : 'warn'}">${c.syntage ? 'Conectado a Syntage' : 'No conectado a Syntage'}</span>`; document.getElementById('cxNext1').disabled = false; }
 
 /* ══════════════ paso 2 · documentos ══════════════ */
 function cxDrop(ev) { ev.preventDefault(); document.getElementById('cxDrop').classList.remove('over'); cxFiles(ev.dataTransfer.files); }

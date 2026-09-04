@@ -3040,16 +3040,28 @@ const calcR2_ = function (n) { return Math.round((Number(n) || 0) * 100) / 100; 
 
 /* ── 1. Cliente (padrón Clients_Load ∪ entidades Syntage del almacén) ── */
 function calcClientes_(body) {
-  const pad = almPadron_(); const q = String(body.q || '').toUpperCase().trim();
-  const syn = {}; almLeer_('entidades_syntage').forEach(function (e) { if (e.rfc) syn[String(e.rfc).toUpperCase()] = e.syntage_entity_id; });
-  const rows = [];
+  // Padrón Clients_Load ∪ entidades_syntage (por company_id y por RFC). NO se descartan clientes sin RFC en el padrón:
+  // el RFC se completa desde Syntage o, si no existe, desde lo que el usuario escribió.
+  const pad = almPadron_(); const q = String(body.q || '').toUpperCase().trim(); const qRfc = /^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/.test(q) ? q : '';
+  const synId = {}, synRfc = {};
+  almLeer_('entidades_syntage').forEach(function (e) { if (e.company_id) synId[String(e.company_id).trim()] = e; if (e.rfc) synRfc[String(e.rfc).toUpperCase()] = e; });
+  const rows = []; const vistos = {};
   Object.keys(pad.porId).forEach(function (id) {
-    const c = pad.porId[id]; if (!c.rfc) return;
-    if (q && c.rfc.indexOf(q) < 0 && c.nombre.toUpperCase().indexOf(q) < 0 && id.toUpperCase().indexOf(q) < 0) return;
-    rows.push({ company_id: id, rfc: c.rfc, nombre: c.nombre, owner: c.owner, tipo: c.tipo, suspension: c.suspension, syntage: !!syn[c.rfc], syntage_entity_id: syn[c.rfc] || null });
+    const c = pad.porId[id]; const e = synId[id] || (c.rfc ? synRfc[c.rfc] : null);
+    const rfc = c.rfc || (e && e.rfc ? String(e.rfc).toUpperCase() : '');
+    const hay = !q || (rfc && rfc.indexOf(q) >= 0) || c.nombre.toUpperCase().indexOf(q) >= 0 || id.toUpperCase().indexOf(q) >= 0 || (e && String(e.nombre_syntage || '').toUpperCase().indexOf(q) >= 0);
+    if (!hay) return;
+    vistos[id] = 1; if (rfc) vistos[rfc] = 1;
+    rows.push({ company_id: id, rfc: rfc || qRfc, rfc_origen: c.rfc ? 'padron' : (e && e.rfc ? 'syntage' : (qRfc ? 'capturado' : 'sin RFC')), nombre: c.nombre || (e && e.nombre_syntage) || id, owner: c.owner, tipo: c.tipo, suspension: c.suspension, syntage: !!e, syntage_entity_id: e ? e.syntage_entity_id : null });
   });
-  rows.sort(function (a, b) { return a.nombre.localeCompare(b.nombre); });
-  return { ok: true, clientes: rows.slice(0, 40) };
+  // Entidades en Syntage sin ficha en el padrón (o sin mapear)
+  Object.keys(synRfc).forEach(function (rfc) {
+    const e = synRfc[rfc]; if (vistos[rfc] || (e.company_id && vistos[String(e.company_id).trim()])) return;
+    if (q && rfc.indexOf(q) < 0 && String(e.nombre_syntage || '').toUpperCase().indexOf(q) < 0) return;
+    rows.push({ company_id: e.company_id || '', rfc: rfc, rfc_origen: 'syntage', nombre: e.nombre_syntage || rfc, owner: '', tipo: '', suspension: '', syntage: true, syntage_entity_id: e.syntage_entity_id });
+  });
+  rows.sort(function (a, b) { return String(a.nombre).localeCompare(String(b.nombre)); });
+  return { ok: true, clientes: rows.slice(0, 40), padron_total: Object.keys(pad.porId).length };
 }
 
 /* ── 2. Documentos ── */
