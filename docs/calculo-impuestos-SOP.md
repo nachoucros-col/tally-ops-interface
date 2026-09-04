@@ -1,6 +1,6 @@
 # SOP · Cálculo de impuestos mensual para clientes de marketplace
 
-**Dueño del proceso:** Contabilidad (owner del cliente) · **Responsable del SOP:** Juan (CSO) · **Sistema:** Tally Ops → sección "Cálculo de impuestos" · **Versión:** 1.0 · 4-sep-2026
+**Dueño del proceso:** Contabilidad (owner del cliente) · **Responsable del SOP:** Juan (CSO) · **Sistema:** Tally Ops → sección "Cálculo de impuestos" · **Versión:** 1.1 · 4-sep-2026
 **Promesa que mueve:** Cálculo aprobado (3 de 5) y, al enviarse, Reporte entregado (5 de 5).
 
 ## 1. Propósito y alcance
@@ -27,9 +27,11 @@ Producir cada mes, para cada cliente con ventas, un documento de cálculo de IVA
 ## 4. Procedimiento (lo que hace el owner en Tally Ops)
 **Paso 1 · Cliente.** Menú → Cálculo de impuestos → Nuevo cálculo. Escribe el RFC o el nombre; el sistema muestra el padrón y si el RFC está conectado a Syntage. Elige mes/año e idioma del documento (español, inglés o chino).
 
-**Paso 2 · Documentos.** Arrastra el resumen del marketplace, el certificado de retenciones y el estado de cuenta. El sistema los guarda en Drive (carpeta `Tally · Cálculos de impuestos / RFC / AAAA-MM`), los lee por OCR y muestra los datos clave (base, órdenes, ISR retenido, ingreso neto, transferencias, abonos bancarios). **Verifica contra el PDF** antes de continuar; si el tipo se detectó mal, corrígelo en el selector.
+**Paso 2 · Documentos.** Arrastra el resumen del marketplace, el certificado de retenciones y el estado de cuenta. El sistema los guarda en Drive (carpeta `Tally · Cálculos de impuestos / RFC / AAAA-MM`), los lee y muestra los datos clave (base, órdenes, ISR retenido, ingreso neto, transferencias, abonos bancarios). La lectura tiene dos rutas y la tabla dice cuál se usó: **texto** cuando el PDF trae capa de texto (se lee tal cual, sin OCR, incluso si la fuente del PDF no declara su mapa de caracteres) y **OCR** cuando el PDF es escaneado o su texto no es aprovechable. **Verifica contra el PDF** antes de continuar; si el tipo se detectó mal, corrígelo en el selector.
+- **Estados de cuenta:** se reconocen los de Payoneer y los de tabla *fecha · concepto · monto · saldo* (WorldFirst y cualquier banco con esa forma). En estos últimos el signo de cada movimiento **no se adivina por el concepto**: se deduce del salto del saldo renglón por renglón y se cuadra `saldo inicial + abonos − cargos = saldo final`. La tabla marca *cuadra* o *no cuadra*; si no cuadra, no continúes sin revisar el PDF.
 
-**Paso 3 · SAT / Syntage.** El sistema consulta Syntage con el RFC y muestra: CFDI emitidos del mes (y su IVA), CFDI recibidos y el IVA acreditable (solo PUE; PPD pendiente aparte), si el certificado de retención ya está en el SAT y qué declaraciones mensuales del año existen.
+**Paso 3 · SAT / Syntage.** El sistema resuelve la entidad en Syntage en este orden: el identificador que el paso 1 ya tenía guardado para ese `company_id`, luego el RFC, luego la razón social normalizada. Ese orden existe porque hay entidades conectadas cuyo catálogo en Syntage **no trae RFC** (se conectaron por CIEC): buscar solo por RFC las reportaba como no conectadas. Cuando el enlace no fue por RFC, la pastilla lo dice ("ligado por identificador guardado" o "por nombre") y avisa si Syntage no reporta RFC o reporta uno distinto al del padrón — eso es un dato a corregir, no un error del cálculo. Enseguida muestra: CFDI emitidos del mes (y su IVA), CFDI recibidos y el IVA acreditable (solo PUE; PPD pendiente aparte), si el certificado de retención ya está en el SAT y qué declaraciones mensuales del año existen.
+- **Si el cliente no aparece en Syntage:** el panel dice cuántas entidades del catálogo se revisaron. Ojo con la diferencia: *no está en Syntage* no es lo mismo que *no está conectado al SAT*; un cliente puede estar declarando y no estar dado de alta en Syntage.
 - **Si el cliente no está en Syntage:** aparece la alerta *"¿Deseas que Juan apruebe que este cliente se incluya en Syntage?"*. Si el sistema ya tiene la CIEC, no se pide; si no, el owner la captura. Al confirmar, Juan recibe en Slack:
   > 🔌 Solicitud de conexión de cliente a Syntage — [Usuario] ha pedido que agregues a [Empresa] en Syntage. RFC: … · CIEC: 🔒 liga de un solo uso
   Juan conecta al cliente (≈5 min) y el owner pulsa "Reintentar". Se puede continuar sin SAT, y el documento marcará esa fuente como pendiente.

@@ -29,3 +29,10 @@ Paquete construido el 3–4 sep 2026. Todo lo que está aquí funciona sin IA en
 
 ## Diseño (v6 · 4-sep-2026)
 El front porta el sistema visual de `compendio-growve-poc-v1_1.html` (Tally × Apple): tokens en `:root` (grises de sistema `--t1/--t2/--t3`, superficies `--bg/--card/--card-2`, hairlines de .5px, radios 10/16/22/28/980, sombras de doble capa, `--ease` cubic-bezier(.16,1,.3,1)) y una capa `DESIGN SYSTEM · TALLY × APPLE` al final del documento que restila cada vista. Es CSS puro: ningún id, clase o handler cambió. La base tipográfica se queda en 15px (app densa) en vez de los 17px del compendio (documento).
+
+## Lectura de documentos (4-sep-2026, v7)
+- `calcTextoNativo_` → `calcPdfTexto_`: lector de la capa de texto del PDF escrito dentro de Apps Script. Incluye `calcInflate_` (DEFLATE propio, sin dependencias), recorrido de objetos, `ToUnicode` cuando existe y, cuando no, un respaldo por desplazamiento de glifos que se elige puntuando el resultado contra un diccionario de términos esperados. Es la ruta A y no consume cuota de Drive.
+- `calcTextoDeArchivo_` (OCR de Drive) queda como ruta B y solo corre si de la ruta A no salió ningún dato. `calc_extraer` devuelve `via` para que la interfaz diga por dónde se leyó.
+- `calcParseTablaSaldo_`: estados de cuenta con columnas fecha · concepto · monto · saldo. El signo se deduce del salto del saldo y se cuadra contra el saldo final; si la tabla no cuadra por saldo, cae a clasificación por concepto y lo declara en `nota`.
+- `calcSynEntidad_`: resolución de entidad en Syntage por `syntage_entity_id` (del front o del almacén), RFC y nombre normalizado (con tolerancia a razón social abreviada). `calc_syntage` devuelve `ligado_por`, `rfc_syntage` y `entidades_revisadas`.
+- Caso de prueba verificado: estado de cuenta WorldFirst MXN de INSIGHTCONNECT, julio 2026 → 34 movimientos, abonos 6,539,241.61, cargos 31,298.79, saldo inicial 2,261,026.06, saldo final 8,768,968.88, cuadra. Certificado de retenciones de EuroPartes julio 2026 → base 116,400.19, 178 órdenes, 18 con IVA, ISR 2,910.00, IVA retenido 418.91, IVA trasladado 837.83.
