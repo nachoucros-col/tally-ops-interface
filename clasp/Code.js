@@ -3041,30 +3041,62 @@ function calcCfg_(key) { try { const cfg = SpreadsheetApp.openById(DB_ID).getShe
 const calcR2_ = function (n) { return Math.round((Number(n) || 0) * 100) / 100; };
 
 /* ── 1. Cliente (padrón Clients_Load ∪ entidades Syntage del almacén) ── */
-function calcClientes_(body) {
-  // Padrón Clients_Load ∪ entidades_syntage (por company_id y por RFC). NO se descartan clientes sin RFC en el padrón:
-  // el RFC se completa desde Syntage o, si no existe, desde lo que el usuario escribió.
-  const pad = almPadron_(); const q = String(body.q || '').toUpperCase().trim(); const qRfc = /^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/.test(q) ? q : '';
+/* Padrón cruzado con Syntage. Leer las dos hojas cuesta segundos, así que el cruce
+   se calcula una vez y se guarda en la caché del script (15 min, en trozos porque
+   cada llave admite 100 KB). El front lo pide completo una sola vez y filtra en el navegador. */
+function calcPadronCalcular_() {
+  const pad = almPadron_();
   const synId = {}, synRfc = {};
   almLeer_('entidades_syntage').forEach(function (e) { if (e.company_id) synId[String(e.company_id).trim()] = e; if (e.rfc) synRfc[String(e.rfc).toUpperCase()] = e; });
-  const rows = []; const vistos = {};
+  const rows = [], vistos = {};
   Object.keys(pad.porId).forEach(function (id) {
     const c = pad.porId[id]; const e = synId[id] || (c.rfc ? synRfc[c.rfc] : null);
     const rfc = c.rfc || (e && e.rfc ? String(e.rfc).toUpperCase() : '');
-    const hay = !q || (rfc && rfc.indexOf(q) >= 0) || c.nombre.toUpperCase().indexOf(q) >= 0 || id.toUpperCase().indexOf(q) >= 0 || (e && String(e.nombre_syntage || '').toUpperCase().indexOf(q) >= 0);
-    if (!hay) return;
     vistos[id] = 1; if (rfc) vistos[rfc] = 1;
-    rows.push({ company_id: id, rfc: rfc || qRfc, rfc_origen: c.rfc ? 'padron' : (e && e.rfc ? 'syntage' : (qRfc ? 'capturado' : 'sin RFC')), nombre: c.nombre || (e && e.nombre_syntage) || id, owner: c.owner, tipo: c.tipo, suspension: c.suspension, syntage: !!e, syntage_entity_id: e ? e.syntage_entity_id : null });
+    rows.push({ company_id: id, rfc: rfc, rfc_origen: c.rfc ? 'padron' : (e && e.rfc ? 'syntage' : 'sin RFC'),
+      nombre: c.nombre || (e && e.nombre_syntage) || id, nombre_syntage: (e && e.nombre_syntage) || '',
+      owner: c.owner, tipo: c.tipo, suspension: c.suspension, syntage: !!e, syntage_entity_id: e ? e.syntage_entity_id : null });
   });
-  // Entidades en Syntage sin ficha en el padrón (o sin mapear)
-  Object.keys(synRfc).forEach(function (rfc) {
+  Object.keys(synRfc).forEach(function (rfc) {                 /* entidades en Syntage sin ficha en el padrón */
     const e = synRfc[rfc]; if (vistos[rfc] || (e.company_id && vistos[String(e.company_id).trim()])) return;
-    if (q && rfc.indexOf(q) < 0 && String(e.nombre_syntage || '').toUpperCase().indexOf(q) < 0) return;
-    rows.push({ company_id: e.company_id || '', rfc: rfc, rfc_origen: 'syntage', nombre: e.nombre_syntage || rfc, owner: '', tipo: '', suspension: '', syntage: true, syntage_entity_id: e.syntage_entity_id });
+    rows.push({ company_id: e.company_id || '', rfc: rfc, rfc_origen: 'syntage', nombre: e.nombre_syntage || rfc, nombre_syntage: e.nombre_syntage || '',
+      owner: '', tipo: '', suspension: '', syntage: true, syntage_entity_id: e.syntage_entity_id });
   });
   rows.sort(function (a, b) { return String(a.nombre).localeCompare(String(b.nombre)); });
-  return { ok: true, clientes: rows.slice(0, 40), padron_total: Object.keys(pad.porId).length };
+  return rows;
 }
+function calcPadronCruzado_(refrescar) {
+  const cache = CacheService.getScriptCache(), K = 'calcpad1';
+  if (!refrescar) {
+    const meta = cache.get(K + '_n');
+    if (meta) {
+      const n = Number(meta), partes = []; let completo = true;
+      for (let i = 0; i < n; i++) { const t = cache.get(K + '_' + i); if (t == null) { completo = false; break; } partes.push(t); }
+      if (completo && n > 0) { try { return { rows: JSON.parse(partes.join('')), de: 'cache' }; } catch (e) {} }
+    }
+  }
+  const rows = calcPadronCalcular_();
+  try {
+    const s = JSON.stringify(rows), T = 90000, n = Math.ceil(s.length / T), obj = {};
+    for (let i = 0; i < n; i++) obj[K + '_' + i] = s.substring(i * T, (i + 1) * T);
+    obj[K + '_n'] = String(n);
+    cache.putAll(obj, 900);
+  } catch (e) {}
+  return { rows: rows, de: 'calculado' };
+}
+function calcClientes_(body) {
+  const q = String(body.q || '').toUpperCase().trim();
+  const qRfc = /^[A-Z&\u00d1]{3,4}\d{6}[A-Z0-9]{3}$/.test(q) ? q : '';
+  const cr = calcPadronCruzado_(!!body.refrescar);
+  const rows = cr.rows;
+  if (body.todos) return { ok: true, clientes: rows, padron_total: rows.length, fuente: cr.de };
+  const f = rows.filter(function (c) {
+    return !q || (c.rfc && c.rfc.indexOf(q) >= 0) || String(c.nombre).toUpperCase().indexOf(q) >= 0 ||
+      String(c.company_id).toUpperCase().indexOf(q) >= 0 || String(c.nombre_syntage || '').toUpperCase().indexOf(q) >= 0;
+  }).map(function (c) { return c.rfc ? c : Object.assign({}, c, { rfc: qRfc, rfc_origen: qRfc ? 'capturado' : c.rfc_origen }); });
+  return { ok: true, clientes: f.slice(0, 40), padron_total: rows.length, fuente: cr.de };
+}
+
 
 /* ── 2. Documentos ── */
 function calcFolder_(rfc, periodo) {
