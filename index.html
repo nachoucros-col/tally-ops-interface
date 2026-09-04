@@ -277,7 +277,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
     <div class="push"></div>
     <div class="status" id="userBox" style="border-top:none"></div>
-    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v4 · cálculo de impuestos</span></div>
+    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v4.1 · cálculo de impuestos</span></div>
   </nav>
 
   <main class="main">
@@ -3066,7 +3066,13 @@ function cxGo(n) {
 
 /* ══════════════ paso 1 · cliente ══════════════ */
 let cxT;
-function cxBuscarCliente(q) { clearTimeout(cxT); if (q.length < 3) return; cxT = setTimeout(async () => { const r = await capi('calc_clientes', { q }); const L = document.getElementById('cxClienteLista'); L.innerHTML = (r.clientes || []).map(c => `<div class="it" onclick='cxElegir(${JSON.stringify(c)})'><span><b>${c.nombre}</b> · ${c.rfc}</span><span class="cx-tag ${c.syntage ? 'ok' : 'warn'}">${c.syntage ? 'SAT conectado' : 'Sin Syntage'}</span></div>`).join('') || '<div class="cx-hint">Sin coincidencias en el padrón. Puedes continuar con el RFC tal cual.</div>'; }, 250); }
+function cxBuscarCliente(q) { clearTimeout(cxT); q = String(q || '').trim(); if (q.length < 3) return; cxT = setTimeout(async () => {
+  const r = await capi('calc_clientes', { q }); const L = document.getElementById('cxClienteLista');
+  if (!r.ok) { L.innerHTML = `<div class="cx-hint">⚠️ No pude leer el padrón: ${r.error || 'error del servidor'}. Puedes continuar con el RFC tal cual.</div>` + cxManualHtml(q); return; }
+  const items = (r.clientes || []).map(c => `<div class="it" onclick='cxElegir(${JSON.stringify(c)})'><span><b>${c.nombre}</b> · ${c.rfc}</span><span class="cx-tag ${c.syntage ? 'ok' : 'warn'}">${c.syntage ? 'SAT conectado' : 'Sin Syntage'}</span></div>`).join('');
+  L.innerHTML = items || ('<div class="cx-hint">Sin coincidencias en el padrón.</div>' + cxManualHtml(q));
+}, 250); }
+function cxManualHtml(q) { const rfc = q.toUpperCase().replace(/\s+/g, ''); if (!/^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/.test(rfc)) return '<div class="cx-hint">Escribe un RFC válido (12 o 13 caracteres) para continuar sin padrón.</div>'; return `<div class="it" onclick='cxElegir({company_id:"",rfc:"${rfc}",nombre:"${rfc}",owner:"",syntage:false,manual:true})'><span>➕ <b>Usar este RFC tal cual</b> · ${rfc} <small>(sin ficha en el padrón; el nombre se toma de Syntage si está conectado)</small></span><span class="cx-tag warn">manual</span></div>`; }
 function cxElegir(c) { CX.cliente = c; document.getElementById('cxClienteLista').innerHTML = ''; document.getElementById('cxRfc').value = c.rfc; const S = document.getElementById('cxClienteSel'); S.style.display = ''; S.innerHTML = `<b>${c.nombre}</b> · ${c.rfc} · ${c.owner || 'sin owner'} · <span class="cx-tag ${c.syntage ? 'ok' : 'warn'}">${c.syntage ? 'Conectado a Syntage' : 'No conectado a Syntage'}</span>`; document.getElementById('cxNext1').disabled = false; }
 
 /* ══════════════ paso 2 · documentos ══════════════ */
@@ -3092,7 +3098,7 @@ function cxPintarDocs() {
 /* ══════════════ paso 3 · Syntage ══════════════ */
 async function cxConsultarSyntage() {
   const P = document.getElementById('cxSyntage'); P.innerHTML = '<div class="cx-spinner">Consultando Syntage…</div>'; document.getElementById('cxSynAlert').style.display = 'none';
-  const r = await capi('calc_syntage', { rfc: CX.cliente.rfc, anio: CX.anio, mes: CX.mes }); CX.syntage = r;
+  const r = await capi('calc_syntage', { rfc: CX.cliente.rfc, anio: CX.anio, mes: CX.mes }); CX.syntage = r; if (r.ok && r.conectado && CX.cliente.manual && r.nombre) CX.cliente.nombre = r.nombre;
   if (!r.ok) { P.innerHTML = `<span class="cx-tag warn">Error</span> ${r.error || ''}`; return; }
   if (!r.conectado) { P.innerHTML = '<span class="cx-tag warn">RFC no conectado a Syntage</span>'; document.getElementById('cxSynAlert').style.display = ''; return; }
   const k = `${CX.anio}-${String(CX.mes).padStart(2, '0')}`; const m = (r.cfdi_por_mes || {})[k] || { emitidos: [], recibidos: [], iva_acreditable_pue: 0 };
