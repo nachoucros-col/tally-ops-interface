@@ -2648,10 +2648,15 @@ function almDetalle_(metrica, periodo, owner) {
     let out = null;
     meses.forEach(m => {
       const c = m.cert || {}, l = m.liq || {}, f = m.cfdi || {};
-      const base16 = r2((c.iva_trasladado || 0) / 0.16);
-      const base0 = r2((c.base || 0) - base16);
+      let base16 = r2((c.iva_trasladado || 0) / 0.16);
+      let base0 = r2((c.base || 0) - base16);
+      if (c.base && Math.abs(base0) < 1) { base16 = r2(c.base); base0 = 0; }   /* residuo de dividir entre 0.16 */
       const trasladado = r2(c.iva_trasladado || 0);
-      const retenido = r2(l.iva_retenido != null ? l.iva_retenido : (c.iva_retenido || 0));
+      /* El IVA retenido lo manda el certificado de retenciones: es el CFDI que ve el SAT.
+         La liquidación del marketplace queda como cotejo y, si difiere, se avisa. */
+      const retenido = r2(c.iva_retenido != null ? c.iva_retenido : (l.iva_retenido || 0));
+      const retenidoLiq = l.iva_retenido != null ? r2(l.iva_retenido) : null;
+      const difRet = (c.iva_retenido != null && retenidoLiq != null && Math.abs(retenidoLiq - retenido) > 0.01) ? r2(retenidoLiq - retenido) : null;
       const acreditable = r2(f.iva_acreditable_pue || 0);
       const resultado = r2(trasladado - retenido - acreditable);
       const posicion = r2(resultado - saldoFavor);
@@ -2677,12 +2682,12 @@ function almDetalle_(metrica, periodo, owner) {
       if (m.mes === target.mes && m.anio === target.anio) {
         out = {
           cliente: in_.cliente, periodo: target, idioma: in_.idioma || 'es', estado: in_.estado || 'draft', emitido: in_.emitido || new Date().toISOString().slice(0, 10),
-          logo_svg: in_.logo_svg || null, lectura: in_.lectura || null, fuentes: in_.fuentes || [], alertas: in_.alertas || [], notas: in_.notas || [],
+          logo_svg: in_.logo_svg || null, lectura: in_.lectura || null, fuentes: in_.fuentes || [], alertas: (in_.alertas || []).concat(difRet != null ? ['El IVA retenido del certificado (' + retenido.toFixed(2) + ') no coincide con el de la liquidación del marketplace (' + retenidoLiq.toFixed(2) + '): diferencia de ' + difRet.toFixed(2) + '. El cálculo usa el certificado.'] : []), notas: in_.notas || [],
           resumen: { ventas_base: c.base, ordenes: c.ordenes, ordenes_16: c.ordenes_16, ordenes_0: (c.ordenes != null && c.ordenes_16 != null) ? c.ordenes - c.ordenes_16 : null,
                      isr_retenido_mes: c.isr_retenido, iva_retenido_mes: retenido, ingreso_liquidacion: l.ingreso_neto, transferencias: l.transferencias },
           iva: { base_16: base16, base_0: base0, trasladado, retenido, acreditable, saldo_favor_anterior: saldoFavor, resultado, a_pagar: aPagar, saldo_favor_arrastre: arrastre,
                  ppd_pendiente: f.iva_ppd_pendiente || 0,
-                 src_16: 'Certificado de retenciones ' + (c.folio || ''), src_0: 'Certificado de retenciones', src_trasladado: 'Certificado de retenciones', src_retenido: 'Liquidación del marketplace', src_acreditable: 'CFDI recibidos (SAT / Syntage)' },
+                 src_16: 'Certificado de retenciones ' + (c.folio || ''), src_0: 'Certificado de retenciones', src_trasladado: 'Certificado de retenciones', src_retenido: 'Certificado de retenciones' + (retenidoLiq != null ? ' · liquidación: ' + retenidoLiq.toFixed(2) : ''), src_acreditable: 'CFDI recibidos (SAT / Syntage)' },
           isr: { ingresos_mes: c.base, ingresos_acum: ingresosAcum, cu, utilidad, perdidas: cu !== null ? Math.min(utilidad, perdidas) : null, base: baseISR, isr_acum: isrAcum, retenido_acum: retAcum, pagos_previos: pagosAcum, a_pagar: isrPagar },
           cfdi_emitidos: f.emitidos || [], cfdi_recibidos: f.recibidos || [],
           detalle_meses: detalle.slice(), banco: banco.slice(), serie: serie.slice()

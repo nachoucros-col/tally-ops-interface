@@ -294,7 +294,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
     <div class="push"></div>
     <div class="status" id="userBox" style="border-top:none"></div>
-    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v9 · retenciones desde el bloque del CFDI</span></div>
+    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v10 · gastos con factura al RFC del cliente</span></div>
   </nav>
 
   <main class="main">
@@ -3166,7 +3166,8 @@ async function cxConsultarSyntage() {
   const dec = (r.declaraciones || []).filter(d => d.periodicidad === 'Mensual' && String(d.ejercicio) === String(CX.anio));
   P.innerHTML = `<span class="cx-tag ok">Conectado · ${r.nombre}</span>${r.ligado_por && r.ligado_por !== 'rfc' ? ` <span class="cx-tag info">ligado por ${r.ligado_por === 'entity_id' ? 'identificador guardado' : 'nombre'}</span>` : ''}${r.rfc_syntage && CX.cliente.rfc && r.rfc_syntage !== CX.cliente.rfc ? ` <span class="cx-tag warn">en Syntage el RFC es ${r.rfc_syntage}</span>` : ''}${!r.rfc_syntage ? ' <span class="cx-tag warn">Syntage no reporta RFC de esta entidad</span>' : ''}
     <table class="cx-table"><tr><td>CFDI emitidos en ${CX_MESES[CX.mes - 1]}</td><td>${m.emitidos.length} · IVA trasladado ${cxFmt(m.emitidos.reduce((a, x) => a + x.iva, 0))}</td></tr>
-    <tr><td>CFDI recibidos</td><td>${m.recibidos.length} · IVA acreditable (PUE) ${cxFmt(m.iva_acreditable_pue)}${m.iva_ppd_pendiente ? ` · PPD pendiente ${cxFmt(m.iva_ppd_pendiente)}` : ''}</td></tr>
+    <tr><td>CFDI recibidos (gastos con factura a su RFC)</td><td>${m.recibidos.length} · IVA acreditable (PUE) ${cxFmt(m.iva_acreditable_pue)}${m.iva_ppd_pendiente ? ` · PPD pendiente ${cxFmt(m.iva_ppd_pendiente)}` : ''}${!r.cfdi_recibidos_anio ? ' · <span class="cx-tag warn">ninguno en todo ' + CX.anio + '</span>' : ''}</td></tr>
+    <tr><td>CFDI del ejercicio ${CX.anio} en el SAT</td><td>${r.cfdi_del_anio || 0} · emitidos ${r.cfdi_emitidos_anio || 0} · recibidos ${r.cfdi_recibidos_anio || 0}</td></tr>
     <tr><td>Certificados de retención en el SAT</td><td>${(r.retenciones || []).filter(x => x.periodo === k).length ? 'coincide con el mes' : 'no aparece el del mes'}</td></tr>
     <tr><td>Declaraciones mensuales ${CX.anio} registradas</td><td>${dec.length ? dec.map(d => d.periodo + ' (' + d.presentada + ')').join(', ') : '<span class="cx-tag warn">ninguna</span>'}</td></tr></table>`;
 }
@@ -3203,8 +3204,13 @@ async function cxGenerar() {
     { es: 'Estado de cuenta bancario', en: 'Bank statement', zh: '银行对账单', que_es: 'Depósitos recibidos del marketplace', que_en: 'Payouts received', que_zh: '收到的平台付款', estado: b ? 'ok' : 'missing' },
     { es: 'Declaración anual anterior (coeficiente de utilidad)', en: 'Prior annual return (profit coefficient)', zh: '上年度申报（利润系数）', que_es: 'Determina el ISR provisional', que_en: 'Determines provisional income tax', que_zh: '决定所得税预缴', estado: isNaN(cu) ? 'missing' : 'ok' },
   ];
+  const alertas = [];
+  if (CX.syntage && CX.syntage.conectado && !CX.syntage.cfdi_recibidos_anio)
+    alertas.push(`El SAT no reporta facturas recibidas a nombre de este RFC en ${CX.anio}. El IVA acreditable del período queda en cero hasta que el cliente registre sus gastos con factura a su RFC.`);
+  if (b && b.saldo_final != null && b.cuadra === false)
+    alertas.push('El estado de cuenta no cuadra renglón por renglón (saldo inicial + abonos − cargos ≠ saldo final): la conciliación se presenta como referencia.');
   const input = { cliente: { nombre: CX.cliente.nombre, rfc: CX.cliente.rfc, company_id: CX.cliente.company_id, regimen: 'General de Ley Personas Morales (601)', marketplace: 'Amazon México' }, periodo: { mes: CX.mes, anio: CX.anio }, idioma: CX.idioma, estado: 'draft',
-    meses: [mesActual], completar_serie: true, isr: { cu: isNaN(cu) ? null : cu, perdidas: 0, pagos_previos: [] }, fuentes,
+    meses: [mesActual], completar_serie: true, isr: { cu: isNaN(cu) ? null : cu, perdidas: 0, pagos_previos: [] }, fuentes, alertas,
     lectura: lectura === 'A' ? { es: 'Lectura A — el IVA cobrado es el que el marketplace reporta orden por orden en el certificado de retenciones.', en: 'Criterion A — VAT collected is what the marketplace reports order by order in the withholding certificate.', zh: '标准 A —— 增值税以平台代扣证明中逐单报告的数据为准。' } : { es: 'Lectura B — el IVA cobrado es el trasladado en los CFDI emitidos.', en: 'Criterion B — VAT collected is the VAT charged on issued CFDI.', zh: '标准 B —— 增值税以已开具 CFDI 中的转嫁税额为准。' } };
   const r = await capi('calc_generar', { input }); B.disabled = false;
   if (!r.ok) { document.getElementById('cxGenMsg').textContent = '⚠️ ' + r.error; return; }
