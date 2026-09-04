@@ -1,6 +1,6 @@
 # SOP · Cálculo de impuestos mensual para clientes de marketplace
 
-**Dueño del proceso:** Contabilidad (owner del cliente) · **Responsable del SOP:** Juan (CSO) · **Sistema:** Tally Ops → sección "Cálculo de impuestos" · **Versión:** 1.1 · 4-sep-2026
+**Dueño del proceso:** Contabilidad (owner del cliente) · **Responsable del SOP:** Juan (CSO) · **Sistema:** Tally Ops → sección "Cálculo de impuestos" · **Versión:** 1.2 · 4-sep-2026
 **Promesa que mueve:** Cálculo aprobado (3 de 5) y, al enviarse, Reporte entregado (5 de 5).
 
 ## 1. Propósito y alcance
@@ -43,7 +43,7 @@ Producir cada mes, para cada cliente con ventas, un documento de cálculo de IVA
 **Cierre.** Cuando el cliente responde aprobando, el owner cambia el estado a **Aprobado** (mueve la promesa 3), presenta la declaración y cambia a **Declarado**; el acuse se sube a la misma carpeta.
 
 ## 5. Criterios de cálculo (lo que hace el motor)
-- **IVA:** base 16% = IVA trasladado del certificado / 0.16; base 0% = base del certificado − base 16%; retenido = lo descontado en la liquidación; acreditable = IVA de CFDI recibidos PUE del mes (notas de crédito restan; PPD entra al pagarse); resultado = trasladado − retenido − acreditable; posición = resultado − saldo a favor anterior; a pagar = máx(0, posición); arrastre = máx(0, −posición).
+- **IVA:** los importes salen del bloque **Impuestos retenidos** del certificado, no de los totales del pie. En el renglón de IVA, *Base del impuesto* es el **IVA trasladado** y *Importe del impuesto* es el **IVA retenido** por el marketplace. De ahí: base 16% = IVA trasladado / 0.16 (si el residuo de la división es menor a un peso se absorbe en la base 16%); base 0% = monto de operación − base 16%; retenido = el importe del renglón de IVA (la liquidación del marketplace queda como cotejo y, si difiere, el documento lo alerta); acreditable = IVA de CFDI recibidos PUE del mes (notas de crédito restan; PPD entra al pagarse); resultado = trasladado − retenido − acreditable; posición = resultado − saldo a favor anterior; a pagar = máx(0, posición); arrastre = máx(0, −posición).
 - **ISR provisional (art. 14 LISR):** ingresos nominales acumulados × coeficiente de utilidad − pérdidas = base; × 30% = ISR acumulado; − retenciones acumuladas del marketplace − pagos provisionales previos = a pagar. Sin coeficiente, "pendiente".
 - **Lectura A vs B:** A toma el IVA trasladado del certificado (orden por orden); B toma el IVA de los CFDI emitidos. La elección es de criterio del owner con el contador; el documento declara cuál se usó. Si se elige A y existen CFDI que trasladan 16% sobre todo, hay que sustituirlos antes de declarar (regla 5).
 - **Conciliación:** transferencias según marketplace vs abonos identificados en el estado de cuenta; la diferencia se muestra, no se explica automáticamente.
