@@ -3030,6 +3030,8 @@ function calcDispatch_(body) {
     case 'calc_correccion':        return calcCorreccion_(body, u);
     case 'calc_estado':            return calcEstado_(body, u);
     case 'calc_correo':            return calcCorreo_(body);
+    case 'calc_descargar':         return calcDescargar_(body);
+    case 'calc_appsheet_push':     return calcAppsheetPush_(body, u);
     case 'calc_solicitar_syntage': return calcSolicitarSyntage_(body, u);
     case 'calc_revelar_ciec':      return calcRevelarCiec_(body, u);
     default: return { ok: false, error: 'acción calc_ desconocida' };
@@ -3193,9 +3195,9 @@ function calcGenerar_(body, u) {
   const folder = calcFolder_(rfc, periodo); const calc_id = 'CALC-' + periodo + '-' + rfc;
   const ids = {}; ['es', 'en', 'zh'].forEach(function (l) { ids[l] = calcReplaceFile_(folder, 'Calculo_' + rfc + '_' + periodo + '_' + l + '.html', TallyCalculo.render(calc, l), 'text/html'); });
   const jsonId = calcReplaceFile_(folder, 'calculo_' + rfc + '_' + periodo + '.json', JSON.stringify(calc), 'application/json');
+  // El entregable es Excel y se genera bajo demanda (calcXlsxAsegurar_): descarga, correo y 'Carga en Sistema'.
   let pdfId = '';
-  try { const it = folder.getFilesByName('Calculo_' + rfc + '_' + periodo + '_' + (input.idioma || 'es') + '.pdf'); while (it.hasNext()) it.next().setTrashed(true);
-    pdfId = folder.createFile(HtmlService.createHtmlOutput(TallyCalculo.render(calc, input.idioma || 'es')).getBlob().getAs('application/pdf').setName('Calculo_' + rfc + '_' + periodo + '_' + (input.idioma || 'es') + '.pdf')).getId(); } catch (e) { pdfId = ''; }
+  almAsegurarCols_('calculos_impuestos', CALC_COLS_V2);
   const prev = almLeer_('calculos_impuestos').filter(function (r) { return r.calc_id === calc_id; })[0];
   const now = new Date().toISOString();
   almUpsert_('calculos_impuestos', ['calc_id'], [{ calc_id: calc_id, company_id: input.cliente.company_id || '', rfc: rfc, nombre: input.cliente.nombre, periodo: periodo, anio: String(input.periodo.anio), mes: String(input.periodo.mes),
@@ -3242,14 +3244,14 @@ function calcEstado_(body, u) {
 function calcCorreo_(body) {
   const g = calcGet_(body); if (!g.ok) return g;
   const l = body.idioma || g.fila.idioma || 'es'; const e = TallyCalculo.emailSummary(g.calculo, l);
-  const adjId = g.fila.pdf_id || g.fila['html_' + l + '_id'];
-  return { ok: true, asunto: e.subject, cuerpo: e.body, adjunto_id: adjId, adjunto_nombre: adjId ? DriveApp.getFileById(adjId).getName() : '', idioma: l, company_id: g.fila.company_id, cliente: g.fila.nombre };
+  const x = calcXlsxAsegurar_(g.fila, g.calculo, l);
+  return { ok: true, asunto: e.subject, cuerpo: e.body, adjunto_id: x.id, adjunto_nombre: x.nombre, idioma: l, company_id: g.fila.company_id, cliente: g.fila.nombre };
 }
-/* En send_direct: body.adjuntos puede traer {calc_id, idioma} → se adjunta el PDF/HTML del cálculo (ver calcAdjuntoDoc_). */
+/* En send_direct: body.adjuntos puede traer {calc_id, idioma} → se adjunta el EXCEL del cálculo (ver calcAdjuntoDoc_). */
 function calcAdjuntoDoc_(a) {
-  const r = almLeer_('calculos_impuestos').filter(function (x) { return x.calc_id === a.calc_id; })[0]; if (!r) return null;
-  const id = r.pdf_id || r['html_' + (a.idioma || r.idioma || 'es') + '_id']; if (!id) return null;
-  const f = DriveApp.getFileById(id); return { blob: f.getBlob(), nombre: f.getName() };
+  const g = calcGet_({ calc_id: a.calc_id }); if (!g.ok) return null;
+  try { const x = calcXlsxAsegurar_(g.fila, g.calculo, a.idioma || g.fila.idioma || 'es'); const b = x.blob || DriveApp.getFileById(x.id).getBlob(); return { blob: b.copyBlob().setName(x.nombre), nombre: x.nombre }; }
+  catch (e) { const id = g.fila['html_' + (a.idioma || g.fila.idioma || 'es') + '_id']; if (!id) return null; const f = DriveApp.getFileById(id); return { blob: f.getBlob(), nombre: f.getName() }; }
 }
 
 /* ── 7. Cliente sin Syntage → solicitud a Juan ── */
@@ -3288,4 +3290,308 @@ function calcRevelarCiec_(body, u) {
   const ciec = calcDescifrar_(fila.ciec_cifrada, PropertiesService.getScriptProperties().getProperty('CIEC_SECRET') || TOKEN);
   almUpsert_('credenciales_ciec_pendientes', ['token'], [{ token: body.token, ciec_cifrada: '', revelado_en: new Date().toISOString(), estado: 'revelada' }]);
   return { ok: true, rfc: fila.rfc, nombre: fila.nombre, ciec: ciec };
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   🧮 CÁLCULO DE IMPUESTOS · v2 (4-sep-2026): entregable EXCEL + "Carga en Sistema"
+   - El documento final es .xlsx (antes PDF). Se genera bajo demanda y se cachea
+     por idioma en la carpeta del cliente. El HTML sigue siendo la vista previa.
+   - "Carga en Sistema" escribe en la tabla `calculo_impuestos` de AppSheet:
+     pestaña del spreadsheet accounting_reports_clients (REPORTES_ID) + archivo en
+     la carpeta calculo_impuestos_Files_, con la misma convención de nombre que usa
+     el equipo hoy: <calc_imp_id>.Documento.<HHMMSS>. <Cliente> - Tax Calculation <MMAAAA>.xlsx
+   ═══════════════════════════════════════════════════════════════════════════ */
+const CALC_APPSHEET_TABLA = 'calculo_impuestos';
+const CALC_APPSHEET_FILES = '1HNBxWPM0-TmioceSIIpqdcBkY7pnqGL1'; // carpeta calculo_impuestos_Files_
+const CALC_COLS_V2 = ['xlsx_es_id', 'xlsx_en_id', 'xlsx_zh_id', 'appsheet_calc_imp_id', 'appsheet_ruta', 'appsheet_cargado_en'];
+try { CALC_COLS_V2.forEach(function (c) { if (ALM_TABS.calculos_impuestos.indexOf(c) < 0) ALM_TABS.calculos_impuestos.push(c); }); } catch (e) {}
+
+/** Agrega al almacén las columnas que falten en una pestaña ya creada. */
+function almAsegurarCols_(nombre, cols) {
+  const sh = getOrCreate(almacenSS_(), nombre, ALM_TABS[nombre] || cols);
+  const nc = Math.max(1, sh.getLastColumn());
+  const head = sh.getRange(1, 1, 1, nc).getValues()[0].map(String);
+  const faltan = cols.filter(function (c) { return head.indexOf(c) < 0; });
+  if (faltan.length) sh.getRange(1, head.length + 1, 1, faltan.length).setValues([faltan]).setNumberFormat('@');
+  return sh;
+}
+
+/* ── Nombre comercial corto para el archivo (como lo nombra el equipo) ── */
+function calcNombreCorto_(n) {
+  return String(n || '').replace(/[,.]?\s*(S\.?\s?de\s?R\.?\s?L\.?|S\.?\s?A\.?\s?P\.?\s?I\.?|S\.?\s?A\.?|S\.?\s?C\.?)(\s?de\s?C\.?\s?V\.?)?\.?\s*$/i, '').trim() || String(n || '').trim();
+}
+
+/* ═══════════ EXCEL: el documento final ═══════════ */
+function calcXlsxBlob_(calc, lang, nombreArchivo) {
+  lang = TallyCalculo.I18N[lang] ? lang : 'es';
+  const t = TallyCalculo.I18N[lang];
+  const TABS = { es: ['Resumen', 'Cómo calculamos', 'IVA', 'ISR', 'Detalle', 'CFDI', 'Notas'],
+                 en: ['Summary', 'How we calculate', 'VAT', 'Income tax', 'Detail', 'Invoices', 'Notes'],
+                 zh: ['摘要', '计算方法', '增值税', '所得税', '明细', '发票', '说明'] }[lang];
+  const VIO = '#6047ff', VIO100 = '#dcdcff', INK = '#212121', CREAM = '#fefcf8', MUT = '#6b6b6b', OKC = '#c8e8ce', WRN = '#fcddd6';
+  const N2 = '#,##0.00;(#,##0.00)';
+  const cl = calc.cliente || {}, p = calc.periodo || {}, iva = calc.iva || {}, isr = calc.isr || {}, rs = calc.resumen || {};
+  const per = (t.months[(p.mes || 1) - 1] || '') + ' ' + (p.anio || '');
+  const est = calc.estado === 'approved' ? t.status_approved : calc.estado === 'filed' ? t.status_filed : t.status_draft;
+  const ss = SpreadsheetApp.create('__tmp_calc_' + Date.now());
+
+  function hoja(i) {
+    const s = i === 0 ? ss.getSheets()[0] : ss.insertSheet();
+    s.setName(TABS[i]); s.setHiddenGridlines(true);
+    s.getRange('A1').setValue('Tally · ' + t.doc_title).setFontFamily('Arial').setFontSize(9).setFontColor(VIO).setFontWeight('bold');
+    s.getRange('A2').setValue(cl.nombre + ' · ' + cl.rfc + ' · ' + per).setFontFamily('Arial').setFontSize(14).setFontWeight('bold').setFontColor(INK);
+    return s;
+  }
+  function bloque(s, r, filas, ancho) {
+    if (!filas.length) return r;
+    const w = ancho || filas[0].length;
+    const vals = filas.map(function (f) { const o = f.slice(0, w); while (o.length < w) o.push(''); return o; });
+    s.getRange(r, 1, vals.length, w).setValues(vals).setFontFamily('Arial').setFontSize(10).setVerticalAlignment('top');
+    return r + vals.length;
+  }
+  function titulo(s, r, txt, sub) {
+    s.getRange(r, 1).setValue(txt).setFontFamily('Arial').setFontSize(12).setFontWeight('bold').setFontColor(INK);
+    if (sub) s.getRange(r + 1, 1).setValue(sub).setFontFamily('Arial').setFontSize(9).setFontColor(MUT).setWrap(true);
+    return r + (sub ? 2 : 1);
+  }
+  function encabezado(s, r, labels) {
+    s.getRange(r, 1, 1, labels.length).setValues([labels]).setFontFamily('Arial').setFontSize(9).setFontWeight('bold')
+      .setFontColor(CREAM).setBackground(VIO).setVerticalAlignment('middle').setWrap(true);
+    s.setFrozenRows(r);
+    return r + 1;
+  }
+  function anchos(s, ws) { ws.forEach(function (w, i) { s.setColumnWidth(i + 1, w); }); }
+  function money(s, a1) { s.getRange(a1).setNumberFormat(N2).setHorizontalAlignment('right'); }
+
+  try {
+    /* ── 1 · Resumen ejecutivo ── */
+    var s = hoja(0); var r = 4;
+    r = titulo(s, r, t.exec_title, t.exec_lead);
+    r = bloque(s, r + 1, [
+      [t.rfc, cl.rfc || ''], [t.regime, cl.regimen || '—'], [t.marketplace, cl.marketplace || '—'],
+      [t.period, per], [t.status, est], [t.issued, calc.emitido || '']
+    ], 3);
+    var kpi = r + 1;
+    const total = (iva.a_pagar || 0) + (typeof isr.a_pagar === 'number' ? isr.a_pagar : 0);
+    r = encabezado(s, kpi, [t.col_concept, t.col_amount, '']);
+    r = bloque(s, r, [
+      [t.kpi_total, total, 'MXN'],
+      [t.kpi_iva, iva.a_pagar || 0, ''],
+      [t.kpi_isr, typeof isr.a_pagar === 'number' ? isr.a_pagar : t.pending, ''],
+      [t.kpi_favor, iva.saldo_favor_arrastre || 0, ''],
+      [t.kpi_ret, (rs.isr_retenido_mes || 0) + (rs.iva_retenido_mes || 0), ''],
+      [t.exec_sales, rs.ventas_base || 0, ''],
+      [t.exec_orders, rs.ordenes == null ? '—' : rs.ordenes, ''],
+      [t.exec_domestic, rs.ordenes_16 == null ? '—' : rs.ordenes_16, ''],
+      [t.exec_cross, rs.ordenes_0 == null ? '—' : rs.ordenes_0, '']
+    ], 3);
+    money(s, 'B' + (kpi + 1) + ':B' + (kpi + 6));
+    s.getRange(kpi + 1, 1, 1, 3).setBackground(VIO100).setFontWeight('bold');
+    s.getRange(kpi + 1, 2).setFontSize(14);
+    if (calc.lectura && calc.lectura[lang]) { r = titulo(s, r + 1, t.reading, calc.lectura[lang]); }
+    r = titulo(s, r + 1, t.exec_next);
+    r = bloque(s, r, [['1. ' + t.exec_next_1], ['2. ' + t.exec_next_2], ['3. ' + t.exec_next_3]], 3);
+    if ((calc.alertas || []).length) {
+      var ra = titulo(s, r + 1, t.notes_title);
+      var rb = bloque(s, ra, (calc.alertas || []).map(function (a) { return [a[lang] || a.es || a]; }), 3);
+      s.getRange(ra, 1, rb - ra, 3).setBackground(WRN).setWrap(true); r = rb;
+    }
+    s.getRange(4, 1, r, 1).setWrap(true);
+    anchos(s, [62 * 7, 22 * 7, 14 * 7]);
+
+    /* ── 2 · Cómo calculamos ── */
+    s = hoja(1); r = titulo(s, 4, t.how_title, t.how_lead);
+    r = titulo(s, r + 1, t.how_steps_title);
+    r = bloque(s, r, [1, 2, 3, 4, 5].map(function (i) { return [i + '. ' + t['how_step_' + i]]; }), 3);
+    r = titulo(s, r + 1, t.src_title);
+    r = encabezado(s, r, [t.src_col_src, t.src_col_what, t.src_col_status]);
+    var r0 = r;
+    r = bloque(s, r, (calc.fuentes || []).map(function (f) {
+      return [f[lang] || f.nombre || '', f['que_' + lang] || f.que || '', f.estado === 'ok' ? t.src_ok : f.estado === 'partial' ? t.src_partial : t.src_missing];
+    }), 3);
+    for (var i = r0; i < r; i++) {
+      var v = String(s.getRange(i, 3).getValue());
+      s.getRange(i, 3).setBackground(v === t.src_ok ? OKC : v === t.src_partial ? '#dcf8ff' : WRN);
+    }
+    s.getRange(4, 1, r, 2).setWrap(true); anchos(s, [58 * 7, 52 * 7, 16 * 7]);
+
+    /* ── 3 · IVA ── */
+    s = hoja(2); r = titulo(s, 4, t.iva_title, t.iva_lead);
+    r = encabezado(s, r + 1, [t.col_concept, t.col_amount, t.col_source]);
+    var f0 = r;
+    r = bloque(s, r, [
+      [t.iva_r1, iva.base_16 || 0, iva.src_16 || ''],
+      [t.iva_r2, iva.base_0 || 0, iva.src_0 || ''],
+      [t.iva_r3, iva.trasladado || 0, iva.src_trasladado || ''],
+      [t.iva_r4, -(iva.retenido || 0), iva.src_retenido || ''],
+      [t.iva_r5, -(iva.acreditable || 0), iva.src_acreditable || ''],
+      [t.iva_r6, -(iva.saldo_favor_anterior || 0), ''],
+      [t.iva_r7, '=SUM(B' + (f0 + 2) + ':B' + (f0 + 4) + ')', ''],
+      [t.iva_r8, '=MAX(0,B' + (f0 + 6) + '+B' + (f0 + 5) + ')', ''],
+      [t.iva_r9, '=MAX(0,-(B' + (f0 + 6) + '+B' + (f0 + 5) + '))', '']
+    ], 3);
+    money(s, 'B' + f0 + ':B' + (r - 1));
+    s.getRange(f0 + 7, 1, 1, 3).setBackground(VIO100).setFontWeight('bold');
+    if (iva.ppd_pendiente) r = bloque(s, r + 1, [['(i) ' + (lang === 'es' ? 'IVA de facturas por pagar (PPD), no acreditable este mes' : lang === 'en' ? 'VAT on unpaid invoices (PPD), not creditable this month' : '未付款发票的增值税（PPD），本月不可抵扣'), iva.ppd_pendiente, '']], 3);
+    s.getRange(4, 1, r, 1).setWrap(true); s.getRange(4, 3, r, 1).setWrap(true).setFontSize(9).setFontColor(MUT);
+    anchos(s, [58 * 7, 20 * 7, 44 * 7]);
+
+    /* ── 4 · ISR ── */
+    s = hoja(3); r = titulo(s, 4, t.isr_title, t.isr_lead);
+    if (isr.cu == null) { s.getRange(r, 1).setValue('⚠ ' + t.isr_no_cu).setBackground(WRN).setWrap(true).setFontFamily('Arial').setFontSize(10); r += 1; }
+    r = encabezado(s, r + 1, [t.col_concept, t.col_amount, '']);
+    var g0 = r;
+    const cuTxt = isr.cu == null ? t.pending : isr.cu;
+    r = bloque(s, r, [
+      [t.isr_r1, isr.ingresos_mes || 0, ''],
+      [t.isr_r2, isr.ingresos_acum || 0, ''],
+      [t.isr_r3, cuTxt, ''],
+      [t.isr_r4, isr.cu == null ? t.pending : '=B' + (g0 + 1) + '*B' + (g0 + 2), ''],
+      [t.isr_r5, isr.cu == null ? t.pending : -(isr.perdidas || 0), ''],
+      [t.isr_r6, isr.cu == null ? t.pending : '=MAX(0,B' + (g0 + 3) + '+B' + (g0 + 4) + ')', ''],
+      [t.isr_r7, isr.cu == null ? t.pending : '=B' + (g0 + 5) + '*0.3', ''],
+      [t.isr_r8, -(isr.retenido_acum || 0), ''],
+      [t.isr_r9, -(isr.pagos_previos || 0), ''],
+      [t.isr_r10, isr.cu == null ? t.pending : '=MAX(0,B' + (g0 + 6) + '+B' + (g0 + 7) + '+B' + (g0 + 8) + ')', '']
+    ], 3);
+    money(s, 'B' + g0 + ':B' + (r - 1));
+    s.getRange(g0 + 2, 2).setNumberFormat('0.0000');
+    s.getRange(g0 + 9, 1, 1, 3).setBackground(VIO100).setFontWeight('bold');
+    s.getRange(4, 1, r, 1).setWrap(true); anchos(s, [58 * 7, 20 * 7, 14 * 7]);
+
+    /* ── 5 · Detalle mensual + banco ── */
+    s = hoja(4); r = titulo(s, 4, t.detail_title, t.detail_lead);
+    r = encabezado(s, r + 1, [t.col_month, t.col_orders, t.col_base, t.col_iva, t.col_iva_ret, t.col_isr_ret]);
+    var d0 = r;
+    r = bloque(s, r, (calc.detalle_meses || []).map(function (d) {
+      return [t.months[d.mes - 1], d.ordenes == null ? '' : d.ordenes, d.base || 0, d.iva || 0, d.iva_ret || 0, d.isr_ret || 0];
+    }), 6);
+    if (r > d0) { s.getRange(r, 1).setValue(t.col_total).setFontWeight('bold');
+      s.getRange(r, 3, 1, 4).setFormulas([['=SUM(C' + d0 + ':C' + (r - 1) + ')', '=SUM(D' + d0 + ':D' + (r - 1) + ')', '=SUM(E' + d0 + ':E' + (r - 1) + ')', '=SUM(F' + d0 + ':F' + (r - 1) + ')']]);
+      s.getRange(r, 1, 1, 6).setFontWeight('bold').setBackground(VIO100); r += 1; }
+    money(s, 'C' + d0 + ':F' + (r - 1));
+    r = titulo(s, r + 1, t.bank_title, t.bank_lead);
+    r = encabezado(s, r, [t.col_month, t.col_bank_expected, t.col_bank_actual, t.col_diff, '', '']);
+    var b0 = r;
+    r = bloque(s, r, (calc.banco || []).map(function (b) {
+      return [t.months[b.mes - 1], b.esperado || 0, b.real == null ? t.bank_missing : b.real, b.real == null ? '' : (b.esperado || 0) - b.real, b.nota || '', ''];
+    }), 6);
+    money(s, 'B' + b0 + ':D' + (r - 1));
+    anchos(s, [16 * 7, 18 * 7, 18 * 7, 16 * 7, 16 * 7, 40 * 7]);
+
+    /* ── 6 · CFDI ── */
+    s = hoja(5); r = titulo(s, 4, t.cfdi_title, t.cfdi_lead);
+    [[t.cfdi_issued, calc.cfdi_emitidos], [t.cfdi_received, calc.cfdi_recibidos]].forEach(function (par) {
+      r = titulo(s, r + 1, par[0]);
+      r = encabezado(s, r, [t.col_date, t.col_who, t.col_subtotal, 'IVA', t.col_total, '']);
+      var c0 = r;
+      var filas = (par[1] || []).map(function (x) { return [x.fecha || '', x.quien || '', x.subtotal || 0, x.iva || 0, x.total || 0, '']; });
+      r = bloque(s, r, filas.length ? filas : [['', t.col_none, '', '', '', '']], 6);
+      money(s, 'C' + c0 + ':E' + (r - 1));
+    });
+    s.getRange(4, 2, r, 1).setWrap(true); anchos(s, [14 * 7, 62 * 7, 18 * 7, 16 * 7, 18 * 7, 10 * 7]);
+
+    /* ── 7 · Notas y glosario ── */
+    s = hoja(6); r = titulo(s, 4, t.notes_title, t.notes_lead);
+    r = bloque(s, r, (calc.notas || []).map(function (n) { return ['• ' + (n[lang] || n.es || n)]; }), 2);
+    r = titulo(s, r + 1, t.glossary_title);
+    r = encabezado(s, r, [t.col_concept, '']);
+    r = bloque(s, r, ['iva', 'isr', 'cfdi', 'ret', 'favor', 'cu'].map(function (k) { return [t['gl_' + k], t['gl_' + k + '_d']]; }), 2);
+    r = bloque(s, r + 1, [[t.footer]], 2);
+    s.getRange(4, 1, r, 2).setWrap(true); anchos(s, [30 * 7, 90 * 7]);
+
+    SpreadsheetApp.flush();
+    const resp = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + ss.getId() + '/export?format=xlsx',
+      { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+    if (resp.getResponseCode() >= 300) throw new Error('export xlsx ' + resp.getResponseCode());
+    return resp.getBlob().setName(nombreArchivo);
+  } finally {
+    try { DriveApp.getFileById(ss.getId()).setTrashed(true); } catch (e) {}
+  }
+}
+
+/** Devuelve {id, nombre} del xlsx del cálculo en el idioma pedido; lo genera y cachea si falta. */
+function calcXlsxAsegurar_(fila, calc, lang) {
+  lang = TallyCalculo.I18N[lang] ? lang : (fila.idioma || 'es');
+  const col = 'xlsx_' + lang + '_id';
+  if (fila[col]) { try { const f = DriveApp.getFileById(fila[col]); if (!f.isTrashed()) return { id: f.getId(), nombre: f.getName(), blob: f.getBlob() }; } catch (e) {} }
+  const nombre = 'Calculo_' + fila.rfc + '_' + fila.periodo + '_' + lang + '.xlsx';
+  const blob = calcXlsxBlob_(calc, lang, nombre);
+  const folder = fila.carpeta_drive ? DriveApp.getFolderById(fila.carpeta_drive) : calcFolder_(fila.rfc, fila.periodo);
+  const it = folder.getFilesByName(nombre); while (it.hasNext()) it.next().setTrashed(true);
+  const file = folder.createFile(blob);
+  const set = {}; set.calc_id = fila.calc_id; set[col] = file.getId(); set.actualizado_en = new Date().toISOString();
+  almAsegurarCols_('calculos_impuestos', CALC_COLS_V2);
+  almUpsert_('calculos_impuestos', ['calc_id'], [set]);
+  fila[col] = file.getId();
+  return { id: file.getId(), nombre: nombre, blob: blob };
+}
+
+/* ═══════════ Descarga desde la interfaz (base64 por JSONP) ═══════════ */
+function calcDescargar_(body) {
+  const g = calcGet_(body); if (!g.ok) return g;
+  const x = calcXlsxAsegurar_(g.fila, g.calculo, body.idioma || g.fila.idioma);
+  const blob = x.blob || DriveApp.getFileById(x.id).getBlob();
+  return { ok: true, nombre: x.nombre, mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', b64: Utilities.base64Encode(blob.getBytes()) };
+}
+
+/* ═══════════ "Carga en Sistema" → tabla calculo_impuestos de AppSheet ═══════════ */
+function calcAppsheetPush_(body, u) {
+  const g = calcGet_(body); if (!g.ok) return g;
+  const fila = g.fila;
+  if (!fila.company_id) return { ok: false, error: 'Este cálculo no tiene Company_Id del sistema (cliente capturado a mano). Asígnale su ficha en el padrón antes de cargarlo.' };
+  const sh = hojaDeTabla(CALC_APPSHEET_TABLA);
+  if (!sh) return { ok: false, error: 'No encontré la pestaña ' + CALC_APPSHEET_TABLA + ' (ni en el DataModel ni en accounting_reports_clients).' };
+
+  const lang = body.idioma || fila.idioma || 'es';
+  const x = calcXlsxAsegurar_(fila, g.calculo, lang);
+  const anio = Number(fila.anio), mes = Number(fila.mes);
+  const MES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  const periodId = almPeriodIdAppSheet_(fila.periodo, fila.company_id);      // 2026-8_AZ007386
+  const mm = ('0' + mes).slice(-2);
+
+  // Fila existente para el mismo cliente-período → se actualiza (el botón es idempotente)
+  const nc = Math.max(1, sh.getLastColumn());
+  const head = sh.getRange(1, 1, 1, nc).getValues()[0].map(String);
+  const norm = function (s) { return String(s || '').toLowerCase().replace(/[áàä]/g, 'a').replace(/[éèë]/g, 'e').replace(/[íìï]/g, 'i').replace(/[óòö]/g, 'o').replace(/[úùü]/g, 'u').replace(/[^a-z0-9]/g, ''); };
+  const idx = {}; head.forEach(function (h, j) { idx[norm(h)] = j; });
+  const need = ['companyid', 'calcimpid', 'documento'];
+  for (var k = 0; k < need.length; k++) if (idx[need[k]] === undefined) return { ok: false, error: 'La pestaña ' + CALC_APPSHEET_TABLA + ' no tiene la columna ' + need[k] + '. Encabezados: ' + head.join(', ') };
+  const nFilas = Math.max(0, sh.getLastRow() - 1);
+  const datos = nFilas ? sh.getRange(2, 1, nFilas, nc).getValues() : [];
+  var filaExistente = 0, calcImpId = '';
+  for (var i = 0; i < datos.length; i++) {
+    if (String(datos[i][idx.companyid]).trim() === periodId) { filaExistente = i + 2; calcImpId = String(datos[i][idx.calcimpid] || '').trim(); break; }
+  }
+  if (!calcImpId) calcImpId = Utilities.getUuid().replace(/-/g, '').slice(0, 8);
+
+  // Archivo en calculo_impuestos_Files_ con la convención del equipo
+  const nombreBonito = calcNombreCorto_(fila.nombre) + ' - Tax Calculation ' + mm + anio + '.xlsx';
+  const hhmmss = Utilities.formatDate(new Date(), 'America/Mexico_City', 'HHmmss');
+  const nombreAppsheet = calcImpId + '.Documento.' + hhmmss + '. ' + nombreBonito;
+  const carpeta = DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty('CALC_APPSHEET_FILES') || CALC_APPSHEET_FILES);
+  const archivo = carpeta.createFile((x.blob || DriveApp.getFileById(x.id).getBlob()).copyBlob().setName(nombreAppsheet));
+  const ruta = CALC_APPSHEET_TABLA + '_Files_/' + nombreAppsheet;
+
+  const valores = {};
+  valores[idx.companyid] = periodId;
+  if (idx.companyperiodid !== undefined) valores[idx.companyperiodid] = anio + '-' + MES_ES[mes - 1];
+  valores[idx.calcimpid] = calcImpId;
+  if (idx.mesperiodo !== undefined) valores[idx.mesperiodo] = MES_ES[mes - 1];
+  if (idx.anoperiodo !== undefined) valores[idx.anoperiodo] = String(anio);
+  valores[idx.documento] = ruta;
+  if (idx.fechadecarga !== undefined) valores[idx.fechadecarga] = Utilities.formatDate(new Date(), 'America/Mexico_City', 'MM/dd/yyyy');
+
+  if (filaExistente) {
+    Object.keys(valores).forEach(function (j) { sh.getRange(filaExistente, Number(j) + 1).setValue(valores[j]); });
+  } else {
+    const nueva = head.map(function (h, j) { return valores[j] !== undefined ? valores[j] : ''; });
+    sh.appendRow(nueva);
+  }
+  almAsegurarCols_('calculos_impuestos', CALC_COLS_V2);
+  almUpsert_('calculos_impuestos', ['calc_id'], [{ calc_id: fila.calc_id, appsheet_calc_imp_id: calcImpId, appsheet_ruta: ruta, appsheet_cargado_en: new Date().toISOString(), actualizado_en: new Date().toISOString() }]);
+  try { almLog_('calc_appsheet_push', 'ok', fila.calc_id + ' → ' + periodId + ' (' + (filaExistente ? 'actualizada' : 'nueva') + ')'); } catch (e) {}
+  return { ok: true, calc_imp_id: calcImpId, company_id: periodId, ruta: ruta, actualizada: !!filaExistente,
+           archivo_url: archivo.getUrl(), nombre: nombreBonito, mes: MES_ES[mes - 1], anio: String(anio) };
 }
