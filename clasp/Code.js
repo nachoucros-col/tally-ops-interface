@@ -2657,8 +2657,11 @@ function almDetalle_(metrica, periodo, owner) {
       const retenido = r2(c.iva_retenido != null ? c.iva_retenido : (l.iva_retenido || 0));
       const retenidoLiq = l.iva_retenido != null ? r2(l.iva_retenido) : null;
       const difRet = (c.iva_retenido != null && retenidoLiq != null && Math.abs(retenidoLiq - retenido) > 0.01) ? r2(retenidoLiq - retenido) : null;
+      /* Retenciones de meses anteriores que el cliente no acreditó: las captura el contador
+         y se aplican en el primer mes de la serie, en su propio renglón. */
+      const retAnterior = (m === meses[0]) ? r2(Number(in_.retenciones_pendientes) || 0) : 0;
       const acreditable = r2(f.iva_acreditable_pue || 0);
-      const resultado = r2(trasladado - retenido - acreditable);
+      const resultado = r2(trasladado - retenido - acreditable - retAnterior);
       const posicion = r2(resultado - saldoFavor);
       const aPagar = Math.max(0, posicion);
       const arrastre = Math.max(0, -posicion);
@@ -2698,12 +2701,24 @@ function almDetalle_(metrica, periodo, owner) {
           logo_svg: in_.logo_svg || null, lectura: in_.lectura || null, fuentes: in_.fuentes || [], alertas: (in_.alertas || []).concat(difRet != null ? ['El IVA retenido del certificado (' + retenido.toFixed(2) + ') no coincide con el de la liquidación del marketplace (' + retenidoLiq.toFixed(2) + '): diferencia de ' + difRet.toFixed(2) + '. El cálculo usa el certificado.'] : []), notas: in_.notas || [],
           resumen: { ventas_base: c.base, ordenes: c.ordenes, ordenes_16: c.ordenes_16, ordenes_0: (c.ordenes != null && c.ordenes_16 != null) ? c.ordenes - c.ordenes_16 : null,
                      isr_retenido_mes: c.isr_retenido, iva_retenido_mes: retenido, ingreso_liquidacion: l.ingreso_neto, transferencias: l.transferencias },
-          iva: { base_16: base16, base_0: base0, trasladado, retenido, acreditable, saldo_favor_anterior: saldoFavor, resultado, a_pagar: aPagar, saldo_favor_arrastre: arrastre,
+          iva: { base_16: base16, base_0: base0, trasladado, retenido, retenido_anterior: retAnterior, acreditable, saldo_favor_anterior: saldoFavor, resultado, a_pagar: aPagar, saldo_favor_arrastre: arrastre,
+                 src_retenido_anterior: 'Historial capturado por el contador',
                  ppd_pendiente: f.iva_ppd_pendiente || 0,
                  src_16: 'Certificado de retenciones ' + (c.folio || ''), src_0: 'Certificado de retenciones', src_trasladado: 'Certificado de retenciones', src_retenido: 'Certificado de retenciones' + (retenidoLiq != null ? ' · liquidación: ' + retenidoLiq.toFixed(2) : ''), src_acreditable: 'CFDI recibidos (SAT / Syntage)' },
           isr: { ingresos_mes: c.base, ingresos_acum: ingresosAcum, cu, utilidad, perdidas: cu !== null ? Math.min(utilidad, perdidas) : null, base: baseISR, isr_acum: isrAcum, retenido_acum: retAcum, pagos_previos: pagosAcum, a_pagar: isrPagar },
           cfdi_emitidos: f.emitidos || [], cfdi_recibidos: f.recibidos || [],
-          detalle_meses: detalle.slice(), banco: banco.slice(), serie: serie.slice()
+          detalle_meses: detalle.slice(), banco: banco.slice(), serie: serie.slice(),
+          contexto: in_.contexto || '', contexto_autor: in_.contexto_autor || '',
+          rango: in_.rango ? {
+            desde: in_.rango.desde, hasta: in_.rango.hasta, meses: serie.length,
+            iva_a_pagar: r2(serie.reduce(function (a, x) { return a + (x.iva_a_pagar || 0); }, 0)),
+            ventas: r2(detalle.reduce(function (a, x) { return a + (x.base || 0); }, 0)),
+            ordenes: detalle.reduce(function (a, x) { return a + (Number(x.ordenes) || 0); }, 0),
+            iva_trasladado: r2(detalle.reduce(function (a, x) { return a + (x.iva || 0); }, 0)),
+            iva_retenido: r2(detalle.reduce(function (a, x) { return a + (x.iva_ret || 0); }, 0)),
+            isr_retenido: r2(detalle.reduce(function (a, x) { return a + (x.isr_ret || 0); }, 0)),
+            saldo_favor_final: arrastre, isr_a_pagar: isrPagar
+          } : null
         };
       }
       saldoFavor = arrastre;
@@ -3037,6 +3052,74 @@ ALM_TABS.calculos_impuestos = ['calc_id', 'company_id', 'rfc', 'nombre', 'period
 ALM_TABS.solicitudes_syntage = ['ts', 'rfc', 'nombre', 'solicitado_por', 'con_ciec', 'canal', 'estado'];
 ALM_TABS.credenciales_ciec_pendientes = ['token', 'rfc', 'nombre', 'ciec_cifrada', 'solicitado_por', 'solicitado_en', 'revelado_en', 'estado'];
 
+/* ── Documentos que ya viven en el ecosistema ──────────────────────────────────
+   El contador no debe bajar de AppSheet para volver a subir aquí. Estas son las
+   tablas donde el equipo ya carga los documentos fuente, con su columna de archivo.
+   NADA de esto se asume como fuente única: la lista dice de dónde viene cada
+   documento, se puede seguir arrastrando archivos a mano, y si una tabla no
+   responde se informa en lugar de fingir que no hay documentos. */
+var CALC_DOCS_FUENTES = [
+  { tabla: 'Retenciones_por_periodo', col: 'URLRetencion', tipo: 'certificado_retenciones' },
+  { tabla: 'Reportes_de_venta',       col: 'Archivo',      tipo: 'resumen_marketplace' },
+  { tabla: 'Estados_cuenta',          col: 'UrlVentas',    tipo: 'estado_cuenta' },
+  { tabla: 'declaracion_periodo',     col: 'Acuse',        tipo: 'acuse_declaracion' },
+  { tabla: 'Solicitud Docs Contabilidad', col: 'Archivo',  tipo: 'otro' }
+];
+function calcLeerTablaSistema_(tabla) {
+  const sh = hojaDeTabla(tabla);
+  if (sh) {
+    const data = sh.getDataRange().getValues();
+    if (!data.length) return { filas: [], via: 'hoja' };
+    const head = data[0].map(String);
+    const filas = [];
+    for (let i = 1; i < data.length; i++) { const o = {}; for (let j = 0; j < head.length; j++) o[head[j]] = data[i][j]; filas.push(o); }
+    return { filas: filas, via: 'hoja del DataModel' };
+  }
+  const r = appsheetApi_(tabla, 'Find', [], '');
+  if (r && r._error) return { filas: [], via: 'AppSheet', error: r._error };
+  return { filas: (r && r.length ? r : (r && r.Rows) || []), via: 'API de AppSheet' };
+}
+function calcDocsSistema_(body) {
+  const cid = String(body.company_id || '').trim();
+  if (!cid) return { ok: false, error: 'este cliente no tiene company_id en el padrón, así que no puedo buscar sus documentos en el sistema' };
+  const filtro = {}; let conFiltro = false;
+  (body.periodos || []).forEach(function (p) { filtro[Number(p.anio) + '-' + Number(p.mes)] = true; conFiltro = true; });
+  const docs = [], avisos = [];
+  CALC_DOCS_FUENTES.forEach(function (f) {
+    const t = calcLeerTablaSistema_(f.tabla);
+    if (t.error) { avisos.push(f.tabla + ': ' + t.error); return; }
+    t.filas.forEach(function (r) {
+      let clave = '';
+      ['Company_id', 'company_id', 'Company_Id'].forEach(function (k) { if (!clave && r[k]) clave = String(r[k]).trim(); });
+      if (!clave || clave.indexOf(cid) < 0) return;
+      const per = clave.split('_')[0];                             /* '2026-7' */
+      const par = per.split('-');
+      const anio = Number(par[0]) || null, mes = Number(par[1]) || null;
+      if (conFiltro && !filtro[anio + '-' + mes]) return;
+      let ruta = '';
+      [f.col, 'Archivo', 'URLRetencion', 'UrlVentas', 'Acuse', 'Documento'].forEach(function (k) { if (!ruta && r[k]) ruta = String(r[k]).trim(); });
+      if (!ruta) return;
+      const nombre = ruta.split('/').pop();
+      if (!nombre) return;
+      let fecha = '';
+      ['Fecha_carga', 'snapshot-date', 'FechaRecepción', 'Fecha de carga', 'Fecha'].forEach(function (k) { if (!fecha && r[k]) fecha = String(r[k]).slice(0, 10); });
+      docs.push({ tipo: f.tipo, tabla: f.tabla, via: t.via, periodo: per, anio: anio, mes: mes,
+        mes_nombre: String(r.MesPeriodo || ''), archivo: nombre, ruta: ruta, fecha: fecha,
+        extension: (nombre.split('.').pop() || '').toLowerCase() });
+    });
+  });
+  /* Resolución a Drive por nombre de archivo: es el puente entre la ruta que guarda
+     AppSheet y el archivo real, sin que nadie tenga que descargarlo. */
+  docs.forEach(function (d) {
+    try {
+      const it = DriveApp.getFilesByName(d.archivo);
+      if (it.hasNext()) { const f2 = it.next(); d.file_id = f2.getId(); d.bytes = f2.getSize(); }
+    } catch (e) {}
+  });
+  docs.sort(function (a, b) { return (b.anio - a.anio) || (b.mes - a.mes) || String(a.tipo).localeCompare(String(b.tipo)); });
+  return { ok: true, documentos: docs, sin_archivo: docs.filter(function (d) { return !d.file_id; }).length, avisos: avisos };
+}
+
 function calcDispatch_(body) {
   const u = checkUser(body.auth); if (!u.ok) return { ok: false, error: 'no autenticado' };
   u.admin = checkAdmin(body.auth);
@@ -3044,6 +3127,7 @@ function calcDispatch_(body) {
     case 'calc_clientes':          return calcClientes_(body);
     case 'calc_upload':            return calcUpload_(body, u);
     case 'calc_extraer':           return calcExtraer_(body);
+    case 'calc_docs_sistema':      return calcDocsSistema_(body);
     case 'calc_syntage':           return calcSyntage_(body);
     case 'calc_generar':           return calcGenerar_(body, u);
     case 'calc_listar':            return calcListar_(body, u);
