@@ -2742,6 +2742,7 @@ function almDetalle_(metrica, periodo, owner) {
       isr_no_cu: 'Pendiente: coeficiente de utilidad de la declaración anual. Sin él no se determina pago provisional.',
       detail_title: 'Detalle de ventas y retenciones', detail_lead: 'Lo que reporta el marketplace, mes a mes.',
       col_month: 'Mes', col_orders: 'Órdenes', col_base: 'Base sin IVA', col_iva: 'IVA cobrado', col_isr_ret: 'ISR retenido', col_iva_ret: 'IVA retenido', col_total: 'Total',
+      cost_title: 'Costos y gastos', cost_lead: 'Lo que costó vender este mes, según los documentos.', cost_mk: 'Comisiones y tarifas del marketplace (resumen mensual)', cost_cfdi: 'Gastos facturados a tu empresa (CFDI recibidos del mes)', cost_total: 'Total de costos y gastos del mes', cost_profit: 'Utilidad estimada del mes (ventas − costos y gastos)', cost_ctrl: 'Control: la suma del detalle contra las tarifas netas del resumen', cost_ok: 'cuadra', cost_bad: 'no cuadra', cost_none: 'Sin resumen mensual del marketplace: no hay detalle de comisiones', cost_note: 'Las comisiones salen del resumen mensual del marketplace y su suma cuadra contra el renglón de tarifas netas. Los gastos facturados son el subtotal de los CFDI recibidos del mes. Si el marketplace factura sus comisiones por CFDI, esas comisiones están en los dos bloques: este documento no decide la deducibilidad, eso lo revisa el contador.',
       cfdi_title: 'Facturas (CFDI) registradas en el SAT', cfdi_lead: 'Lo que el SAT ve de tu empresa este mes.',
       cfdi_issued: 'Facturas emitidas por tu empresa', cfdi_received: 'Facturas recibidas (gastos)', col_date: 'Fecha', col_who: 'Emisor / receptor', col_subtotal: 'Subtotal', col_none: 'Sin facturas en el período',
       bank_title: 'Conciliación bancaria', bank_lead: 'Lo que el marketplace dice que te depositó contra lo que llegó al banco.', col_bank_expected: 'Depósitos según marketplace', col_bank_actual: 'Abonos en el estado de cuenta', col_diff: 'Diferencia', bank_missing: 'Sin estado de cuenta del mes',
@@ -2773,6 +2774,7 @@ function almDetalle_(metrica, periodo, owner) {
       isr_no_cu: 'Pending: profit coefficient from the annual return. Without it no provisional payment can be determined.',
       detail_title: 'Sales and withholding detail', detail_lead: 'What the marketplace reports, month by month.',
       col_month: 'Month', col_orders: 'Orders', col_base: 'Base (net of VAT)', col_iva: 'VAT collected', col_isr_ret: 'Income tax withheld', col_iva_ret: 'VAT withheld', col_total: 'Total',
+      cost_title: 'Costs and expenses', cost_lead: 'What it cost to sell this month, per the documents.', cost_mk: 'Marketplace fees and commissions (monthly summary)', cost_cfdi: 'Expenses invoiced to your company (CFDI received this month)', cost_total: 'Total costs and expenses for the month', cost_profit: 'Estimated profit for the month (sales − costs and expenses)', cost_ctrl: 'Control: detail total against net fees in the summary', cost_ok: 'matches', cost_bad: 'does not match', cost_none: 'No marketplace monthly summary: no fee detail available', cost_note: 'Fees come from the marketplace monthly summary and their total ties to the net fees line. Invoiced expenses are the subtotal of the CFDI received this month. If the marketplace invoices its fees by CFDI, those fees appear in both blocks: this document does not rule on deductibility, your accountant does.',
       cfdi_title: 'Invoices (CFDI) on record with SAT', cfdi_lead: 'What SAT sees of your company this month.', cfdi_issued: 'Invoices issued by your company', cfdi_received: 'Invoices received (expenses)', col_date: 'Date', col_who: 'Issuer / receiver', col_subtotal: 'Subtotal', col_none: 'No invoices in the period',
       bank_title: 'Bank reconciliation', bank_lead: 'What the marketplace says it paid you versus what reached the bank.', col_bank_expected: 'Payouts per marketplace', col_bank_actual: 'Credits on bank statement', col_diff: 'Difference', bank_missing: 'No bank statement for the month',
       notes_title: 'Notes and assumptions', notes_lead: 'What you need to know to read the figures correctly.',
@@ -2803,6 +2805,7 @@ function almDetalle_(metrica, periodo, owner) {
       isr_no_cu: '待定：年度申报中的利润系数。缺少该系数无法确定预缴税款。',
       detail_title: '销售与代扣明细', detail_lead: '平台逐月报告的数据。',
       col_month: '月份', col_orders: '订单', col_base: '不含税基础', col_iva: '收取增值税', col_isr_ret: '代扣所得税', col_iva_ret: '代扣增值税', col_total: '合计',
+      cost_title: '成本与费用', cost_lead: '按单据计算的本月销售成本。', cost_mk: '平台佣金与费用（月度汇总）', cost_cfdi: '开具给贵公司的费用发票（本月收到的 CFDI）', cost_total: '本月成本与费用合计', cost_profit: '本月预估利润（销售额 − 成本与费用）', cost_ctrl: '核对：明细合计与汇总中的净费用', cost_ok: '一致', cost_bad: '不一致', cost_none: '没有平台月度汇总：无费用明细', cost_note: '费用取自平台月度汇总，其合计与净费用行核对一致。已开票费用为本月收到的 CFDI 小计。若平台以 CFDI 开具其佣金，则该佣金同时出现在两个板块：本文件不判定可抵扣性，由会计师复核。',
       cfdi_title: 'SAT 登记的发票 (CFDI)', cfdi_lead: 'SAT 本月看到的贵公司情况。', cfdi_issued: '贵公司开具的发票', cfdi_received: '收到的发票（费用）', col_date: '日期', col_who: '开票方 / 受票方', col_subtotal: '小计', col_none: '本期无发票',
       bank_title: '银行对账', bank_lead: '平台声称的付款与实际到账的对比。', col_bank_expected: '平台付款', col_bank_actual: '银行对账单入账', col_diff: '差额', bank_missing: '缺少本月银行对账单',
       notes_title: '说明与假设', notes_lead: '正确阅读数字所需了解的事项。',
@@ -3136,6 +3139,46 @@ function calcTextoDeArchivo_(fileId) {
 }
 function calcNum_(s) { if (s == null) return null; const n = parseFloat(String(s).replace(/[^\d.\-]/g, '')); return isNaN(n) ? null : n; }
 function calcGrab_(t, re) { const m = t.match(re); return m ? calcNum_(m[1]) : null; }
+/* Conceptos del bloque "Gastos" del resumen mensual de Amazon. Se buscan de la etiqueta
+   más larga a la más corta porque unas contienen a otras, y el importe es el primer número
+   que aparece DESPUÉS de la etiqueta: el reporte imprime dos columnas por renglón. */
+var CALC_GASTOS_AMZ = [
+  ['Tarifas de inventario y de servicios de Log[ií]stica de Amazon', 'Tarifas de inventario y servicios de logística'],
+  ['Reembolsos de tarifas de transacci[oó]n FBA', 'Reembolsos de tarifas de transacción FBA'],
+  ['Reembolsos de tarifas de otras transacciones', 'Reembolsos de otras tarifas de transacción'],
+  ['Tarifas de venta realizadas por el vendedor', 'Tarifas de venta (vendedor)'],
+  ['Ajustes en la etiqueta de env[ií]o del transportista', 'Ajustes de etiqueta de envío'],
+  ['Tarifas de administraci[oó]n de reembolso', 'Tarifas de administración de reembolsos'],
+  ['Reembolsos de tarifa de venta', 'Reembolsos de tarifa de venta'],
+  ['Tarifas de transacci[oó]n FBA', 'Tarifas de transacción FBA'],
+  ['Tarifas de otra transacci[oó]n', 'Otras tarifas de transacción'],
+  ['Compras de etiqueta de env[ií]o', 'Compras de etiqueta de envío'],
+  ['Reembolsos de etiqueta de env[ií]o', 'Reembolsos de etiqueta de envío'],
+  ['Reembolso para el promotor', 'Reembolso para el promotor'],
+  ['Costo de la publicidad', 'Publicidad'],
+  ['Tarifas de venta FBA', 'Tarifas de venta FBA'],
+  ['Tarifas de servicio', 'Tarifas de servicio'],
+  ['Ajustes', 'Ajustes']
+];
+function calcGastosAmazon_(t) {
+  const out = [];
+  String(t || '').split(/\r?\n/).forEach(function (l0) {
+    const l = l0.replace(/\s+/g, ' ').replace(/^ +/, '');
+    if (/Tarifas netas|incluidas tarifas|subtotales/i.test(l)) return;
+    for (let i = 0; i < CALC_GASTOS_AMZ.length; i++) {
+      const re = new RegExp(CALC_GASTOS_AMZ[i][0], 'i');
+      const pos = l.search(re);
+      if (pos < 0) continue;
+      const enc = (l.match(re) || [''])[0];
+      const resto = l.slice(pos + enc.length);
+      const m = resto.match(/(-?[\d,]+\.\d\d)|(?:^|\s)(-?0)(?:\s|$)/);
+      const v = m ? calcNum_(m[1] != null ? m[1] : m[2]) : 0;
+      out.push({ concepto: CALC_GASTOS_AMZ[i][1], importe: v || 0 });
+      return;
+    }
+  });
+  return out;
+}
 function calcParseResumenAmazon_(t) {
   const per = t.match(/desde\s+([A-Za-z]{3})\s+\d+,\s*(\d{4})/); const M = { Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6, Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12 };
   return { mes: per ? M[per[1]] || null : null, anio: per ? Number(per[2]) : null,
@@ -3143,7 +3186,8 @@ function calcParseResumenAmazon_(t) {
     transferencias: Math.abs(calcGrab_(t, /Transferencias a cuenta bancaria\s+(-?[\d,]+\.\d\d)/) || 0),
     iva_retenido: Math.abs(calcGrab_(t, /\(IVA\) obligatorio de Amazon retenido\s+(-?[\d,]+\.\d\d)/) || 0),
     isr_retenido: Math.abs(calcGrab_(t, /Impuesto sobre la Renta retenido\s+(-?[\d,]+\.\d\d)/) || 0),
-    ventas_fba: calcGrab_(t, /Ventas de producto FBA\s+([\d,]+\.\d\d)/) };
+    ventas_fba: calcGrab_(t, /Ventas de producto FBA\s+([\d,]+\.\d\d)/),
+    gastos_detalle: calcGastosAmazon_(t), impuesto_neto: calcGrab_(t, /Impuesto\s+Impuestos netos[^\d\-]*(-?[\d,]+\.\d\d)/) };
 }
 
 /* ── 4. Syntage en vivo por RFC ── */
@@ -3397,7 +3441,7 @@ function calcPuntuaTexto_(t) { var s = 0, i; for (i = 0; i < CALC_DICC.length; i
 function calcPdfTexto_(bytes) {
   if (!bytes || bytes.length > 12000000) return '';
   var raw = calcPdfLatin1_(bytes), objs = calcPdfObjetos_(raw), fuentes = calcPdfFuentes_(raw, objs);
-  var paginas = [], claves = [], k;
+  var paginas = [], claves = [], k, truncado = false;
   for (k in objs) if (Object.prototype.hasOwnProperty.call(objs, k)) claves.push(k);
   claves.sort(function (a, b) { return objs[a].ini - objs[b].ini; });
   for (k = 0; k < claves.length; k++) {
@@ -3406,13 +3450,13 @@ function calcPdfTexto_(bytes) {
     var st = calcPdfStream_(raw, o); if (!st || !st.length) continue;
     var cs = calcPdfLatin1_(st); if (cs.indexOf('Tj') < 0 && cs.indexOf('TJ') < 0) continue;
     var sg = calcPdfSegmentos_(cs, fuentes); if (sg.length) paginas.push(sg);
-    if (paginas.length >= 15) break;                          /* certificados de miles de renglones: los totales están al inicio */
+    if (paginas.length >= 15) { truncado = true; break; }     /* certificados de miles de renglones: los totales están al inicio */
   }
   if (!paginas.length) return '';
   function todo(off) { var r = [], q; for (q = 0; q < paginas.length; q++) r.push(calcPdfLineas_(paginas[q], fuentes, off)); return r.join('\n'); }
   var mejor = todo(0), mejorP = calcPuntuaTexto_(mejor), offs = [29, 31, -29, 28, 30], z;
   for (z = 0; z < offs.length; z++) { var cand = todo(offs[z]), p = calcPuntuaTexto_(cand); if (p > mejorP) { mejor = cand; mejorP = p; } }
-  return mejor;
+  return truncado ? mejor + '\n[texto truncado: solo se leyeron las primeras paginas]' : mejor;
 }
 function calcTextoNativo_(fileId) {
   try {
@@ -3591,15 +3635,18 @@ function calcParseCertificado_(t) {
   const ivaTras = bloque.iva_trasladado != null ? bloque.iva_trasladado : calcGrab_(t, /Total IVA\s+([\d,]+\.\d\d)/);
   const ivaRet = bloque.iva_retenido != null ? bloque.iva_retenido : calcGrab_(t, /Total IVA retenido\s+([\d,]+\.\d\d)/);
   const isrRet = bloque.isr_retenido != null ? bloque.isr_retenido : calcGrab_(t, /Total ISR retenido\s+([\d,]+\.\d\d)/);
-  const declaradas = calcGrab_(t, /N[uú]mero\s+(\d+)\s+Periodicidad/) || calcGrab_(t, /N[uú]mero\s+servicios\s+(\d+)/);
-  const ordenes = declaradas || rows.length || null;
+  const truncado = /texto truncado/i.test(t);
+  const declaradas = calcGrab_(t, /N[uú]mero\s+(\d+)\s+Periodicidad/) || calcGrab_(t, /N[uú]mero\s+servicios\s+(\d+)/) ||
+    calcGrab_(t, /N[uú]mero\s+de\s+servicios\s+(\d+)/) || calcGrab_(t, /servicios\s+(\d{2,6})\s+Periodicidad/) || calcGrab_(t, /Periodicidad[\s\S]{0,40}?N[uú]mero\s+(\d+)/);
+  /* Si el detalle se truncó, contar renglones daría un número menor al real: se deja sin dato. */
+  const ordenes = declaradas || (truncado ? null : (rows.length || null));
 
   /* Órdenes con IVA 16%: se cuentan del detalle cuando el detalle se leyó completo; si no,
      y si todo el monto de operación coincide con la base al 16% (trasladado / 0.16), son
      todas. En cualquier otro caso se deja sin dato y el documento lo declara. */
   let ord16 = null, ord16Origen = 'sin dato';
   const contadas = rows.filter(function (r) { return r.iva > 0; }).length;
-  if (rows.length && (!ordenes || rows.length >= ordenes * 0.95)) { ord16 = contadas; ord16Origen = 'contado del detalle'; }
+  if (rows.length && !truncado && (!ordenes || rows.length >= ordenes * 0.95)) { ord16 = contadas; ord16Origen = 'contado del detalle'; }
   else if (ivaTras != null && base) {
     const b16 = ivaTras / 0.16;
     if (Math.abs(b16 - base) <= Math.max(1, base * 0.005)) { ord16 = ordenes; ord16Origen = 'derivado: todo el monto de operación está gravado al 16%'; }
@@ -3762,7 +3809,9 @@ function calcGenerar_(body, u) {
   almUpsert_('calculos_impuestos', ['calc_id'], [{ calc_id: calc_id, company_id: input.cliente.company_id || '', rfc: rfc, nombre: input.cliente.nombre, periodo: periodo, anio: String(input.periodo.anio), mes: String(input.periodo.mes),
     idioma: input.idioma || 'es', estado: 'draft', lectura: (input.lectura && input.lectura.es) || '', iva_a_pagar: String(calc.iva.a_pagar), isr_a_pagar: calc.isr.a_pagar == null ? '' : String(calc.isr.a_pagar),
     saldo_favor: String(calc.iva.saldo_favor_arrastre), ventas_base: String(calc.resumen.ventas_base), creado_por: prev ? prev.creado_por : u.email, creado_en: prev ? prev.creado_en : now, actualizado_en: now,
-    carpeta_drive: folder.getId(), json_file_id: jsonId, html_es_id: ids.es, html_en_id: ids.en, html_zh_id: ids.zh, pdf_id: pdfId, correcciones: prev ? prev.correcciones : '', version: String(prev ? Number(prev.version || 1) + 1 : 1) }]);
+    carpeta_drive: folder.getId(), json_file_id: jsonId, html_es_id: ids.es, html_en_id: ids.en, html_zh_id: ids.zh, pdf_id: pdfId, correcciones: prev ? prev.correcciones : '', version: String(prev ? Number(prev.version || 1) + 1 : 1),
+    xlsx_es_id: '', xlsx_en_id: '', xlsx_zh_id: '' }]);   /* se invalida el Excel cacheado: al regenerar debe rehacerse */
+  if (prev) ['xlsx_es_id', 'xlsx_en_id', 'xlsx_zh_id'].forEach(function (c) { if (prev[c]) { try { DriveApp.getFileById(prev[c]).setTrashed(true); } catch (e) {} } });
   try { almUpsert_('aprobaciones_calculo', ['company_id', 'periodo'], [{ company_id: input.cliente.company_id || '', periodo: periodo, fecha_envio: '', canal: 'tally-ops', evidencia: calc_id, registrado_por: u.email, ts: now }]); } catch (e) {}
   return { ok: true, calc_id: calc_id, calculo: calc, archivos: { json: jsonId, html: ids, pdf: pdfId, carpeta: folder.getId() } };
 }
@@ -3885,9 +3934,9 @@ function calcNombreCorto_(n) {
 function calcXlsxBlob_(calc, lang, nombreArchivo) {
   lang = TallyCalculo.I18N[lang] ? lang : 'es';
   const t = TallyCalculo.I18N[lang];
-  const TABS = { es: ['Resumen', 'Cómo calculamos', 'IVA', 'ISR', 'Detalle', 'CFDI', 'Notas'],
-                 en: ['Summary', 'How we calculate', 'VAT', 'Income tax', 'Detail', 'Invoices', 'Notes'],
-                 zh: ['摘要', '计算方法', '增值税', '所得税', '明细', '发票', '说明'] }[lang];
+  const TABS = { es: ['Resumen', 'Cómo calculamos', 'IVA', 'ISR', 'Detalle', 'Costos y gastos', 'CFDI', 'Notas'],
+                 en: ['Summary', 'How we calculate', 'VAT', 'Income tax', 'Detail', 'Costs and expenses', 'Invoices', 'Notes'],
+                 zh: ['摘要', '计算方法', '增值税', '所得税', '明细', '成本与费用', '发票', '说明'] }[lang];
   const VIO = '#6047ff', VIO100 = '#dcdcff', INK = '#212121', CREAM = '#fefcf8', MUT = '#6b6b6b', OKC = '#c8e8ce', WRN = '#fcddd6';
   const N2 = '#,##0.00;(#,##0.00)';
   const cl = calc.cliente || {}, p = calc.periodo || {}, iva = calc.iva || {}, isr = calc.isr || {}, rs = calc.resumen || {};
