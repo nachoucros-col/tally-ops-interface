@@ -3097,26 +3097,6 @@ function calcTextoDeArchivo_(fileId) {
   try { UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + docId, { method: 'delete', headers: { Authorization: 'Bearer ' + tok }, muteHttpExceptions: true }); } catch (e) {}
   return ex.getResponseCode() < 300 ? ex.getContentText() : '';
 }
-function calcExtraer_(body) {
-  const out = [];
-  (body.file_ids || []).forEach(function (id) {
-    let meta = {}; const f = DriveApp.getFileById(id); try { meta = JSON.parse(f.getDescription() || '{}'); } catch (e) {}
-    const txt = calcTextoDeArchivo_(id) || '';
-    const tipo = meta.tipo || calcDetectarTipo_(txt);
-    let datos = null;
-    if (tipo === 'resumen_marketplace') datos = calcParseResumenAmazon_(txt);
-    else if (tipo === 'certificado_retenciones') datos = calcParseCertificado_(txt);
-    else if (tipo === 'estado_cuenta') datos = calcParseEstadoCuenta_(txt);
-    out.push({ file_id: id, nombre: f.getName(), tipo: tipo, datos: datos, chars: txt.length, ok: !!(datos && Object.keys(datos).some(function (k) { return datos[k] !== null && datos[k] !== 0 && datos[k] !== ''; })) });
-  });
-  return { ok: true, documentos: out };
-}
-function calcDetectarTipo_(t) {
-  if (/Clave de la retenci/i.test(t) && /Plataformas Tecnol/i.test(t)) return 'certificado_retenciones';
-  if (/Actividad de la cuenta desde/i.test(t) || /Transferencias a cuenta bancaria/i.test(t)) return 'resumen_marketplace';
-  if (/Payoneer|Estado de cuenta|Account statement|Running Balance|Saldo anterior/i.test(t)) return 'estado_cuenta';
-  return 'otro';
-}
 function calcNum_(s) { if (s == null) return null; const n = parseFloat(String(s).replace(/[^\d.\-]/g, '')); return isNaN(n) ? null : n; }
 function calcGrab_(t, re) { const m = t.match(re); return m ? calcNum_(m[1]) : null; }
 function calcParseResumenAmazon_(t) {
@@ -3128,36 +3108,423 @@ function calcParseResumenAmazon_(t) {
     isr_retenido: Math.abs(calcGrab_(t, /Impuesto sobre la Renta retenido\s+(-?[\d,]+\.\d\d)/) || 0),
     ventas_fba: calcGrab_(t, /Ventas de producto FBA\s+([\d,]+\.\d\d)/) };
 }
+
+/* ── 4. Syntage en vivo por RFC ── */
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Lectura de documentos v2 · 4-sep-2026
+   Ruta A: capa de texto del propio PDF (inflate + extracción, sin dependencias).
+   Ruta B: OCR de Drive (la de antes), solo si la ruta A no deja un dato usable.
+   Se agrega el parser de estados de cuenta WorldFirst (verificado con el saldo).
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── A.1 inflate crudo (RFC 1951), ES5 puro ── */
+function calcInflateRaw_(src, off) {
+  var pos = off || 0, bitbuf = 0, bitcnt = 0, out = [];
+  var LB = [3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258];
+  var LX = [0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0];
+  var DB = [1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577];
+  var DX = [0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13];
+  var CLC = [16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15];
+  function bit() { if (bitcnt === 0) { bitbuf = src[pos++]; if (bitbuf === undefined) throw new Error('fin'); bitcnt = 8; } var b = bitbuf & 1; bitbuf >>= 1; bitcnt--; return b; }
+  function bits(n) { var v = 0; for (var i = 0; i < n; i++) v |= bit() << i; return v; }
+  function tree(lengths, num) {
+    var counts = [], i; for (i = 0; i < 16; i++) counts[i] = 0;
+    for (i = 0; i < num; i++) counts[lengths[i]]++;
+    counts[0] = 0; var offs = [0, 0], s = 0;
+    for (i = 1; i < 16; i++) { offs[i] = s; s += counts[i]; }
+    var symbols = []; for (i = 0; i < num; i++) if (lengths[i]) symbols[offs[lengths[i]]++] = i;
+    return { c: counts, s: symbols };
+  }
+  function sym(t) { var sum = 0, cur = 0, len = 0; do { cur = 2 * cur + bit(); len++; if (len > 15) throw new Error('huffman'); sum += t.c[len]; cur -= t.c[len]; } while (cur >= 0); return t.s[sum + cur]; }
+  var fixL = null, fixD = null;
+  function fijo() { if (fixL) return; var l = [], i; for (i = 0; i < 144; i++) l[i] = 8; for (; i < 256; i++) l[i] = 9; for (; i < 280; i++) l[i] = 7; for (; i < 288; i++) l[i] = 8; fixL = tree(l, 288); var d = []; for (i = 0; i < 30; i++) d[i] = 5; fixD = tree(d, 30); }
+  function dinamico() {
+    var hlit = bits(5) + 257, hdist = bits(5) + 1, hclen = bits(4) + 4, i, l = [];
+    for (i = 0; i < 19; i++) l[i] = 0;
+    for (i = 0; i < hclen; i++) l[CLC[i]] = bits(3);
+    var ct = tree(l, 19), lengths = [], n = 0;
+    while (n < hlit + hdist) {
+      var s = sym(ct);
+      if (s < 16) lengths[n++] = s;
+      else if (s === 16) { var p = lengths[n - 1], r = bits(2) + 3; while (r--) lengths[n++] = p; }
+      else if (s === 17) { var r2 = bits(3) + 3; while (r2--) lengths[n++] = 0; }
+      else { var r3 = bits(7) + 11; while (r3--) lengths[n++] = 0; }
+    }
+    return [tree(lengths.slice(0, hlit), hlit), tree(lengths.slice(hlit), hdist)];
+  }
+  function bloque(lt, dt) {
+    for (;;) {
+      var s = sym(lt);
+      if (s === 256) return;
+      if (s < 256) out.push(s);
+      else { s -= 257; var len = LB[s] + bits(LX[s]); var ds = sym(dt); var dist = DB[ds] + bits(DX[ds]); var st = out.length - dist; for (var i = 0; i < len; i++) out.push(out[st + i]); }
+    }
+  }
+  var ultimo;
+  do {
+    ultimo = bit(); var tipo = bits(2);
+    if (tipo === 0) { bitcnt = 0; var len = src[pos] | (src[pos + 1] << 8); pos += 4; for (var i = 0; i < len; i++) out.push(src[pos++]); }
+    else if (tipo === 1) { fijo(); bloque(fixL, fixD); }
+    else if (tipo === 2) { var t = dinamico(); bloque(t[0], t[1]); }
+    else throw new Error('bloque ' + tipo);
+  } while (!ultimo);
+  return out;
+}
+function calcInflate_(src) {
+  var off = 0;
+  if (src.length > 2 && (src[0] & 0x0f) === 8 && (((src[0] << 8) | src[1]) % 31) === 0) off = 2;
+  try { return calcInflateRaw_(src, off); } catch (e) { if (off === 2) { try { return calcInflateRaw_(src, 0); } catch (e2) {} } throw e; }
+}
+
+/* ── A.2 PDF: objetos, fuentes, ToUnicode ── */
+function calcPdfLatin1_(bytes) {
+  var out = [], i, n = bytes.length, tro = [];
+  for (i = 0; i < n; i++) { tro.push(bytes[i] & 0xff); if (tro.length === 8192) { out.push(String.fromCharCode.apply(null, tro)); tro = []; } }
+  if (tro.length) out.push(String.fromCharCode.apply(null, tro));
+  return out.join('');
+}
+function calcPdfObjetos_(raw) {
+  var objs = {}, re = /(\d+)\s+(\d+)\s+obj\b/g, m;
+  while ((m = re.exec(raw))) {
+    var ini = m.index + m[0].length, fin = raw.indexOf('endobj', ini); if (fin < 0) fin = Math.min(raw.length, ini + 200000);
+    var cuerpo = raw.slice(ini, fin), sPos = cuerpo.indexOf('stream');
+    var o = { dict: sPos >= 0 ? cuerpo.slice(0, sPos) : cuerpo, ini: ini };
+    if (sPos >= 0) {
+      var d = cuerpo.charCodeAt(sPos + 6) === 13 ? (cuerpo.charCodeAt(sPos + 7) === 10 ? 8 : 7) : (cuerpo.charCodeAt(sPos + 6) === 10 ? 7 : 6);
+      var e = cuerpo.indexOf('endstream');
+      o.sIni = ini + sPos + d; o.sFin = ini + (e >= 0 ? e : cuerpo.length);
+    }
+    objs[m[1]] = o;
+  }
+  return objs;
+}
+function calcPdfStream_(raw, o) {
+  if (o.sIni == null) return null;
+  var lm = o.dict.match(/\/Length\s+(\d+)(\s+\d+\s+R)?/), fin = (lm && !lm[2]) ? Math.min(o.sIni + Number(lm[1]), o.sFin) : o.sFin;
+  if (fin - o.sIni > 900000) return null;
+  var body = raw.slice(o.sIni, fin), arr = [], i;
+  for (i = 0; i < body.length; i++) arr.push(body.charCodeAt(i) & 0xff);
+  if (/\/FlateDecode/.test(o.dict)) { try { return calcInflate_(arr); } catch (e) { return null; } }
+  return arr;
+}
+function calcPdfToUnicode_(txt) {
+  var map = {}, m, re = /beginbfchar([\s\S]*?)endbfchar/g, r2 = /beginbfrange([\s\S]*?)endbfrange/g;
+  function uni(h) { var out = '', i; for (i = 0; i + 4 <= h.length; i += 4) { var c = parseInt(h.substr(i, 4), 16); if (c >= 0xd800 && c < 0xdc00 && i + 8 <= h.length) { out += String.fromCharCode(c, parseInt(h.substr(i + 4, 4), 16)); i += 4; } else out += String.fromCharCode(c); } return out; }
+  while ((m = re.exec(txt))) { var p = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]*)>/g, q; while ((q = p.exec(m[1]))) map[parseInt(q[1], 16)] = uni(q[2]); }
+  while ((m = r2.exec(txt))) {
+    var p2 = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*(<[0-9A-Fa-f]*>|\[[\s\S]*?\])/g, q2;
+    while ((q2 = p2.exec(m[1]))) {
+      var a = parseInt(q2[1], 16), b = parseInt(q2[2], 16), v = q2[3];
+      if (v.charAt(0) === '[') { var lst = v.match(/<([0-9A-Fa-f]*)>/g) || [], k; for (k = 0; k < lst.length && a + k <= b; k++) map[a + k] = uni(lst[k].replace(/[<>]/g, '')); }
+      else { var base = v.replace(/[<>]/g, ''); for (var c = a; c <= b && c - a < 65536; c++) { var h = (parseInt(base, 16) + (c - a)).toString(16); while (h.length < base.length) h = '0' + h; map[c] = uni(h); } }
+    }
+  }
+  return map;
+}
+function calcPdfTieneClaves_(o) { var n = 0, k; for (k in o) if (Object.prototype.hasOwnProperty.call(o, k)) { n++; break; } return n > 0; }
+function calcPdfFuentes_(raw, objs) {
+  var fuentes = {}, m, re = /\/Font\s*<<([\s\S]{0,4000}?)>>/g;
+  while ((m = re.exec(raw))) {
+    var p = /\/([A-Za-z0-9#+._-]+)\s+(\d+)\s+\d+\s+R/g, q;
+    while ((q = p.exec(m[1]))) {
+      var o = objs[q[2]]; if (!o) continue;
+      var f = { uni: null, dosBytes: /\/Identity-H|\/Type0/.test(o.dict) };
+      var tu = o.dict.match(/\/ToUnicode\s+(\d+)\s+\d+\s+R/);
+      if (tu && objs[tu[1]]) { var st = calcPdfStream_(raw, objs[tu[1]]); if (st) { var mp = calcPdfToUnicode_(calcPdfLatin1_(st)); if (calcPdfTieneClaves_(mp)) f.uni = mp; } }
+      fuentes[q[1]] = f;
+    }
+  }
+  return fuentes;
+}
+
+/* ── A.3 flujo de contenido → segmentos con posición ── */
+function calcPdfSegmentos_(cs, fuentes) {
+  var segs = [], i = 0, n = cs.length, ops = [], tm = null, tlm = null, TL = 0, fAct = null;
+  var DELIM = ' \t\r\n\f()<>[]{}/%';
+  function nl(tx, ty) { tlm = [tlm[0] + tx, tlm[1] + ty]; tm = [tlm[0], tlm[1]]; }
+  function poner(partes) { if (tm) segs.push({ x: tm[0], y: tm[1], partes: partes }); }
+  function literal() {
+    var out = [], esc = false, depth = 1; i++;
+    while (i < n) {
+      var ch = cs.charAt(i);
+      if (esc) {
+        if (ch === 'n') out.push(10); else if (ch === 'r') out.push(13); else if (ch === 't') out.push(9); else if (ch === 'b') out.push(8); else if (ch === 'f') out.push(12);
+        else if (ch >= '0' && ch <= '7') { var o = ch; while (i + 1 < n && cs.charAt(i + 1) >= '0' && cs.charAt(i + 1) <= '7' && o.length < 3) { i++; o += cs.charAt(i); } out.push(parseInt(o, 8)); }
+        else if (ch.charCodeAt(0) !== 10) out.push(ch.charCodeAt(0));
+        esc = false;
+      } else if (ch === '\\') esc = true;
+      else if (ch === '(') { depth++; out.push(40); }
+      else if (ch === ')') { depth--; if (!depth) { i++; return out; } out.push(41); }
+      else out.push(ch.charCodeAt(0) & 0xff);
+      i++;
+    }
+    return out;
+  }
+  function hexa() { var fin = cs.indexOf('>', i); if (fin < 0) { i = n; return { hex: '' }; } var h = cs.slice(i + 1, fin).replace(/[^0-9A-Fa-f]/g, ''); i = fin + 1; return { hex: h }; }
+  function nums(cant) { var r = [], k; for (k = ops.length - 1; k >= 0 && r.length < cant; k--) if (typeof ops[k] === 'number') r.unshift(ops[k]); return r; }
+  while (i < n) {
+    var c = cs.charAt(i);
+    if (c === '(') { ops.push({ s: literal(), f: fAct }); continue; }
+    if (c === '<' && cs.charAt(i + 1) !== '<') { ops.push({ s: hexa(), f: fAct }); continue; }
+    if (c === '<' || c === '>') { i += 2; continue; }
+    if (c === '[' || c === ']' || c === '{' || c === '}') { i++; continue; }
+    if (c === '%') { while (i < n && cs.charCodeAt(i) !== 10) i++; continue; }
+    if (' \t\r\n\f'.indexOf(c) >= 0) { i++; continue; }
+    var t = '', j = i;
+    if (c === '/') { j = i + 1; t = '/'; while (j < n && DELIM.indexOf(cs.charAt(j)) < 0) { t += cs.charAt(j); j++; } }
+    else { while (j < n && DELIM.indexOf(cs.charAt(j)) < 0) { t += cs.charAt(j); j++; } }
+    if (!t.length) { i++; continue; }
+    i = j;
+    if (/^-?[\d.]+$/.test(t)) { ops.push(parseFloat(t)); continue; }
+    if (t.charAt(0) === '/') { ops.push(t); continue; }
+    if (t === 'BT') { tm = [0, 0]; tlm = [0, 0]; }
+    else if (t === 'Tf') { var nm = null, k1; for (k1 = ops.length - 1; k1 >= 0; k1--) if (typeof ops[k1] === 'string' && ops[k1].charAt(0) === '/') { nm = ops[k1].slice(1); break; } fAct = nm; }
+    else if (t === 'Tm') { var a6 = nums(6); if (a6.length === 6) { tlm = [a6[4], a6[5]]; tm = [a6[4], a6[5]]; } }
+    else if (t === 'Td' || t === 'TD') { var a2 = nums(2); if (a2.length === 2 && tlm) { if (t === 'TD') TL = -a2[1]; nl(a2[0], a2[1]); } }
+    else if (t === 'TL') { var a1 = nums(1); if (a1.length) TL = a1[0]; }
+    else if (t === 'T*') { if (tlm) nl(0, -TL); }
+    else if (t === 'Tj' || t === "'" || t === '"') { if (t !== 'Tj' && tlm) nl(0, -TL); var s1 = null, k2; for (k2 = ops.length - 1; k2 >= 0; k2--) if (ops[k2] && typeof ops[k2] === 'object' && ops[k2].s !== undefined) { s1 = ops[k2]; break; } if (s1) poner([s1]); }
+    else if (t === 'TJ') { var partes = [], k3; for (k3 = 0; k3 < ops.length; k3++) if (ops[k3] && typeof ops[k3] === 'object' && ops[k3].s !== undefined) partes.push(ops[k3]); if (partes.length) poner(partes); }
+    ops = [];
+  }
+  return segs;
+}
+function calcPdfDecodifica_(parte, fuentes, offset) {
+  var f = (parte.f && fuentes[parte.f]) || null, s = parte.s, cods = [], out = [], i;
+  if (s && s.hex !== undefined) {
+    var h = s.hex, dos = (f && f.dosBytes) || (h.length >= 4 && /^(00..)+$/.test(h));
+    if (dos) { for (i = 0; i + 4 <= h.length; i += 4) cods.push(parseInt(h.substr(i, 4), 16)); }
+    else { for (i = 0; i + 2 <= h.length; i += 2) cods.push(parseInt(h.substr(i, 2), 16)); }
+  } else if (s && s.length !== undefined) {
+    if (f && f.dosBytes) { for (i = 0; i + 1 < s.length; i += 2) cods.push((s[i] << 8) | s[i + 1]); }
+    else cods = s;
+  }
+  for (i = 0; i < cods.length; i++) {
+    var c = cods[i];
+    if (f && f.uni && f.uni[c] !== undefined) { out.push(f.uni[c]); continue; }
+    if (offset) { var v = c + offset; out.push(v >= 32 && v < 127 ? String.fromCharCode(v) : (c === 3 ? ' ' : '?')); }
+    else out.push(c >= 32 && c < 127 ? String.fromCharCode(c) : (c === 9 || c === 10 ? ' ' : (c > 160 && c < 256 ? String.fromCharCode(c) : '?')));
+  }
+  return out.join('');
+}
+function calcPdfLineas_(segs, fuentes, offset) {
+  var porY = {}, i;
+  for (i = 0; i < segs.length; i++) { var y = Math.round(segs[i].y * 2) / 2; (porY[y] = porY[y] || []).push(segs[i]); }
+  var ys = [], k; for (k in porY) if (Object.prototype.hasOwnProperty.call(porY, k)) ys.push(Number(k));
+  ys.sort(function (a, b) { return b - a; });
+  var lineas = [];
+  for (i = 0; i < ys.length; i++) {
+    var fila = porY[ys[i]].sort(function (a, b) { return a.x - b.x; }), txt = [], j;
+    for (j = 0; j < fila.length; j++) { var t = '', q; for (q = 0; q < fila[j].partes.length; q++) t += calcPdfDecodifica_(fila[j].partes[q], fuentes, offset); if (t.length) txt.push(t); }
+    var l = txt.join(' ').replace(/\s+/g, ' ').replace(/^ | $/g, '');
+    if (l.length) lineas.push(l);
+  }
+  return lineas.join('\n');
+}
+var CALC_DICC = ['MXN','USD','Collection','Statement','BALANCE','DATE','Transfer','Amazon','Payment','Total','Account','Saldo','Ingresos','Gastos','retenido','Folio','fiscal','Description','currency','Ventas','Tarifas','IVA','ISR','RFC','Periodo','Payoneer','Balance','Impuesto','Monto','Receptor','Emisor'];
+function calcPuntuaTexto_(t) { var s = 0, i; for (i = 0; i < CALC_DICC.length; i++) { var m = t.match(new RegExp(CALC_DICC[i], 'g')); if (m) s += m.length; } return s; }
+/** Texto de la capa nativa del PDF. Devuelve '' si el PDF es escaneado o no se pudo leer. */
+function calcPdfTexto_(bytes) {
+  if (!bytes || bytes.length > 12000000) return '';
+  var raw = calcPdfLatin1_(bytes), objs = calcPdfObjetos_(raw), fuentes = calcPdfFuentes_(raw, objs);
+  var paginas = [], claves = [], k;
+  for (k in objs) if (Object.prototype.hasOwnProperty.call(objs, k)) claves.push(k);
+  claves.sort(function (a, b) { return objs[a].ini - objs[b].ini; });
+  for (k = 0; k < claves.length; k++) {
+    var o = objs[claves[k]]; if (o.sIni == null) continue;
+    if (/\/Image|\/DCTDecode|\/JPXDecode|\/CCITT|\/ObjStm|\/XRef|\/FontFile|\/Metadata/.test(o.dict)) continue;
+    var st = calcPdfStream_(raw, o); if (!st || !st.length) continue;
+    var cs = calcPdfLatin1_(st); if (cs.indexOf('Tj') < 0 && cs.indexOf('TJ') < 0) continue;
+    var sg = calcPdfSegmentos_(cs, fuentes); if (sg.length) paginas.push(sg);
+  }
+  if (!paginas.length) return '';
+  function todo(off) { var r = [], q; for (q = 0; q < paginas.length; q++) r.push(calcPdfLineas_(paginas[q], fuentes, off)); return r.join('\n'); }
+  var mejor = todo(0), mejorP = calcPuntuaTexto_(mejor), offs = [29, 31, -29, 28, 30], z;
+  for (z = 0; z < offs.length; z++) { var cand = todo(offs[z]), p = calcPuntuaTexto_(cand); if (p > mejorP) { mejor = cand; mejorP = p; } }
+  return mejor;
+}
+function calcTextoNativo_(fileId) {
+  try {
+    var f = DriveApp.getFileById(fileId);
+    if (!/pdf/i.test(f.getMimeType())) return '';
+    var t = calcPdfTexto_(f.getBlob().getBytes());
+    return (t && t.replace(/[^A-Za-z0-9]/g, '').length > 40) ? t : '';
+  } catch (e) { return ''; }
+}
+function calcDetectarTipo_(t) {
+  if (/Clave de la retenci/i.test(t) && /Plataformas Tecnol/i.test(t)) return 'certificado_retenciones';
+  if (/Total ISR retenido/i.test(t) && /Total IVA retenido/i.test(t)) return 'certificado_retenciones';
+  if (/Actividad de la cuenta desde/i.test(t) || /Transferencias a cuenta bancaria/i.test(t)) return 'resumen_marketplace';
+  if (/STATEMENT ACTIVITY/i.test(t) || /Statement for\s+[A-Z]{3}\s+currency account/i.test(t) || /worldfirst/i.test(t)) return 'estado_cuenta';
+  if (/\bIN\b\s+\bOUT\b\s+BALANCE/i.test(t)) return 'estado_cuenta';
+  if (/Payoneer|Estado de cuenta|Account statement|Running Balance|Saldo anterior|Saldo inicial|Dep[oó]sitos\b/i.test(t)) return 'estado_cuenta';
+  return 'otro';
+}
+
+/* Estado de cuenta. Reconoce dos familias:
+   a) tabla con columnas FECHA · descripción · monto · saldo (WorldFirst, y cualquier banco con esa forma):
+      el signo de cada movimiento NO se adivina, se deduce del salto del saldo y se cuadra al final.
+   b) Payoneer ("Payment from Amazon … MXN").                                                       */
+function calcParseEstadoCuenta_(t) {
+  var wf = calcParseTablaSaldo_(t);
+  if (wf && wf.movimientos) return wf;
+  var total = 0, n = 0, re = /Payment from (Amazon|Mercado ?Libre|Walmart)[^\n]*?([\d,]+\.\d\d)\s*MXN/gi, m;
+  while ((m = re.exec(t))) { total += calcNum_(m[2]); n++; }
+  var cta = (t.match(/Account MXN[\s\S]{0,160}?(\d{8,})/) || [])[1] || '';
+  return { abonos: n ? calcR2_(total) : null, movimientos: n, cuenta: cta ? 'Payoneer MXN ····' + cta.slice(-4) : '' };
+}
+function calcParseTablaSaldo_(t) {
+  var lineas = String(t || '').split(/\r?\n/), filas = [], i;
+  var re = /(\d{4})[\/\-](\d{2})[\/\-](\d{2})\s+(.*?)\s+(-?[\d,]+\.\d{2})\s*([A-Z]{3})?\s+(-?[\d,]+\.\d{2})\s*([A-Z]{3})?\s*$/;
+  for (i = 0; i < lineas.length; i++) {
+    var m = lineas[i].replace(/\s+/g, ' ').match(re);
+    if (!m) continue;
+    filas.push({ fecha: m[1] + '-' + m[2] + '-' + m[3], desc: String(m[4] || '').replace(/[?]+/g, '').replace(/\s+/g, ' ').replace(/^[ -]+|[ -]+$/g, ''), monto: Math.abs(calcNum_(m[5]) || 0), saldo: calcNum_(m[7]), moneda: m[6] || m[8] || '' });
+  }
+  if (filas.length < 2) return null;
+  var ENT = /collection|deposit|credit|payment from|abono|dep[oó]sito|received|incoming|venta/i;
+  var SAL = /transfer|fee|withdraw|charge|debit|cargo|comisi[oó]n|retiro|pago a|env[ií]o/i;
+  function evaluar(desc) {                                   /* desc=true → más reciente primero */
+    var ok = 0, j;
+    for (j = 0; j < filas.length; j++) {
+      var vec = desc ? filas[j + 1] : filas[j - 1];
+      if (!vec) continue;
+      var d = calcR2_(filas[j].saldo - vec.saldo);
+      if (Math.abs(d - filas[j].monto) < 0.02 || Math.abs(d + filas[j].monto) < 0.02) ok++;
+    }
+    return ok;
+  }
+  var okDesc = evaluar(true), okAsc = evaluar(false);
+  var desc = okDesc >= okAsc, mejor = Math.max(okDesc, okAsc);
+  if (mejor < Math.max(1, Math.floor((filas.length - 1) * 0.6))) {   /* la tabla no cuadra por saldo: se clasifica por concepto */
+    var e0 = 0, s0 = 0, c0 = 0, k;
+    for (k = 0; k < filas.length; k++) { if (SAL.test(filas[k].desc)) { s0 += filas[k].monto; c0++; } else if (ENT.test(filas[k].desc)) { e0 += filas[k].monto; c0++; } }
+    if (!c0) return null;
+    return { abonos: calcR2_(e0), cargos: calcR2_(s0), movimientos: filas.length, entradas: null, cuenta: calcCuentaDe_(t), moneda: filas[0].moneda, periodo: filas[filas.length - 1].fecha + ' → ' + filas[0].fecha, saldo_inicial: null, saldo_final: null, cuadra: false, nota: 'signos deducidos por concepto: el saldo del estado de cuenta no cuadra renglón por renglón' };
+  }
+  var entradas = 0, salidas = 0, nEnt = 0, nSal = 0, dudosas = 0;
+  for (i = 0; i < filas.length; i++) {
+    var vec = desc ? filas[i + 1] : filas[i - 1], signo = 0;
+    if (vec) { var d = calcR2_(filas[i].saldo - vec.saldo); if (Math.abs(d - filas[i].monto) < 0.02) signo = 1; else if (Math.abs(d + filas[i].monto) < 0.02) signo = -1; }
+    if (!signo) { if (SAL.test(filas[i].desc)) signo = -1; else if (ENT.test(filas[i].desc)) signo = 1; else { dudosas++; continue; } }
+    if (signo > 0) { entradas += filas[i].monto; nEnt++; } else { salidas += filas[i].monto; nSal++; }
+  }
+  var ord = filas.slice(0).sort(function (a, b) { return a.fecha < b.fecha ? -1 : 1; });
+  var primera = desc ? filas[filas.length - 1] : filas[0], ultima = desc ? filas[0] : filas[filas.length - 1];
+  var sIni = null, sFin = ultima.saldo;
+  if (primera) { var sg = 0; if (SAL.test(primera.desc)) sg = -1; else sg = 1; sIni = calcR2_(primera.saldo - sg * primera.monto); }
+  var cuadra = (sIni != null && sFin != null) ? Math.abs(calcR2_(sIni + entradas - salidas) - sFin) < 0.05 : false;
+  return { abonos: calcR2_(entradas), cargos: calcR2_(salidas), movimientos: filas.length, entradas: nEnt, salidas: nSal, dudosas: dudosas,
+    cuenta: calcCuentaDe_(t), moneda: filas[0].moneda || '', periodo: ord[0].fecha + ' → ' + ord[ord.length - 1].fecha,
+    saldo_inicial: sIni, saldo_final: sFin, cuadra: cuadra, nota: cuadra ? '' : 'el arrastre de saldos no cierra; revisar el PDF' };
+}
+function calcCuentaDe_(t) {
+  var wf = t.match(/Statement for\s+([A-Z]{3})\s+currency account/i);
+  if (wf) return 'WorldFirst ' + wf[1].toUpperCase();
+  var py = (t.match(/Account MXN[\s\S]{0,160}?(\d{8,})/) || [])[1];
+  if (py) return 'Payoneer MXN ····' + py.slice(-4);
+  var clabe = (t.match(/CLABE[^\d]{0,20}(\d{18})/i) || [])[1];
+  if (clabe) return 'CLABE ····' + clabe.slice(-4);
+  var cta = (t.match(/(?:Cuenta|No\.? de cuenta)[^\d]{0,20}(\d{6,})/i) || [])[1];
+  return cta ? 'Cuenta ····' + cta.slice(-4) : '';
+}
+
+/* Certificado de retenciones: se conservan los patrones del OCR y se añaden
+   respaldos que funcionan con la capa de texto del PDF (folio suelto y RFC del receptor). */
 function calcParseCertificado_(t) {
   const rows = []; const re = /(?:^|\n)\s*\d+\s+([\d,]+\.\d\d)\s+\d\d\/\d\d\/\d{4}\s+\d\d\s+([\d,]+\.\d\d)\s+([\d,]+\.\d\d)/g; let m;
   while ((m = re.exec(t))) rows.push({ base: calcNum_(m[1]), iva: calcNum_(m[2]) });
-  const rfcRec = (t.match(/Receptor[\s\S]{0,300}?RFC\s+([A-Z&Ñ0-9]{12,13})/) || [])[1] || '';
-  return { mes: calcGrab_(t, /Mes inicial\s+(\d\d)/), anio: calcGrab_(t, /Ejercicio fiscal\s+(\d{4})/), folio: (t.match(/Folio fiscal\s+([0-9A-Fa-f\-]{36})/) || [])[1] || '', rfc_receptor: rfcRec,
-    base: calcGrab_(t, /Monto operaci[oó]n\s+([\d,]+\.\d\d)/), isr_retenido: calcGrab_(t, /Total ISR retenido\s+([\d,]+\.\d\d)/), iva_retenido: calcGrab_(t, /Total IVA retenido\s+([\d,]+\.\d\d)/),
-    iva_trasladado: calcGrab_(t, /Total IVA\s+([\d,]+\.\d\d)/), ordenes: rows.length || calcGrab_(t, /N[uú]mero\s+(\d+)\s+Periodicidad/), ordenes_16: rows.filter(function (r) { return r.iva > 0; }).length };
-}
-function calcParseEstadoCuenta_(t) {
-  let total = 0, n = 0; const re = /Payment from (Amazon|Mercado ?Libre|Walmart)[^\n]*?([\d,]+\.\d\d)\s*MXN/gi; let m;
-  while ((m = re.exec(t))) { total += calcNum_(m[2]); n++; }
-  const cta = (t.match(/Account MXN[\s\S]{0,160}?(\d{8,})/) || [])[1] || '';
-  return { abonos: n ? calcR2_(total) : null, movimientos: n, cuenta: cta ? 'Payoneer MXN ····' + cta.slice(-4) : '' };
+  let folio = (t.match(/Folio fiscal\s+([0-9A-Fa-f-]{36})/) || [])[1] || '';
+  if (!folio) folio = (t.match(/\b([0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})\b/i) || [])[1] || '';
+  let rfcRec = (t.match(/Receptor[\s\S]{0,300}?RFC\s+([A-Z&\u00d10-9]{12,13})/) || [])[1] || '';
+  const par = t.match(/RFC\s+([A-Z&\u00d10-9]{12,13})\s+RFC\s+([A-Z&\u00d10-9]{12,13})/);
+  if (par) rfcRec = par[2];
+  return { mes: calcGrab_(t, /Mes inicial\s+(\d\d)/), anio: calcGrab_(t, /Ejercicio fiscal\s+(\d{4})/), folio: folio, rfc_receptor: rfcRec,
+    base: calcGrab_(t, /Monto operaci[o\u00f3]n\s+([\d,]+\.\d\d)/), isr_retenido: calcGrab_(t, /Total ISR retenido\s+([\d,]+\.\d\d)/), iva_retenido: calcGrab_(t, /Total IVA retenido\s+([\d,]+\.\d\d)/),
+    iva_trasladado: calcGrab_(t, /Total IVA\s+([\d,]+\.\d\d)/), ordenes: rows.length || calcGrab_(t, /N[u\u00fa]mero\s+(\d+)\s+Periodicidad/), ordenes_16: rows.filter(function (r) { return r.iva > 0; }).length };
 }
 
-/* ── 4. Syntage en vivo por RFC ── */
+function calcRiqueza_(r) {
+  if (!r || !r.datos) return 0;
+  var n = 0, k;
+  for (k in r.datos) if (Object.prototype.hasOwnProperty.call(r.datos, k)) { var v = r.datos[k]; if (v !== null && v !== 0 && v !== '' && v !== false) n++; }
+  return n;
+}
+function calcParseTexto_(tipoForzado, txt) {
+  var tipo = tipoForzado || calcDetectarTipo_(txt), datos = null;
+  if (tipo === 'resumen_marketplace') datos = calcParseResumenAmazon_(txt);
+  else if (tipo === 'certificado_retenciones') datos = calcParseCertificado_(txt);
+  else if (tipo === 'estado_cuenta') datos = calcParseEstadoCuenta_(txt);
+  var r = { tipo: tipo, datos: datos, chars: txt.length };
+  r.ok = calcRiqueza_(r) > 0;
+  return r;
+}
+/* Dos rutas de lectura: primero la capa de texto del PDF (instantánea y exacta);
+   si de ahí no sale ningún dato, el OCR de Drive. Se informa por dónde se leyó. */
+function calcExtraer_(body) {
+  const out = [];
+  (body.file_ids || []).forEach(function (id) {
+    let meta = {}; const f = DriveApp.getFileById(id); try { meta = JSON.parse(f.getDescription() || '{}'); } catch (e) {}
+    let mejor = null, via = '';
+    const nat = calcTextoNativo_(id);
+    if (nat) { mejor = calcParseTexto_(meta.tipo, nat); via = 'texto del PDF'; }
+    if (!mejor || !mejor.ok) {
+      const ocr = calcTextoDeArchivo_(id) || '';
+      if (ocr) { const r2 = calcParseTexto_(meta.tipo, ocr); if (!mejor || r2.ok || calcRiqueza_(r2) > calcRiqueza_(mejor)) { mejor = r2; via = 'OCR'; } }
+    }
+    if (!mejor) mejor = { tipo: meta.tipo || 'otro', datos: null, chars: 0, ok: false };
+    out.push({ file_id: id, nombre: f.getName(), tipo: mejor.tipo, datos: mejor.datos, chars: mejor.chars, via: via, ok: mejor.ok });
+  });
+  return { ok: true, documentos: out };
+}
+/* Resolución de la entidad en Syntage. El RFC NO es la única llave: hay entidades
+   cuyo catálogo no lo trae (se conectaron por CIEC y el nombre es lo único fiable).
+   Orden: 1) entity_id que ya trae el front o el almacén · 2) RFC en vivo · 3) nombre normalizado. */
+function calcSynEntidad_(body) {
+  const rfc = String(body.rfc || '').toUpperCase().replace(/\s+/g, '');
+  const cid = String(body.company_id || '').trim();
+  const nombre = String(body.nombre || '');
+  let eid = String(body.syntage_entity_id || '').trim();
+  if (!eid && (cid || rfc)) {
+    almLeer_('entidades_syntage').forEach(function (e) {
+      if (eid) return;
+      if (cid && String(e.company_id || '').trim() === cid) eid = String(e.syntage_entity_id || '');
+      else if (rfc && String(e.rfc || '').toUpperCase() === rfc) eid = String(e.syntage_entity_id || '');
+    });
+  }
+  if (eid) {
+    const uno = synGet_('/entities/' + eid);
+    if (uno && !uno._error && (uno.id || uno['@id'])) return { ent: uno, via: 'entity_id' };
+  }
+  const ents = synTodos_('/entities', { itemsPerPage: 200 }, 20);
+  if (ents._error) return { error: ents._error };
+  let i;
+  if (rfc) for (i = 0; i < ents.length; i++) if (String(ents[i].rfc || '').toUpperCase() === rfc) return { ent: ents[i], via: 'rfc' };
+  if (nombre) {
+    const nn = almNorm_(nombre);
+    if (nn) for (i = 0; i < ents.length; i++) if (almNorm_(ents[i].name || ents[i].legalName || '') === nn) return { ent: ents[i], via: 'nombre' };
+  }
+  return { ent: null, total: ents.length };
+}
 function calcSyntage_(body) {
   const rfc = String(body.rfc || '').toUpperCase(); const anio = Number(body.anio) || new Date().getFullYear();
-  const ents = synTodos_('/entities', { itemsPerPage: 200 }, 5); if (ents._error) return { ok: false, error: 'Syntage: ' + ents._error };
-  const ent = ents.filter(function (e) { return String(e.rfc || '').toUpperCase() === rfc; })[0];
-  if (!ent) return { ok: true, conectado: false, rfc: rfc };
-  const inv = synTodos_('/entities/' + ent.id + '/invoices', { itemsPerPage: 500, 'issuedAt[after]': anio + '-01-01', status: 'VIGENTE' }, 20); if (inv._error) return { ok: false, error: 'Syntage CFDI: ' + inv._error };
-  const ret = synTodos_('/entities/' + ent.id + '/tax-retentions', { itemsPerPage: 200 }, 3);
-  const dec = synTodos_('/entities/' + ent.id + '/tax-returns', { itemsPerPage: 100 }, 3);
+  const res = calcSynEntidad_(body);
+  if (res.error) return { ok: false, error: 'Syntage: ' + res.error };
+  const ent = res.ent;
+  if (!ent) return { ok: true, conectado: false, rfc: rfc, entidades_revisadas: res.total || 0 };
+  const eid = String(ent.id || String(ent['@id'] || '').split('/').pop());
+  const inv = synTodos_('/entities/' + eid + '/invoices', { itemsPerPage: 500, 'issuedAt[after]': anio + '-01-01', status: 'VIGENTE' }, 20); if (inv._error) return { ok: false, error: 'Syntage CFDI: ' + inv._error };
+  const ret = synTodos_('/entities/' + eid + '/tax-retentions', { itemsPerPage: 200 }, 3);
+  const dec = synTodos_('/entities/' + eid + '/tax-returns', { itemsPerPage: 100 }, 3);
+  const rfcEnt = String(ent.rfc || '').toUpperCase();
+  const rfcUso = rfcEnt || rfc;                       /* para clasificar emitidos/recibidos */
   const porMes = {};
   inv.forEach(function (i) {
     const d = String(i.issuedAt || '').slice(0, 7); porMes[d] = porMes[d] || { emitidos: [], recibidos: [], iva_acreditable_pue: 0, iva_ppd_pendiente: 0 };
     const row = { fecha: String(i.issuedAt || '').slice(0, 10), quien: (i.issuerName || i.issuerRfc) + ' → ' + (i.receiverName || i.receiverRfc), subtotal: Number(i.subtotal) || 0, iva: Number(i.tax) || 0, total: Number(i.total) || 0, tipo: i.type, pago: i.paymentType, uuid: i.uuid };
-    if (String(i.issuerRfc).toUpperCase() === rfc) { if (i.type === 'I' || i.type === 'E') porMes[d].emitidos.push(row); }
-    else if (String(i.receiverRfc).toUpperCase() === rfc) {
+    if (String(i.issuerRfc).toUpperCase() === rfcUso) { if (i.type === 'I' || i.type === 'E') porMes[d].emitidos.push(row); }
+    else if (String(i.receiverRfc).toUpperCase() === rfcUso) {
       porMes[d].recibidos.push(row);
       if (i.type === 'I' && i.paymentType === 'PUE') porMes[d].iva_acreditable_pue += row.iva;
       if (i.type === 'I' && i.paymentType === 'PPD' && Number(i.dueAmount) > 0) porMes[d].iva_ppd_pendiente += row.iva;
@@ -3165,7 +3532,7 @@ function calcSyntage_(body) {
     }
   });
   Object.keys(porMes).forEach(function (k) { porMes[k].iva_acreditable_pue = calcR2_(porMes[k].iva_acreditable_pue); porMes[k].iva_ppd_pendiente = calcR2_(porMes[k].iva_ppd_pendiente); });
-  return { ok: true, conectado: true, entity_id: ent.id, nombre: ent.name, cfdi_por_mes: porMes,
+  return { ok: true, conectado: true, entity_id: eid, nombre: ent.name || ent.legalName || '', rfc_syntage: rfcEnt, ligado_por: res.via, cfdi_por_mes: porMes,
     retenciones: (ret._error ? [] : ret).map(function (r) { return { periodo: String(r.periodFrom || '').slice(0, 7), base: Number(r.totalTaxableAmount), retenido: Number(r.totalRetainedAmount), uuid: r.uuid }; }),
     declaraciones: (dec._error ? [] : dec).map(function (d) { return { tipo: d.type, periodicidad: d.intervalUnit, periodo: d.period, ejercicio: d.fiscalYear, presentada: String(d.presentedAt || '').slice(0, 10), operacion: d.operationNumber }; }) };
 }
