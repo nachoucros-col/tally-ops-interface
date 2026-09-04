@@ -294,7 +294,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
     <div class="push"></div>
     <div class="status" id="userBox" style="border-top:none"></div>
-    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v16 · varios períodos, documentos del sistema y contexto</span></div>
+    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v17 · criterio de flujo de efectivo y acreditable pagado</span></div>
   </nav>
 
   <main class="main">
@@ -500,13 +500,19 @@ tr:hover td{background:rgba(96,71,255,.04)}
       </div>
       <div class="cx-row">
         <label>Criterio de IVA</label>
-        <select id="cxLectura" class="cx-input"><option value="A">Lectura A — IVA según certificado del marketplace (recomendada para vendedores con ventas transfronterizas)</option><option value="B">Lectura B — IVA según lo facturado en CFDI</option></select>
+        <select id="cxLectura" class="cx-input" onchange="cxPintarCobrado()"><option value="A">Lectura A — IVA según certificado del marketplace (recomendada para vendedores con ventas transfronterizas)</option><option value="B">Lectura B — IVA según lo facturado en CFDI</option><option value="C">Lectura C — flujo de efectivo: IVA sobre lo efectivamente cobrado</option></select>
         <label>Coeficiente de utilidad (anual anterior)</label><input id="cxCU" class="cx-input" placeholder="0.0000 · vacío = pendiente" style="max-width:220px">
+      </div>
+      <div id="cxCobradoBox" style="display:none">
+        <label>Ingresos efectivamente cobrados, sin IVA, por período <small style="font-weight:400;opacity:.7">— con el criterio de flujo de efectivo esta es la base del IVA; sale del auxiliar contable, no de los documentos del marketplace</small></label>
+        <div id="cxCobrado" class="cx-row"></div>
+        <div class="cx-row"><label>Fuente del dato</label><input id="cxCobradoFuente" class="cx-input" value="Auxiliar de Contalink · ingresos efectivamente cobrados" style="max-width:520px"></div>
       </div>
       <label>Historial del cliente al inicio del primer período <small style="font-weight:400;opacity:.7">— lo que viene de meses anteriores y no está en estos documentos</small></label>
       <div class="cx-row">
         <label>IVA a favor por acreditar</label><input id="cxSaldoFavor" class="cx-input" placeholder="0.00" style="max-width:170px">
         <label>IVA retenido pendiente de acreditar</label><input id="cxRetPend" class="cx-input" placeholder="0.00" style="max-width:170px">
+        <input id="cxRetPendDet" class="cx-input" placeholder="de qué meses (ej.: 1,514 de mayo y 605,367 de junio)" style="max-width:330px">
         <label>Pagos provisionales de ISR ya hechos</label><input id="cxPagosPrev" class="cx-input" placeholder="0.00" style="max-width:170px">
       </div>
       <label>Observaciones del contador <small style="font-weight:400;opacity:.7">— se imprimen tal cual en el documento y quedan en el registro del cálculo</small></label>
@@ -2776,9 +2782,9 @@ setInterval(loadAll,120000);
           resumen: { ventas_base: c.base, ordenes: c.ordenes, ordenes_16: c.ordenes_16, ordenes_0: (c.ordenes != null && c.ordenes_16 != null) ? c.ordenes - c.ordenes_16 : null,
                      isr_retenido_mes: c.isr_retenido, iva_retenido_mes: retenido, ingreso_liquidacion: l.ingreso_neto, transferencias: l.transferencias },
           iva: { base_16: base16, base_0: base0, trasladado, retenido, retenido_anterior: retAnterior, acreditable, saldo_favor_anterior: saldoFavor, resultado, a_pagar: aPagar, saldo_favor_arrastre: arrastre,
-                 src_retenido_anterior: 'Historial capturado por el contador',
+                 src_retenido_anterior: 'Historial capturado por el contador' + (in_.retenciones_pendientes_detalle ? ' · ' + in_.retenciones_pendientes_detalle : ''),
                  ppd_pendiente: f.iva_ppd_pendiente || 0,
-                 src_16: 'Certificado de retenciones ' + (c.folio || ''), src_0: 'Certificado de retenciones', src_trasladado: 'Certificado de retenciones', src_retenido: 'Certificado de retenciones' + (retenidoLiq != null ? ' · liquidación: ' + retenidoLiq.toFixed(2) : ''), src_acreditable: 'CFDI recibidos (SAT / Syntage)' },
+                 src_16: c.src_base || ('Certificado de retenciones ' + (c.folio || '')), src_0: c.src_base || 'Certificado de retenciones', src_trasladado: c.src_base || 'Certificado de retenciones', src_retenido: 'Certificado de retenciones' + (retenidoLiq != null ? ' · liquidación: ' + retenidoLiq.toFixed(2) : ''), src_acreditable: 'CFDI recibidos y pagados (SAT / Syntage)' + (f.iva_99 ? ' · se excluyó ' + Number(f.iva_99).toFixed(2) + ' de facturas con método de pago 99 (no pagadas en el mes)' : ''), iva_no_pagado_99: f.iva_99 || 0 },
           isr: { ingresos_mes: c.base, ingresos_acum: ingresosAcum, cu, utilidad, perdidas: cu !== null ? Math.min(utilidad, perdidas) : null, base: baseISR, isr_acum: isrAcum, retenido_acum: retAcum, pagos_previos: pagosAcum, a_pagar: isrPagar },
           cfdi_emitidos: f.emitidos || [], cfdi_recibidos: f.recibidos || [],
           detalle_meses: detalle.slice(), banco: banco.slice(), serie: serie.slice(),
@@ -3146,7 +3152,7 @@ function cxInit() {
 }
 function cxGo(n) {
   if (n === 3 && !CX.syntage) cxConsultarSyntage();
-  if (n === 4) cxResumenInsumos();
+  if (n === 4) { cxResumenInsumos(); cxPintarCobrado(); }
   document.querySelectorAll('.cx-step').forEach(s => s.style.display = s.dataset.step == n ? '' : 'none');
   document.querySelectorAll('.cx-steps li').forEach(li => { li.classList.toggle('on', li.dataset.s == n); li.classList.toggle('done', li.dataset.s < n); });
 }
@@ -3166,7 +3172,20 @@ function cxPintarMeses(preseleccion) {
     : `<b>${sel.length} períodos</b>: ${sel.map(m => CX_MESES[m - 1]).join(', ')} de ${CX.anio}. Se entrega el consolidado del rango y el documento de cada mes.`;
   const B = document.getElementById('cxNext1'); if (B) B.disabled = !CX.cliente || !sel.length;
 }
-function cxToggleMes(m) { const i = CX.meses.indexOf(m); if (i >= 0) CX.meses.splice(i, 1); else CX.meses.push(m); cxPintarMeses(); }
+function cxPintarCobrado() {
+  const lec = document.getElementById('cxLectura').value;
+  const box = document.getElementById('cxCobradoBox'); if (!box) return;
+  box.style.display = lec === 'C' ? '' : 'none';
+  if (lec !== 'C') return;
+  const C = document.getElementById('cxCobrado');
+  C.innerHTML = cxPeriodos().map(pp => `<label>${CX_MESES[pp.mes - 1]}</label><input id="cxCob_${pp.anio}_${pp.mes}" class="cx-input" placeholder="0.00" style="max-width:160px" value="${(CX.cobrado || {})[pp.anio + '-' + pp.mes] || ''}">`).join('');
+}
+function cxLeerCobrado() {
+  CX.cobrado = {};
+  cxPeriodos().forEach(pp => { const el = document.getElementById(`cxCob_${pp.anio}_${pp.mes}`); const v = el ? parseFloat(String(el.value).replace(/[^\d.-]/g, '')) : NaN; if (!isNaN(v)) CX.cobrado[pp.anio + '-' + pp.mes] = v; });
+  return CX.cobrado;
+}
+function cxToggleMes(m) { const i = CX.meses.indexOf(m); if (i >= 0) CX.meses.splice(i, 1); else CX.meses.push(m); cxPintarMeses(); cxPintarCobrado(); }
 function cxTodoElEjercicio() { const hoy = new Date(), n = (+document.getElementById('cxAnio').value === hoy.getFullYear()) ? hoy.getMonth() : 12; CX.meses = []; for (let i = 1; i <= Math.max(1, n); i++) CX.meses.push(i); cxPintarMeses(); }
 function cxPeriodos() { return CX.meses.slice().sort((a, b) => a - b).map(m => ({ anio: CX.anio, mes: m })); }
 
@@ -3339,6 +3358,8 @@ async function cxGenerar() {
   const contexto = (document.getElementById('cxContexto').value || '').trim();
   const saldoFavor = parseFloat(document.getElementById('cxSaldoFavor').value) || 0;
   const retPend = parseFloat(document.getElementById('cxRetPend').value) || 0;
+  const retPendDet = (document.getElementById('cxRetPendDet').value || '').trim();
+  if (lectura === 'C') cxLeerCobrado();
   const pagosPrev = parseFloat(document.getElementById('cxPagosPrev').value) || 0;
 
   /* La serie incluye todo período con documentos, no solo los seleccionados: así el
@@ -3362,10 +3383,12 @@ async function cxGenerar() {
     idioma: CX.idioma, estado: 'draft', meses: meses, completar_serie: true,
     isr: { cu: isNaN(cu) ? null : cu, perdidas: 0, pagos_previos: pagosPrev ? [{ anio: per[0].anio, mes: per[0].mes, importe: pagosPrev }] : [] },
     fuentes: fuentes, alertas: alertas, contexto: contexto,
-    saldo_favor_inicial: saldoFavor, retenciones_pendientes: retPend,
+    saldo_favor_inicial: saldoFavor, retenciones_pendientes: retPend, retenciones_pendientes_detalle: retPendDet,
     lectura: lectura === 'A'
       ? { es: 'Lectura A — el IVA cobrado es el que el marketplace reporta orden por orden en el certificado de retenciones.', en: 'Criterion A — VAT collected is what the marketplace reports order by order in the withholding certificate.', zh: '标准 A —— 增值税以平台代扣证明中逐单报告的数据为准。' }
-      : { es: 'Lectura B — el IVA cobrado es el trasladado en los CFDI emitidos.', en: 'Criterion B — VAT collected is the VAT charged on issued CFDI.', zh: '标准 B —— 增值税以已开具 CFDI 中的转嫁税额为准。' }
+      : lectura === 'B'
+      ? { es: 'Lectura B — el IVA cobrado es el trasladado en los CFDI emitidos.', en: 'Criterion B — VAT collected is the VAT charged on issued CFDI.', zh: '标准 B —— 增值税以已开具 CFDI 中的转嫁税额为准。' }
+      : { es: 'Lectura C — flujo de efectivo: el IVA se calcula sobre los ingresos efectivamente cobrados en el mes, y el IVA acreditable solo sobre gastos efectivamente pagados. Es el criterio del artículo 1-B de la Ley del IVA.', en: 'Criterion C — cash basis: VAT is computed on income actually collected in the month, and creditable VAT only on expenses actually paid.', zh: '标准 C —— 收付实现制：增值税按当月实际收到的收入计算，进项税仅就实际支付的费用抵扣。' }
   };
 
   CX.generados = [];
@@ -3404,8 +3427,18 @@ function cxMesInput(pp, lectura) {
   const c = cxDocDe('certificado_retenciones', pp) || {}, l = cxDocDe('resumen_marketplace', pp) || {}, b = cxDocDe('estado_cuenta', pp);
   const k = `${pp.anio}-${String(pp.mes).padStart(2, '0')}`;
   const syn = (CX.syntage && CX.syntage.conectado) ? (CX.syntage.cfdi_por_mes[k] || {}) : {};
+  let cert;
+  if (lectura === 'C') {
+    /* Flujo de efectivo: la base es lo cobrado y el IVA sale de esa base. El resto del
+       certificado (retenciones, órdenes, folio) se conserva como está. */
+    const cob = (CX.cobrado || {})[pp.anio + '-' + pp.mes];
+    const fuente = (document.getElementById('cxCobradoFuente').value || 'Ingresos efectivamente cobrados').trim();
+    cert = Object.assign({}, c, cob != null ? { base: cob, iva_trasladado: Math.round(cob * 0.16 * 100) / 100, src_base: fuente } : { src_base: fuente });
+  } else if (lectura === 'B') {
+    cert = Object.assign({}, c, { iva_trasladado: (syn.emitidos || []).reduce((a, x) => a + x.iva, 0), src_base: 'CFDI emitidos (SAT / Syntage)' });
+  } else cert = c;
   return { mes: pp.mes, anio: pp.anio,
-    cert: lectura === 'A' ? c : Object.assign({}, c, { iva_trasladado: (syn.emitidos || []).reduce((a, x) => a + x.iva, 0) }),
+    cert: cert,
     liq: l, cfdi: { emitidos: syn.emitidos || [], recibidos: syn.recibidos || [], iva_acreditable_pue: syn.iva_acreditable_pue || 0, iva_ppd_pendiente: syn.iva_ppd_pendiente || 0 },
     banco: b ? { abonos: b.abonos, cuenta: b.cuenta } : null };
 }
@@ -3420,7 +3453,11 @@ function cxAlertas(per, lectura, cu, retPend) {
   if (cu === 0)
     A.push('El coeficiente de utilidad se capturó como 0: eso deja el ISR en cero por criterio, no por falta de dato. Si no se tiene el coeficiente de la anual anterior, el campo debe quedar vacío y el documento dirá “pendiente”.');
   if (retPend)
-    A.push(`Se aplicó IVA retenido de meses anteriores por ${cxFmt(retPend)}, capturado por el contador como historial del cliente. No sale de los documentos de estos períodos.`);
+    A.push(`Se aplicó IVA retenido de meses anteriores por ${cxFmt(retPend)}, capturado por el contador como historial del cliente${document.getElementById('cxRetPendDet').value ? ' (' + document.getElementById('cxRetPendDet').value.trim() + ')' : ''}. No sale de los documentos de estos períodos.`);
+  if (lectura === 'C') {
+    const faltan = cxPeriodos().filter(pp => (CX.cobrado || {})[pp.anio + '-' + pp.mes] == null).map(pp => CX_MESES[pp.mes - 1]);
+    if (faltan.length) A.push(`Criterio de flujo de efectivo sin base capturada en: ${faltan.join(', ')}. Esos meses quedaron con la base del certificado, que es lo devengado y no lo cobrado.`);
+  }
   per.forEach(pp => {
     const c = cxDocDe('certificado_retenciones', pp), l = cxDocDe('resumen_marketplace', pp), b = cxDocDe('estado_cuenta', pp);
     const et = `${CX_MESES[pp.mes - 1]} ${pp.anio}`;
