@@ -3642,7 +3642,17 @@ function calcSyntage_(body) {
   const ent = res.ent;
   if (!ent) return { ok: true, conectado: false, rfc: rfc, entidades_revisadas: res.total || 0 };
   const eid = String(ent.id || String(ent['@id'] || '').split('/').pop());
-  const inv = synTodos_('/entities/' + eid + '/invoices', { itemsPerPage: 500, 'issuedAt[after]': anio + '-01-01', status: 'VIGENTE' }, 20); if (inv._error) return { ok: false, error: 'Syntage CFDI: ' + inv._error };
+  /* CFDI del ejercicio. No se filtra por status en la consulta (si el catálogo espera otro
+     valor, el filtro devolvería cero en silencio): se filtra aquí. Si la consulta con filtro
+     de fecha viene vacía, se reintenta sin filtro y se recorta al año. */
+  let inv = synTodos_('/entities/' + eid + '/invoices', { itemsPerPage: 200, 'issuedAt[after]': anio + '-01-01' }, 40);
+  if (inv._error) return { ok: false, error: 'Syntage CFDI: ' + inv._error };
+  if (!inv.length) {
+    const alt = synTodos_('/entities/' + eid + '/invoices', { itemsPerPage: 200 }, 40);
+    if (!alt._error && alt.length) inv = alt.filter(function (x) { return String(x.issuedAt || '').slice(0, 4) === String(anio); });
+  }
+  inv = inv.filter(function (x) { return !x.status || String(x.status).toUpperCase().indexOf('VIGENTE') === 0; });
+  let nEmi = 0, nRec = 0;
   const ret = synTodos_('/entities/' + eid + '/tax-retentions', { itemsPerPage: 200 }, 3);
   const dec = synTodos_('/entities/' + eid + '/tax-returns', { itemsPerPage: 100 }, 3);
   const rfcEnt = String(ent.rfc || '').toUpperCase();
@@ -3651,9 +3661,13 @@ function calcSyntage_(body) {
   inv.forEach(function (i) {
     const d = String(i.issuedAt || '').slice(0, 7); porMes[d] = porMes[d] || { emitidos: [], recibidos: [], iva_acreditable_pue: 0, iva_ppd_pendiente: 0 };
     const row = { fecha: String(i.issuedAt || '').slice(0, 10), quien: (i.issuerName || i.issuerRfc) + ' → ' + (i.receiverName || i.receiverRfc), subtotal: Number(i.subtotal) || 0, iva: Number(i.tax) || 0, total: Number(i.total) || 0, tipo: i.type, pago: i.paymentType, uuid: i.uuid };
-    if (String(i.issuerRfc).toUpperCase() === rfcUso) { if (i.type === 'I' || i.type === 'E') porMes[d].emitidos.push(row); }
-    else if (String(i.receiverRfc).toUpperCase() === rfcUso) {
-      porMes[d].recibidos.push(row);
+    /* Emisor o receptor: se usan las banderas del catálogo y, si no vienen, el RFC.
+       Hay entidades cuyo registro en Syntage no trae RFC y ahí la comparación fallaba. */
+    const esEmisor = i.isIssuer === true || i.isIssuer === 1 || i.isIssuer === '1' || String(i.issuerRfc || '').toUpperCase() === rfcUso;
+    const esReceptor = i.isReceiver === true || i.isReceiver === 1 || i.isReceiver === '1' || String(i.receiverRfc || '').toUpperCase() === rfcUso;
+    if (esEmisor) { if (i.type === 'I' || i.type === 'E') { porMes[d].emitidos.push(row); nEmi++; } }
+    else if (esReceptor) {
+      if (i.type === 'I' || i.type === 'E') { porMes[d].recibidos.push(row); nRec++; }
       if (i.type === 'I' && i.paymentType === 'PUE') porMes[d].iva_acreditable_pue += row.iva;
       if (i.type === 'I' && i.paymentType === 'PPD' && Number(i.dueAmount) > 0) porMes[d].iva_ppd_pendiente += row.iva;
       if (i.type === 'E' && i.paymentType === 'PUE') porMes[d].iva_acreditable_pue -= row.iva;
@@ -3661,6 +3675,7 @@ function calcSyntage_(body) {
   });
   Object.keys(porMes).forEach(function (k) { porMes[k].iva_acreditable_pue = calcR2_(porMes[k].iva_acreditable_pue); porMes[k].iva_ppd_pendiente = calcR2_(porMes[k].iva_ppd_pendiente); });
   return { ok: true, conectado: true, entity_id: eid, nombre: ent.name || ent.legalName || '', rfc_syntage: rfcEnt, ligado_por: res.via, cfdi_por_mes: porMes,
+    cfdi_del_anio: inv.length, cfdi_emitidos_anio: nEmi, cfdi_recibidos_anio: nRec,
     retenciones: (ret._error ? [] : ret).map(function (r) { return { periodo: String(r.periodFrom || '').slice(0, 7), base: Number(r.totalTaxableAmount), retenido: Number(r.totalRetainedAmount), uuid: r.uuid }; }),
     declaraciones: (dec._error ? [] : dec).map(function (d) { return { tipo: d.type, periodicidad: d.intervalUnit, periodo: d.period, ejercicio: d.fiscalYear, presentada: String(d.presentedAt || '').slice(0, 10), operacion: d.operationNumber }; }) };
 }
@@ -3982,6 +3997,10 @@ function calcXlsxBlob_(calc, lang, nombreArchivo) {
       r = encabezado(s, r, [t.col_date, t.col_who, t.col_subtotal, 'IVA', t.col_total, '']);
       var c0 = r;
       var filas = (par[1] || []).map(function (x) { return [x.fecha || '', x.quien || '', x.subtotal || 0, x.iva || 0, x.total || 0, '']; });
+      if (filas.length) {                                   /* cierre auditable del bloque */
+        var f0 = c0 + 1, f1 = c0 + filas.length;
+        filas.push(['', t.col_total, '=SUM(C' + f0 + ':C' + f1 + ')', '=SUM(D' + f0 + ':D' + f1 + ')', '=SUM(E' + f0 + ':E' + f1 + ')', '']);
+      }
       r = bloque(s, r, filas.length ? filas : [['', t.col_none, '', '', '', '']], 6);
       money(s, 'C' + c0 + ':E' + (r - 1));
     });
