@@ -3428,6 +3428,7 @@ function calcDetectarTipo_(t) {
   if (/Actividad de la cuenta desde/i.test(t) || /Transferencias a cuenta bancaria/i.test(t)) return 'resumen_marketplace';
   if (/STATEMENT ACTIVITY/i.test(t) || /Statement for\s+[A-Z]{3}\s+currency account/i.test(t) || /worldfirst/i.test(t)) return 'estado_cuenta';
   if (/\bIN\b\s+\bOUT\b\s+BALANCE/i.test(t)) return 'estado_cuenta';
+  if (/Beginning balance|Ending balance|Statement period activity summary|Deposits\s*\/?\s*Credits|Withdrawals\s*\/?\s*Debits/i.test(t)) return 'estado_cuenta';
   if (/Payoneer|Estado de cuenta|Account statement|Running Balance|Saldo anterior|Saldo inicial|Dep[oó]sitos\b/i.test(t)) return 'estado_cuenta';
   return 'otro';
 }
@@ -3436,7 +3437,55 @@ function calcDetectarTipo_(t) {
    a) tabla con columnas FECHA · descripción · monto · saldo (WorldFirst, y cualquier banco con esa forma):
       el signo de cada movimiento NO se adivina, se deduce del salto del saldo y se cuadra al final.
    b) Payoneer ("Payment from Amazon … MXN").                                                       */
+
+/* Estados de cuenta con bloque de resumen (Wells Fargo, Chase, BBVA, Banorte, Santander…).
+   Cuando el estado de cuenta declara sus propios totales —saldo inicial, depósitos, retiros
+   y saldo final— esa es la fuente: no se suman renglones, se leen los cuatro números y se
+   cuadran entre sí. Los depósitos del marketplace se identifican por concepto y se cotejan
+   contra el total de depósitos, para que la conciliación sea comparable con lo que reportó
+   el marketplace. */
+function calcParseResumenBanco_(t) {
+  function n(re) { const m = t.match(re); return m ? calcNum_(m[1]) : null; }
+  const ini = n(/(?:Beginning balance|Balance forward|Saldo (?:anterior|inicial))[^\n]{0,40}?\$?\s*(-?[\d,]+\.\d{2})(?!\d)/i);
+  const dep = n(/(?:Deposits\s*\/?\s*Credits|Total deposits|Dep[oó]sitos y abonos|Total de dep[oó]sitos|Dep[oó]sitos|Abonos)[^\n]{0,40}?\+?\s*\$?\s*(-?[\d,]+\.\d{2})(?!\d)/i);
+  const ret = n(/(?:Withdrawals\s*\/?\s*Debits|Total withdrawals|Retiros y cargos|Total de retiros|Retiros|Cargos)[^\n]{0,40}?-?\s*\$?\s*(-?[\d,]+\.\d{2})(?!\d)/i);
+  const fin = n(/(?:Ending balance|Saldo (?:final|actual|al cierre))[^\n]{0,40}?\$?\s*(-?[\d,]+\.\d{2})(?!\d)/i);
+  if (dep == null && ret == null) return null;
+
+  const abonos = dep != null ? Math.abs(dep) : null, cargos = ret != null ? Math.abs(ret) : null;
+  const cuadra = (ini != null && fin != null && abonos != null && cargos != null) ? Math.abs(calcR2_(ini + abonos - cargos) - fin) < 0.05 : false;
+
+  const MK = /amazon|mercado\s?libre|mercadolibre|walmart|payoneer|worldfirst/i;
+  const NO = /transfer to|transferencia a|debit|d[eé]bito|fee|comisi[oó]n|charge|cargo|withdrawal|retiro|reversal|devoluci[oó]n/i;
+  let mkTotal = 0, mkN = 0;
+  String(t || '').split(/\r?\n/).forEach(function (l) {
+    if (!MK.test(l) || NO.test(l)) return;
+    const m = l.match(/([\d,]+\.\d\d)/); if (!m) return;
+    const v = calcNum_(m[1]); if (v == null || v <= 0) return;
+    mkTotal += v; mkN++;
+  });
+
+  const cta = (t.match(/(?:Account number|N[uú]mero de cuenta|Cuenta)[:\s]{1,4}([\d\s-]{6,25})/i) || [])[1] || '';
+  const digitos = cta.replace(/\D/g, '');
+  const BANCOS = ['Wells Fargo', 'Chase', 'Bank of America', 'Mercury', 'Brex', 'BBVA', 'Banorte', 'Santander', 'HSBC', 'Citibanamex', 'Banamex', 'Scotiabank', 'Payoneer', 'WorldFirst'];
+  let banco = '';
+  for (let i = 0; i < BANCOS.length; i++) if (new RegExp(BANCOS[i].replace(/ /g, '\\s?'), 'i').test(t)) { banco = BANCOS[i]; break; }
+  const moneda = /\bMXN\b|pesos mexicanos|moneda nacional/i.test(t) ? 'MXN' : (/\bUSD\b|Routing Number|\bRTN\b/i.test(t) ? 'USD' : '');
+  const per = t.match(/(?:Beginning balance|Saldo (?:anterior|inicial))\s+(?:on|al)?\s*(\d{1,2})[\/\-](\d{1,2})/i);
+  const anio = (t.slice(0, 3000).match(/\b(20\d\d)\b/) || [])[1] || '';
+  const movs = (String(t || '').match(/(?:^|\n)\s*\d{1,2}\/\d{1,2}\s+\S/g) || []).length;
+
+  return { abonos: abonos != null ? calcR2_(abonos) : null, cargos: cargos != null ? calcR2_(cargos) : null,
+    saldo_inicial: ini, saldo_final: fin, cuadra: cuadra, movimientos: movs,
+    abonos_marketplace: mkN ? calcR2_(mkTotal) : null, movimientos_marketplace: mkN,
+    cuenta: (banco || 'Cuenta') + (digitos ? ' ····' + digitos.slice(-4) : ''), moneda: moneda,
+    periodo: per ? (anio ? anio + '-' + ('0' + per[1]).slice(-2) : per[1] + '/' + per[2]) : '',
+    fuente: 'resumen del estado de cuenta',
+    nota: cuadra ? '' : 'los totales declarados por el banco no cierran contra los saldos; revisar el PDF' };
+}
 function calcParseEstadoCuenta_(t) {
+  const res = calcParseResumenBanco_(t);            /* 1º: los totales que declara el propio banco */
+  if (res) return res;
   var wf = calcParseTablaSaldo_(t);
   if (wf && wf.movimientos) return wf;
   var total = 0, n = 0, re = /Payment from (Amazon|Mercado ?Libre|Walmart)[^\n]*?([\d,]+\.\d\d)\s*MXN/gi, m;

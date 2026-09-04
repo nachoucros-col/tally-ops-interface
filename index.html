@@ -294,7 +294,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
     <div class="push"></div>
     <div class="status" id="userBox" style="border-top:none"></div>
-    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v10 · gastos con factura al RFC del cliente</span></div>
+    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v11 · estados de cuenta con resumen (Wells Fargo)</span></div>
   </nav>
 
   <main class="main">
@@ -3152,7 +3152,7 @@ async function cxFiles(files) {
 }
 const CX_TIPO = { resumen_marketplace: 'Resumen del marketplace', certificado_retenciones: 'Certificado de retenciones', estado_cuenta: 'Estado de cuenta', otro: 'Otro', '…': 'Leyendo…' };
 function cxPintarDocs() {
-  document.querySelector('#cxDocs tbody').innerHTML = CX.docs.map((d, i) => { const k = d.datos || {}; const clave = d.tipo === 'certificado_retenciones' ? `Base ${cxFmt(k.base)} · ${k.ordenes || '?'} órdenes${k.ordenes_16 != null ? ` (${k.ordenes_16} al 16%)` : ''} · IVA trasladado ${cxFmt(k.iva_trasladado)} · IVA ret. ${cxFmt(k.iva_retenido)} · ISR ret. ${cxFmt(k.isr_retenido)}` : d.tipo === 'resumen_marketplace' ? `Ingreso neto ${cxFmt(k.ingreso_neto)} · Transferencias ${cxFmt(k.transferencias)}` : d.tipo === 'estado_cuenta' ? `Abonos ${cxFmt(k.abonos)}${k.cargos ? ` · cargos ${cxFmt(k.cargos)}` : ''} · ${k.movimientos || 0} mov. ${k.cuenta || ''}${k.saldo_final != null ? ` · saldo final ${cxFmt(k.saldo_final)}` : ''}${k.saldo_final != null ? (k.cuadra ? ' · cuadra' : ' · no cuadra') : ''}` : '';
+  document.querySelector('#cxDocs tbody').innerHTML = CX.docs.map((d, i) => { const k = d.datos || {}; const clave = d.tipo === 'certificado_retenciones' ? `Base ${cxFmt(k.base)} · ${k.ordenes || '?'} órdenes${k.ordenes_16 != null ? ` (${k.ordenes_16} al 16%)` : ''} · IVA trasladado ${cxFmt(k.iva_trasladado)} · IVA ret. ${cxFmt(k.iva_retenido)} · ISR ret. ${cxFmt(k.isr_retenido)}` : d.tipo === 'resumen_marketplace' ? `Ingreso neto ${cxFmt(k.ingreso_neto)} · Transferencias ${cxFmt(k.transferencias)}` : d.tipo === 'estado_cuenta' ? `Abonos ${cxFmt(k.abonos)}${k.moneda ? ' ' + k.moneda : ''}${k.cargos ? ` · cargos ${cxFmt(k.cargos)}` : ''}${k.abonos_marketplace != null ? ` · del marketplace ${cxFmt(k.abonos_marketplace)} (${k.movimientos_marketplace})` : ''} · ${k.movimientos || 0} mov. ${k.cuenta || ''}${k.saldo_final != null ? ` · saldo final ${cxFmt(k.saldo_final)}` : ''}${k.saldo_final != null ? (k.cuadra ? ' · cuadra' : ' · no cuadra') : ''}` : '';
     return `<tr><td>${d.nombre}</td><td><select onchange="CX.docs[${i}].tipo=this.value" class="cx-input" style="max-width:220px">${Object.keys(CX_TIPO).filter(t => t !== '…').map(t => `<option value="${t}" ${t === d.tipo ? 'selected' : ''}>${CX_TIPO[t]}</option>`).join('')}</select></td><td><span class="cx-tag ${d.ok ? 'ok' : d.tipo === '…' ? 'info' : 'warn'}">${d.tipo === '…' ? 'leyendo' : d.ok ? ('leído' + (d.via ? ' · ' + (d.via === 'OCR' ? 'OCR' : 'texto') : '')) : 'no legible'}</span></td><td>${clave}</td><td><button class="btn secondary" onclick="CX.docs.splice(${i},1);cxPintarDocs()">✕</button></td></tr>`; }).join('');
 }
 
@@ -3207,6 +3207,10 @@ async function cxGenerar() {
   const alertas = [];
   if (CX.syntage && CX.syntage.conectado && !CX.syntage.cfdi_recibidos_anio)
     alertas.push(`El SAT no reporta facturas recibidas a nombre de este RFC en ${CX.anio}. El IVA acreditable del período queda en cero hasta que el cliente registre sus gastos con factura a su RFC.`);
+  if (b && b.moneda && b.moneda !== 'MXN')
+    alertas.push(`El estado de cuenta está en ${b.moneda}, no en pesos: sus abonos no son comparables peso a peso con las transferencias que reporta el marketplace en México. La conciliación se presenta como referencia.`);
+  if (b && b.abonos_marketplace != null && b.abonos != null && Math.abs(b.abonos_marketplace - b.abonos) > 0.5)
+    alertas.push(`Del total de abonos del estado de cuenta (${cxFmt(b.abonos)}), ${cxFmt(b.abonos_marketplace)} se identifican como depósitos del marketplace; el resto viene de otras fuentes.`);
   if (b && b.saldo_final != null && b.cuadra === false)
     alertas.push('El estado de cuenta no cuadra renglón por renglón (saldo inicial + abonos − cargos ≠ saldo final): la conciliación se presenta como referencia.');
   const input = { cliente: { nombre: CX.cliente.nombre, rfc: CX.cliente.rfc, company_id: CX.cliente.company_id, regimen: 'General de Ley Personas Morales (601)', marketplace: 'Amazon México' }, periodo: { mes: CX.mes, anio: CX.anio }, idioma: CX.idioma, estado: 'draft',
