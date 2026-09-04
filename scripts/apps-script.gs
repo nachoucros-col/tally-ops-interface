@@ -2680,7 +2680,20 @@ function almDetalle_(metrica, periodo, owner) {
       serie.push({ mes: m.mes, anio: m.anio, iva_a_pagar: aPagar, arrastre, isr_a_pagar: isrPagar });
 
       if (m.mes === target.mes && m.anio === target.anio) {
+        /* Costos y gastos del mes, con los documentos como única fuente:
+           las comisiones del resumen del marketplace (su suma cuadra contra tarifas netas)
+           y los gastos facturados con CFDI a nombre del cliente. */
+        const gLista = l.gastos_detalle || [];
+        const gSuma = gLista.reduce(function (a, x) { return a + (Number(x.importe) || 0); }, 0);
+        const gmk = gLista.length ? r2(gSuma) : (l.gastos_netos != null ? r2(l.gastos_netos) : null);
+        const gcf = (f.recibidos || []).reduce(function (a, x) { return { sub: a.sub + (Number(x.subtotal) || 0), iva: a.iva + (Number(x.iva) || 0), tot: a.tot + (Number(x.total) || 0) }; }, { sub: 0, iva: 0, tot: 0 });
+        const costoTotal = r2(Math.abs(gmk || 0) + gcf.sub);
         out = {
+          costos: { marketplace_detalle: gLista.filter(function (x) { return Number(x.importe) !== 0; }), marketplace_total: gmk,
+                    marketplace_declarado: l.gastos_netos != null ? r2(l.gastos_netos) : null,
+                    marketplace_control: (l.gastos_netos != null && gLista.length) ? (Math.abs(r2(gSuma - l.gastos_netos)) < 0.05) : null,
+                    cfdi_n: (f.recibidos || []).length, cfdi_subtotal: r2(gcf.sub), cfdi_iva: r2(gcf.iva), cfdi_total: r2(gcf.tot),
+                    total: costoTotal, utilidad_estimada: r2((c.base || 0) - costoTotal) },
           cliente: in_.cliente, periodo: target, idioma: in_.idioma || 'es', estado: in_.estado || 'draft', emitido: in_.emitido || new Date().toISOString().slice(0, 10),
           logo_svg: in_.logo_svg || null, lectura: in_.lectura || null, fuentes: in_.fuentes || [], alertas: (in_.alertas || []).concat(difRet != null ? ['El IVA retenido del certificado (' + retenido.toFixed(2) + ') no coincide con el de la liquidación del marketplace (' + retenidoLiq.toFixed(2) + '): diferencia de ' + difRet.toFixed(2) + '. El cálculo usa el certificado.'] : []), notas: in_.notas || [],
           resumen: { ventas_base: c.base, ordenes: c.ordenes, ordenes_16: c.ordenes_16, ordenes_0: (c.ordenes != null && c.ordenes_16 != null) ? c.ordenes - c.ordenes_16 : null,
@@ -4088,8 +4101,45 @@ function calcXlsxBlob_(calc, lang, nombreArchivo) {
     money(s, 'B' + b0 + ':D' + (r - 1));
     anchos(s, [16 * 7, 18 * 7, 18 * 7, 16 * 7, 16 * 7, 40 * 7]);
 
-    /* ── 6 · CFDI ── */
-    s = hoja(5); r = titulo(s, 4, t.cfdi_title, t.cfdi_lead);
+    /* ── 6 · Costos y gastos ── */
+    s = hoja(5); r = titulo(s, 4, t.cost_title, t.cost_lead);
+    var cs = calc.costos || {};
+    r = titulo(s, r + 1, t.cost_mk);
+    var cg0 = r = encabezado(s, r, [t.col_concept, t.col_amount, '', '']);
+    var det = (cs.marketplace_detalle || []).map(function (x) { return [x.concepto, Number(x.importe) || 0, '', '']; });
+    if (det.length) {
+      r = bloque(s, r, det, 4);
+      s.getRange(r, 1).setValue(t.col_total).setFontFamily('Arial').setFontSize(10).setFontWeight('bold');
+      s.getRange(r, 2).setFormula('=SUM(B' + (cg0 + 1) + ':B' + (r - 1) + ')').setFontWeight('bold');
+      r++;
+      if (cs.marketplace_declarado != null) {
+        r = bloque(s, r, [[t.cost_ctrl, cs.marketplace_declarado, cs.marketplace_control === false ? t.cost_bad : t.cost_ok, '']], 4);
+        s.getRange(r - 1, 3).setBackground(cs.marketplace_control === false ? WRN : OKC);
+      }
+    } else r = bloque(s, r, [['', t.cost_none, '', '']], 4);
+    money(s, 'B' + (cg0 + 1) + ':B' + (r - 1));
+
+    r = titulo(s, r + 1, t.cost_cfdi);
+    var cc0 = r = encabezado(s, r, [t.col_concept, t.col_amount, '', '']);
+    r = bloque(s, r, [[t.col_subtotal, cs.cfdi_subtotal || 0, cs.cfdi_n ? cs.cfdi_n + ' CFDI' : t.col_none, ''],
+                      ['IVA', cs.cfdi_iva || 0, '', ''], [t.col_total, cs.cfdi_total || 0, '', '']], 4);
+    money(s, 'B' + (cc0 + 1) + ':B' + (r - 1));
+
+    r = titulo(s, r + 1, t.cost_total);
+    var ct0 = r = encabezado(s, r, [t.col_concept, t.col_amount, '', '']);
+    r = bloque(s, r, [[t.exec_sales, rs.ventas_base || 0, '', ''],
+                      [t.cost_mk, Math.abs(cs.marketplace_total || 0), '', ''],
+                      [t.cost_cfdi, cs.cfdi_subtotal || 0, '', ''],
+                      [t.cost_total, cs.total || 0, '', ''],
+                      [t.cost_profit, cs.utilidad_estimada || 0, '', '']], 4);
+    money(s, 'B' + (ct0 + 1) + ':B' + (r - 1));
+    s.getRange(r - 1, 1, 1, 2).setFontWeight('bold');
+    r = bloque(s, r + 1, [[t.cost_note, '', '', '']], 4);
+    s.getRange(r - 1, 1).setWrap(true).setFontSize(9).setFontColor(MUT);
+    s.getRange(4, 1, r, 1).setWrap(true); anchos(s, [52 * 7, 20 * 7, 22 * 7, 10 * 7]);
+
+    /* ── 7 · CFDI ── */
+    s = hoja(6); r = titulo(s, 4, t.cfdi_title, t.cfdi_lead);
     [[t.cfdi_issued, calc.cfdi_emitidos], [t.cfdi_received, calc.cfdi_recibidos]].forEach(function (par) {
       r = titulo(s, r + 1, par[0]);
       r = encabezado(s, r, [t.col_date, t.col_who, t.col_subtotal, 'IVA', t.col_total, '']);
@@ -4104,8 +4154,8 @@ function calcXlsxBlob_(calc, lang, nombreArchivo) {
     });
     s.getRange(4, 2, r, 1).setWrap(true); anchos(s, [14 * 7, 62 * 7, 18 * 7, 16 * 7, 18 * 7, 10 * 7]);
 
-    /* ── 7 · Notas y glosario ── */
-    s = hoja(6); r = titulo(s, 4, t.notes_title, t.notes_lead);
+    /* ── 8 · Notas y glosario ── */
+    s = hoja(7); r = titulo(s, 4, t.notes_title, t.notes_lead);
     r = bloque(s, r, (calc.notas || []).map(function (n) { return ['• ' + (n[lang] || n.es || n)]; }), 2);
     r = titulo(s, r + 1, t.glossary_title);
     r = encabezado(s, r, [t.col_concept, '']);

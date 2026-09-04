@@ -294,7 +294,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
     <div class="push"></div>
     <div class="status" id="userBox" style="border-top:none"></div>
-    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v12 · generar el cálculo por POST</span></div>
+    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v13 · hoja de costos y gastos</span></div>
   </nav>
 
   <main class="main">
@@ -2734,7 +2734,20 @@ setInterval(loadAll,120000);
       serie.push({ mes: m.mes, anio: m.anio, iva_a_pagar: aPagar, arrastre, isr_a_pagar: isrPagar });
 
       if (m.mes === target.mes && m.anio === target.anio) {
+        /* Costos y gastos del mes, con los documentos como única fuente:
+           las comisiones del resumen del marketplace (su suma cuadra contra tarifas netas)
+           y los gastos facturados con CFDI a nombre del cliente. */
+        const gLista = l.gastos_detalle || [];
+        const gSuma = gLista.reduce(function (a, x) { return a + (Number(x.importe) || 0); }, 0);
+        const gmk = gLista.length ? r2(gSuma) : (l.gastos_netos != null ? r2(l.gastos_netos) : null);
+        const gcf = (f.recibidos || []).reduce(function (a, x) { return { sub: a.sub + (Number(x.subtotal) || 0), iva: a.iva + (Number(x.iva) || 0), tot: a.tot + (Number(x.total) || 0) }; }, { sub: 0, iva: 0, tot: 0 });
+        const costoTotal = r2(Math.abs(gmk || 0) + gcf.sub);
         out = {
+          costos: { marketplace_detalle: gLista.filter(function (x) { return Number(x.importe) !== 0; }), marketplace_total: gmk,
+                    marketplace_declarado: l.gastos_netos != null ? r2(l.gastos_netos) : null,
+                    marketplace_control: (l.gastos_netos != null && gLista.length) ? (Math.abs(r2(gSuma - l.gastos_netos)) < 0.05) : null,
+                    cfdi_n: (f.recibidos || []).length, cfdi_subtotal: r2(gcf.sub), cfdi_iva: r2(gcf.iva), cfdi_total: r2(gcf.tot),
+                    total: costoTotal, utilidad_estimada: r2((c.base || 0) - costoTotal) },
           cliente: in_.cliente, periodo: target, idioma: in_.idioma || 'es', estado: in_.estado || 'draft', emitido: in_.emitido || new Date().toISOString().slice(0, 10),
           logo_svg: in_.logo_svg || null, lectura: in_.lectura || null, fuentes: in_.fuentes || [], alertas: (in_.alertas || []).concat(difRet != null ? ['El IVA retenido del certificado (' + retenido.toFixed(2) + ') no coincide con el de la liquidación del marketplace (' + retenidoLiq.toFixed(2) + '): diferencia de ' + difRet.toFixed(2) + '. El cálculo usa el certificado.'] : []), notas: in_.notas || [],
           resumen: { ventas_base: c.base, ordenes: c.ordenes, ordenes_16: c.ordenes_16, ordenes_0: (c.ordenes != null && c.ordenes_16 != null) ? c.ordenes - c.ordenes_16 : null,
@@ -3193,7 +3206,7 @@ async function cxRevelarCiec(token) { const r = await capi('calc_revelar_ciec', 
 function cxDoc(tipo) { return (CX.docs.find(d => d.tipo === tipo) || {}).datos || null; }
 function cxResumenInsumos() {
   const c = cxDoc('certificado_retenciones') || {}, l = cxDoc('resumen_marketplace') || {}, b = cxDoc('estado_cuenta');
-  document.getElementById('cxResumenMk').innerHTML = `<table class="cx-table"><tr><td>Base del mes (sin IVA)</td><td>${cxFmt(c.base)}</td></tr><tr><td>Órdenes · con IVA 16%</td><td>${c.ordenes || '—'} · ${c.ordenes_16 ?? '—'}</td></tr><tr><td>IVA trasladado según certificado</td><td>${cxFmt(c.iva_trasladado)}</td></tr><tr><td>ISR retenido</td><td>${cxFmt(c.isr_retenido)}</td></tr><tr><td>IVA retenido (liquidación)</td><td>${cxFmt(l.iva_retenido)}</td></tr><tr><td>Transferencias al banco</td><td>${cxFmt(l.transferencias)}</td></tr></table>`;
+  document.getElementById('cxResumenMk').innerHTML = `<table class="cx-table"><tr><td>Base del mes (sin IVA)</td><td>${cxFmt(c.base)}</td></tr><tr><td>Órdenes · con IVA 16%</td><td>${c.ordenes || '—'} · ${c.ordenes_16 ?? '—'}</td></tr><tr><td>IVA trasladado según certificado</td><td>${cxFmt(c.iva_trasladado)}</td></tr><tr><td>ISR retenido</td><td>${cxFmt(c.isr_retenido)}</td></tr><tr><td>IVA retenido (liquidación)</td><td>${cxFmt(l.iva_retenido)}</td></tr><tr><td>Transferencias al banco</td><td>${cxFmt(l.transferencias)}</td></tr><tr><td>Comisiones y tarifas del marketplace</td><td>${cxFmt(l.gastos_netos)}${(l.gastos_detalle || []).length ? ` · ${(l.gastos_detalle || []).filter(x => x.importe).length} conceptos` : ' <span class="cx-tag warn">sin detalle</span>'}</td></tr></table>`;
   const k = `${CX.anio}-${String(CX.mes).padStart(2, '0')}`; const m = CX.syntage && CX.syntage.conectado ? (CX.syntage.cfdi_por_mes[k] || {}) : null;
   document.getElementById('cxResumenSat').innerHTML = `<table class="cx-table"><tr><td>IVA acreditable (CFDI PUE)</td><td>${m ? cxFmt(m.iva_acreditable_pue) : '<span class="cx-tag warn">sin Syntage</span>'}</td></tr><tr><td>IVA trasladado en CFDI emitidos</td><td>${m ? cxFmt((m.emitidos || []).reduce((a, x) => a + x.iva, 0)) : '—'}</td></tr><tr><td>Abonos del marketplace en el banco</td><td>${b ? cxFmt(b.abonos) + ' · ' + (b.cuenta || '') : '<span class="cx-tag warn">sin estado de cuenta</span>'}</td></tr></table>`;
 }
