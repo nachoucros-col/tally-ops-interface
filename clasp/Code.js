@@ -2771,6 +2771,7 @@ function almDetalle_(metrica, periodo, owner) {
       detail_title: 'Detalle de ventas y retenciones', detail_lead: 'Lo que reporta el marketplace, mes a mes.',
       col_month: 'Mes', col_orders: 'Órdenes', col_base: 'Base sin IVA', col_iva: 'IVA cobrado', col_isr_ret: 'ISR retenido', col_iva_ret: 'IVA retenido', col_total: 'Total',
       cost_title: 'Costos y gastos', cost_lead: 'Lo que costó vender este mes, según los documentos.', cost_mk: 'Comisiones y tarifas del marketplace (resumen mensual)', cost_cfdi: 'Gastos facturados a tu empresa (CFDI recibidos del mes)', cost_total: 'Total de costos y gastos del mes', cost_profit: 'Utilidad estimada del mes (ventas − costos y gastos)', cost_ctrl: 'Control: la suma del detalle contra las tarifas netas del resumen', cost_ok: 'cuadra', cost_bad: 'no cuadra', cost_none: 'Sin resumen mensual del marketplace: no hay detalle de comisiones', cost_note: 'Las comisiones salen del resumen mensual del marketplace y su suma cuadra contra el renglón de tarifas netas. Los gastos facturados son el subtotal de los CFDI recibidos del mes. Si el marketplace factura sus comisiones por CFDI, esas comisiones están en los dos bloques: este documento no decide la deducibilidad, eso lo revisa el contador.',
+      iva_r4b: 'IVA retenido de meses anteriores, pendiente de acreditar', ctx_title: 'Observaciones del contador', ctx_lead: 'Contexto que el contador dejó asentado para este cálculo.', rango_title: 'Resumen del rango', rango_lead: 'El acumulado de todos los períodos incluidos en este documento.', rango_meses: 'Períodos incluidos',
       cfdi_title: 'Facturas (CFDI) registradas en el SAT', cfdi_lead: 'Lo que el SAT ve de tu empresa este mes.',
       cfdi_issued: 'Facturas emitidas por tu empresa', cfdi_received: 'Facturas recibidas (gastos)', col_date: 'Fecha', col_who: 'Emisor / receptor', col_subtotal: 'Subtotal', col_none: 'Sin facturas en el período',
       bank_title: 'Conciliación bancaria', bank_lead: 'Lo que el marketplace dice que te depositó contra lo que llegó al banco.', col_bank_expected: 'Depósitos según marketplace', col_bank_actual: 'Abonos en el estado de cuenta', col_diff: 'Diferencia', bank_missing: 'Sin estado de cuenta del mes',
@@ -2803,6 +2804,7 @@ function almDetalle_(metrica, periodo, owner) {
       detail_title: 'Sales and withholding detail', detail_lead: 'What the marketplace reports, month by month.',
       col_month: 'Month', col_orders: 'Orders', col_base: 'Base (net of VAT)', col_iva: 'VAT collected', col_isr_ret: 'Income tax withheld', col_iva_ret: 'VAT withheld', col_total: 'Total',
       cost_title: 'Costs and expenses', cost_lead: 'What it cost to sell this month, per the documents.', cost_mk: 'Marketplace fees and commissions (monthly summary)', cost_cfdi: 'Expenses invoiced to your company (CFDI received this month)', cost_total: 'Total costs and expenses for the month', cost_profit: 'Estimated profit for the month (sales − costs and expenses)', cost_ctrl: 'Control: detail total against net fees in the summary', cost_ok: 'matches', cost_bad: 'does not match', cost_none: 'No marketplace monthly summary: no fee detail available', cost_note: 'Fees come from the marketplace monthly summary and their total ties to the net fees line. Invoiced expenses are the subtotal of the CFDI received this month. If the marketplace invoices its fees by CFDI, those fees appear in both blocks: this document does not rule on deductibility, your accountant does.',
+      iva_r4b: 'VAT withheld in prior months, still to be credited', ctx_title: "Accountant's notes", ctx_lead: 'Context the accountant recorded for this calculation.', rango_title: 'Range summary', rango_lead: 'The total across every period included in this document.', rango_meses: 'Periods included',
       cfdi_title: 'Invoices (CFDI) on record with SAT', cfdi_lead: 'What SAT sees of your company this month.', cfdi_issued: 'Invoices issued by your company', cfdi_received: 'Invoices received (expenses)', col_date: 'Date', col_who: 'Issuer / receiver', col_subtotal: 'Subtotal', col_none: 'No invoices in the period',
       bank_title: 'Bank reconciliation', bank_lead: 'What the marketplace says it paid you versus what reached the bank.', col_bank_expected: 'Payouts per marketplace', col_bank_actual: 'Credits on bank statement', col_diff: 'Difference', bank_missing: 'No bank statement for the month',
       notes_title: 'Notes and assumptions', notes_lead: 'What you need to know to read the figures correctly.',
@@ -2834,6 +2836,7 @@ function almDetalle_(metrica, periodo, owner) {
       detail_title: '销售与代扣明细', detail_lead: '平台逐月报告的数据。',
       col_month: '月份', col_orders: '订单', col_base: '不含税基础', col_iva: '收取增值税', col_isr_ret: '代扣所得税', col_iva_ret: '代扣增值税', col_total: '合计',
       cost_title: '成本与费用', cost_lead: '按单据计算的本月销售成本。', cost_mk: '平台佣金与费用（月度汇总）', cost_cfdi: '开具给贵公司的费用发票（本月收到的 CFDI）', cost_total: '本月成本与费用合计', cost_profit: '本月预估利润（销售额 − 成本与费用）', cost_ctrl: '核对：明细合计与汇总中的净费用', cost_ok: '一致', cost_bad: '不一致', cost_none: '没有平台月度汇总：无费用明细', cost_note: '费用取自平台月度汇总，其合计与净费用行核对一致。已开票费用为本月收到的 CFDI 小计。若平台以 CFDI 开具其佣金，则该佣金同时出现在两个板块：本文件不判定可抵扣性，由会计师复核。',
+      iva_r4b: '往月代扣增值税，尚未抵扣', ctx_title: '会计师备注', ctx_lead: '会计师为本次计算记录的背景说明。', rango_title: '区间汇总', rango_lead: '本文件所含全部期间的累计。', rango_meses: '包含期间',
       cfdi_title: 'SAT 登记的发票 (CFDI)', cfdi_lead: 'SAT 本月看到的贵公司情况。', cfdi_issued: '贵公司开具的发票', cfdi_received: '收到的发票（费用）', col_date: '日期', col_who: '开票方 / 受票方', col_subtotal: '小计', col_none: '本期无发票',
       bank_title: '银行对账', bank_lead: '平台声称的付款与实际到账的对比。', col_bank_expected: '平台付款', col_bank_actual: '银行对账单入账', col_diff: '差额', bank_missing: '缺少本月银行对账单',
       notes_title: '说明与假设', notes_lead: '正确阅读数字所需了解的事项。',
@@ -3983,7 +3986,11 @@ function calcGenerar_(body, u) {
   const input = body.input; if (!input || !input.cliente || !input.periodo || !input.meses) return { ok: false, error: 'input incompleto' };
   if (input.completar_serie) calcCompletarSerie_(input);
   const calc = TallyCalculoEngine.calcular(input);
-  const rfc = String(input.cliente.rfc).toUpperCase(); const periodo = input.periodo.anio + '-' + ('0' + input.periodo.mes).slice(-2);
+  const rfc = String(input.cliente.rfc).toUpperCase();
+  /* Un cálculo por período, y si vienen varios, además el consolidado del rango con su
+     propio identificador para que no se pisen entre ellos. */
+  const periodo = input.rango ? (input.rango.desde + '_a_' + input.rango.hasta) : (input.periodo.anio + '-' + ('0' + input.periodo.mes).slice(-2));
+  if (input.contexto && !input.contexto_autor) input.contexto_autor = u.email;
   const folder = calcFolder_(rfc, periodo); const calc_id = 'CALC-' + periodo + '-' + rfc;
   const ids = {}; ['es', 'en', 'zh'].forEach(function (l) { ids[l] = calcReplaceFile_(folder, 'Calculo_' + rfc + '_' + periodo + '_' + l + '.html', TallyCalculo.render(calc, l), 'text/html'); });
   const jsonId = calcReplaceFile_(folder, 'calculo_' + rfc + '_' + periodo + '.json', JSON.stringify(calc), 'application/json');
@@ -3995,6 +4002,9 @@ function calcGenerar_(body, u) {
   almUpsert_('calculos_impuestos', ['calc_id'], [{ calc_id: calc_id, company_id: input.cliente.company_id || '', rfc: rfc, nombre: input.cliente.nombre, periodo: periodo, anio: String(input.periodo.anio), mes: String(input.periodo.mes),
     idioma: input.idioma || 'es', estado: 'draft', lectura: (input.lectura && input.lectura.es) || '', iva_a_pagar: String(calc.iva.a_pagar), isr_a_pagar: calc.isr.a_pagar == null ? '' : String(calc.isr.a_pagar),
     saldo_favor: String(calc.iva.saldo_favor_arrastre), ventas_base: String(calc.resumen.ventas_base), creado_por: prev ? prev.creado_por : u.email, creado_en: prev ? prev.creado_en : now, actualizado_en: now,
+    contexto: String(input.contexto || ''), contexto_autor: String(input.contexto_autor || ''),
+    rango: input.rango ? (input.rango.desde + ' → ' + input.rango.hasta) : '',
+    periodos: (input.meses || []).map(function (m) { return m.anio + '-' + m.mes; }).join(' '),
     carpeta_drive: folder.getId(), json_file_id: jsonId, html_es_id: ids.es, html_en_id: ids.en, html_zh_id: ids.zh, pdf_id: pdfId, correcciones: prev ? prev.correcciones : '', version: String(prev ? Number(prev.version || 1) + 1 : 1),
     xlsx_es_id: '', xlsx_en_id: '', xlsx_zh_id: '' }]);   /* se invalida el Excel cacheado: al regenerar debe rehacerse */
   if (prev) ['xlsx_es_id', 'xlsx_en_id', 'xlsx_zh_id'].forEach(function (c) { if (prev[c]) { try { DriveApp.getFileById(prev[c]).setTrashed(true); } catch (e) {} } });
@@ -4098,7 +4108,7 @@ function calcRevelarCiec_(body, u) {
    ═══════════════════════════════════════════════════════════════════════════ */
 const CALC_APPSHEET_TABLA = 'calculo_impuestos';
 const CALC_APPSHEET_FILES = '1HNBxWPM0-TmioceSIIpqdcBkY7pnqGL1'; // carpeta calculo_impuestos_Files_
-const CALC_COLS_V2 = ['xlsx_es_id', 'xlsx_en_id', 'xlsx_zh_id', 'appsheet_calc_imp_id', 'appsheet_ruta', 'appsheet_cargado_en'];
+const CALC_COLS_V2 = ['xlsx_es_id', 'xlsx_en_id', 'xlsx_zh_id', 'appsheet_calc_imp_id', 'appsheet_ruta', 'appsheet_cargado_en', 'contexto', 'contexto_autor', 'rango', 'periodos'];
 try { CALC_COLS_V2.forEach(function (c) { if (ALM_TABS.calculos_impuestos.indexOf(c) < 0) ALM_TABS.calculos_impuestos.push(c); }); } catch (e) {}
 
 /** Agrega al almacén las columnas que falten en una pestaña ya creada. */
@@ -4183,6 +4193,21 @@ function calcXlsxBlob_(calc, lang, nombreArchivo) {
     money(s, 'B' + (kpi + 1) + ':B' + (kpi + 6));
     s.getRange(kpi + 1, 1, 1, 3).setBackground(VIO100).setFontWeight('bold');
     s.getRange(kpi + 1, 2).setFontSize(14);
+    if (rg) {
+      r = titulo(s, r + 1, t.rango_title, t.rango_lead);
+      var rr = r = encabezado(s, r, [t.col_concept, t.col_amount, '']);
+      r = bloque(s, r, [
+        [t.rango_meses, rg.meses, rg.desde + ' → ' + rg.hasta],
+        [t.kpi_iva, rg.iva_a_pagar || 0, ''],
+        [t.exec_sales, rg.ventas || 0, ''],
+        [t.exec_orders, rg.ordenes || 0, ''],
+        [t.iva_r3, rg.iva_trasladado || 0, ''],
+        [t.iva_r4, rg.iva_retenido || 0, ''],
+        [t.kpi_favor, rg.saldo_favor_final || 0, '']
+      ], 3);
+      money(s, 'B' + (rr + 1) + ':B' + (r - 1));
+    }
+    if (calc.contexto) { r = titulo(s, r + 1, t.ctx_title, t.ctx_lead); r = bloque(s, r, [[String(calc.contexto)]], 3); s.getRange(r - 1, 1).setWrap(true).setFontSize(10); }
     if (calc.lectura && calc.lectura[lang]) { r = titulo(s, r + 1, t.reading, calc.lectura[lang]); }
     r = titulo(s, r + 1, t.exec_next);
     r = bloque(s, r, [['1. ' + t.exec_next_1], ['2. ' + t.exec_next_2], ['3. ' + t.exec_next_3]], 3);
@@ -4219,14 +4244,15 @@ function calcXlsxBlob_(calc, lang, nombreArchivo) {
       [t.iva_r2, iva.base_0 || 0, iva.src_0 || ''],
       [t.iva_r3, iva.trasladado || 0, iva.src_trasladado || ''],
       [t.iva_r4, -(iva.retenido || 0), iva.src_retenido || ''],
+      [t.iva_r4b, -(iva.retenido_anterior || 0), iva.retenido_anterior ? (iva.src_retenido_anterior || '') : ''],
       [t.iva_r5, -(iva.acreditable || 0), iva.src_acreditable || ''],
       [t.iva_r6, -(iva.saldo_favor_anterior || 0), ''],
-      [t.iva_r7, '=SUM(B' + (f0 + 2) + ':B' + (f0 + 4) + ')', ''],
-      [t.iva_r8, '=MAX(0,B' + (f0 + 6) + '+B' + (f0 + 5) + ')', ''],
-      [t.iva_r9, '=MAX(0,-(B' + (f0 + 6) + '+B' + (f0 + 5) + '))', '']
+      [t.iva_r7, '=SUM(B' + (f0 + 2) + ':B' + (f0 + 5) + ')', ''],
+      [t.iva_r8, '=MAX(0,B' + (f0 + 7) + '+B' + (f0 + 6) + ')', ''],
+      [t.iva_r9, '=MAX(0,-(B' + (f0 + 7) + '+B' + (f0 + 6) + '))', '']
     ], 3);
     money(s, 'B' + f0 + ':B' + (r - 1));
-    s.getRange(f0 + 7, 1, 1, 3).setBackground(VIO100).setFontWeight('bold');
+    s.getRange(f0 + 8, 1, 1, 3).setBackground(VIO100).setFontWeight('bold');
     if (iva.ppd_pendiente) r = bloque(s, r + 1, [['(i) ' + (lang === 'es' ? 'IVA de facturas por pagar (PPD), no acreditable este mes' : lang === 'en' ? 'VAT on unpaid invoices (PPD), not creditable this month' : '未付款发票的增值税（PPD），本月不可抵扣'), iva.ppd_pendiente, '']], 3);
     s.getRange(4, 1, r, 1).setWrap(true); s.getRange(4, 3, r, 1).setWrap(true).setFontSize(9).setFontColor(MUT);
     anchos(s, [58 * 7, 20 * 7, 44 * 7]);
@@ -4329,6 +4355,7 @@ function calcXlsxBlob_(calc, lang, nombreArchivo) {
 
     /* ── 8 · Notas y glosario ── */
     s = hoja(7); r = titulo(s, 4, t.notes_title, t.notes_lead);
+    if (calc.contexto) { r = titulo(s, r + 1, t.ctx_title, t.ctx_lead); r = bloque(s, r, [[String(calc.contexto) + (calc.contexto_autor ? '  — ' + calc.contexto_autor : '')]], 2); s.getRange(r - 1, 1).setWrap(true); }
     r = bloque(s, r, (calc.notas || []).map(function (n) { return ['• ' + (n[lang] || n.es || n)]; }), 2);
     r = titulo(s, r + 1, t.glossary_title);
     r = encabezado(s, r, [t.col_concept, '']);
