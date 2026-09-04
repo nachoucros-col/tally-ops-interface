@@ -294,7 +294,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
     <div class="push"></div>
     <div class="status" id="userBox" style="border-top:none"></div>
-    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v7 · lectura nativa de PDF + Syntage por entity_id</span></div>
+    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 4-sep v8 · padrón en memoria + lectura nativa de PDF</span></div>
   </nav>
 
   <main class="main">
@@ -2227,6 +2227,7 @@ document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',ev=>{
   document.querySelectorAll('.nav a').forEach(x=>x.classList.remove('active')); a.classList.add('active');
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-'+a.dataset.view).classList.add('active');
+  if(a.dataset.view==='calculo' && typeof cxCargarPadron==='function') cxCargarPadron().catch(()=>{});
 }));
 document.getElementById('catChips').addEventListener('click',ev=>{
   const ch=ev.target.closest('.chip');
@@ -3084,13 +3085,49 @@ function cxGo(n) {
 }
 
 /* ══════════════ paso 1 · cliente ══════════════ */
-let cxT;
-function cxBuscarCliente(q) { clearTimeout(cxT); q = String(q || '').trim(); CX.cliente = null; document.getElementById('cxClienteSel').style.display = 'none'; document.getElementById('cxNext1').disabled = true; const L0 = document.getElementById('cxClienteLista'); if (q.length < 3) { L0.innerHTML = ''; return; } L0.innerHTML = '<div class="cx-hint">Buscando en el padrón…</div>'; cxT = setTimeout(async () => {
-  const r = await capi('calc_clientes', { q }); const L = document.getElementById('cxClienteLista');
-  if (!r.ok) { L.innerHTML = `<div class="cx-hint">⚠️ No pude leer el padrón: ${r.error || 'error del servidor'}. Puedes continuar con el RFC tal cual.</div>` + cxManualHtml(q); return; }
-  const items = (r.clientes || []).map(c => `<div class="it" onclick='cxElegir(${JSON.stringify(c).replace(/'/g, "&#39;")})'><span><b>${c.nombre}</b> · ${c.rfc || '<i>sin RFC en el padrón</i>'}${c.company_id ? ' · ' + c.company_id : ''}${c.owner ? ' · ' + c.owner : ''}</span><span class="cx-tag ${c.syntage ? 'ok' : 'warn'}">${c.syntage ? 'SAT conectado' : 'Sin Syntage'}</span></div>`).join('');
-  L.innerHTML = items || ('<div class="cx-hint">Sin coincidencias en el padrón.</div>' + cxManualHtml(q));
-}, 250); }
+let cxT, CX_PADRON = null, CX_PADRON_PROM = null, CX_PADRON_TS = 0;
+/* El padrón se trae una sola vez (leer las dos hojas en el servidor cuesta segundos) y
+   a partir de ahí el filtrado es en el navegador: escribir es instantáneo. */
+function cxCargarPadron(refrescar) {
+  if (CX_PADRON && !refrescar) return Promise.resolve(CX_PADRON);
+  if (CX_PADRON_PROM && !refrescar) return CX_PADRON_PROM;
+  CX_PADRON_PROM = capi('calc_clientes', { q: '', todos: true, refrescar: refrescar ? 1 : 0 }).then(r => {
+    CX_PADRON_PROM = null;
+    if (r && r.ok) { CX_PADRON = r.clientes || []; CX_PADRON_TS = Date.now(); return CX_PADRON; }
+    throw new Error((r && r.error) || 'no pude leer el padrón');
+  }).catch(e => { CX_PADRON_PROM = null; throw e; });
+  return CX_PADRON_PROM;
+}
+function cxFiltrarPadron(q) {
+  const Q = String(q || '').toUpperCase().trim();
+  const esRfc = /^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/.test(Q);
+  return (CX_PADRON || []).filter(c =>
+    (c.rfc && c.rfc.indexOf(Q) >= 0) || String(c.nombre || '').toUpperCase().indexOf(Q) >= 0 ||
+    String(c.company_id || '').toUpperCase().indexOf(Q) >= 0 || String(c.nombre_syntage || '').toUpperCase().indexOf(Q) >= 0
+  ).slice(0, 40).map(c => c.rfc ? c : Object.assign({}, c, esRfc ? { rfc: Q, rfc_origen: 'capturado' } : {}));
+}
+function cxPintarClientes(q, lista) {
+  const L = document.getElementById('cxClienteLista');
+  const items = lista.map(c => `<div class="it" onclick='cxElegir(${JSON.stringify(c).replace(/'/g, "&#39;")})'><span><b>${c.nombre}</b> · ${c.rfc || '<i>sin RFC en el padrón</i>'}${c.company_id ? ' · ' + c.company_id : ''}${c.owner ? ' · ' + c.owner : ''}</span><span class="cx-tag ${c.syntage ? 'ok' : 'warn'}">${c.syntage ? 'SAT conectado' : 'Sin Syntage'}</span></div>`).join('');
+  const pie = `<div class="cx-hint">${(CX_PADRON || []).length} clientes en memoria · <button class="btn secondary" onclick="cxRefrescarPadron()">actualizar padrón</button></div>`;
+  L.innerHTML = (items || ('<div class="cx-hint">Sin coincidencias en el padrón.</div>' + cxManualHtml(q))) + pie;
+}
+function cxRefrescarPadron() {
+  const L = document.getElementById('cxClienteLista'); L.innerHTML = '<div class="cx-hint">Releyendo el padrón…</div>';
+  cxCargarPadron(true).then(() => cxBuscarCliente(document.getElementById('cxRfc').value))
+    .catch(e => { L.innerHTML = `<div class="cx-hint">⚠️ ${e.message}</div>`; });
+}
+function cxBuscarCliente(q) {
+  clearTimeout(cxT); q = String(q || '').trim(); CX.cliente = null;
+  document.getElementById('cxClienteSel').style.display = 'none'; document.getElementById('cxNext1').disabled = true;
+  const L0 = document.getElementById('cxClienteLista');
+  if (q.length < 3) { L0.innerHTML = ''; return; }
+  if (CX_PADRON) { cxT = setTimeout(() => cxPintarClientes(q, cxFiltrarPadron(q)), 60); return; }
+  L0.innerHTML = '<div class="cx-hint">Cargando el padrón por primera vez… (después la búsqueda es inmediata)</div>';
+  cxCargarPadron().then(() => cxPintarClientes(q, cxFiltrarPadron(q)))
+    .catch(e => { document.getElementById('cxClienteLista').innerHTML = `<div class="cx-hint">⚠️ No pude leer el padrón: ${e.message}. Puedes continuar con el RFC tal cual.</div>` + cxManualHtml(q); });
+}
+
 function cxManualHtml(q) { const rfc = q.toUpperCase().replace(/\s+/g, ''); if (!/^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/.test(rfc)) return '<div class="cx-hint">Escribe un RFC válido (12 o 13 caracteres) para continuar sin padrón.</div>'; return `<div class="it" onclick='cxElegir({company_id:"",rfc:"${rfc}",nombre:"${rfc}",owner:"",syntage:false,manual:true})'><span>➕ <b>Usar este RFC tal cual</b> · ${rfc} <small>(sin ficha en el padrón; el nombre se toma de Syntage si está conectado)</small></span><span class="cx-tag warn">manual</span></div>`; }
 function cxElegir(c) { if (!c.rfc) { const r = prompt('Este cliente no tiene RFC en el padrón. Escribe su RFC (12 o 13 caracteres):', ''); const rfc = String(r || '').toUpperCase().replace(/\s+/g, ''); if (!/^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/.test(rfc)) { alert('RFC no válido. No se seleccionó el cliente.'); return; } c.rfc = rfc; c.rfc_origen = 'capturado'; } CX.cliente = c; document.getElementById('cxClienteLista').innerHTML = ''; document.getElementById('cxRfc').value = c.rfc; const S = document.getElementById('cxClienteSel'); S.style.display = ''; S.innerHTML = `<b>${c.nombre}</b> · ${c.rfc} · ${c.owner || 'sin owner'} · <span class="cx-tag ${c.syntage ? 'ok' : 'warn'}">${c.syntage ? 'Conectado a Syntage' : 'No conectado a Syntage'}</span>`; document.getElementById('cxNext1').disabled = false; }
 
