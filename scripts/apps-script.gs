@@ -178,6 +178,15 @@ function handle(body) {
     case 'discard':
       return setEmailFields(ss, body.email_id, { estado: 'Descartado' }, now);
 
+    /* ── Revisado (7-sep-2026, orden de Juan): marca el correo como revisado.
+       Es un estado terminal de atención: sale de Quejas y alertas / Proceso /
+       Documentación / Pendientes de mí y vive solo en su propio filtro.
+       'no_revisado' lo regresa a 'Nuevo' (reaparece en Pendientes de mí). */
+    case 'revisar':
+      return setEmailFields(ss, body.email_id, { estado: 'Revisado' }, now);
+    case 'no_revisado':
+      return setEmailFields(ss, body.email_id, { estado: 'Nuevo' }, now);
+
     /* ── Mantenimiento: compactar Clientes_por_periodo (elimina filas 100% vacías) ──
        Las filas fantasma infladas por getLastRow() ralentizan el proxy del dashboard. */
     case 'cxp_compactar': {

@@ -99,6 +99,9 @@ h1{font-size:28px;font-weight:700;letter-spacing:-0.015em;margin-bottom:4px}
 .tag.st-Enviado{background:var(--green-500);color:#fff}
 .tag.st-Borrador{background:var(--orange-100);color:#b34a17}
 .tag.st-OS{background:var(--cyan-100);color:#0b6e8a;border:1px solid var(--cyan-500)}
+.tag.st-Revisado{background:#e6f4ee;color:#0c6b4b;border:1px solid #bfe3d3}
+.rev-btn{margin-left:auto;font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid var(--gray-200,#e5e5e5);background:#fff;color:#0c6b4b;cursor:pointer;white-space:nowrap}
+.rev-btn:hover{background:#e6f4ee;border-color:#bfe3d3}
 .tag.acct{background:transparent;border:1px solid var(--gray-300);color:var(--gray-500)}
 /* Drawer flotante (detalle de correo / redacción) */
 #drawerBack{position:fixed;inset:0;background:rgba(33,33,33,.42);z-index:140;opacity:0;pointer-events:none;transition:opacity .22s}
@@ -720,6 +723,8 @@ function countCat(cat){
     if(osFilter==='no' && (e.estado==='Respuesta OS'||e.respuesta_os)) return false;
     if(cat==='__env') return e.estado==='Enviado';
     if(e.estado==='Descartado') return false;
+    if(cat==='__rev') return e.estado==='Revisado';
+    if(e.estado==='Revisado') return false;
     if(cat==='__brr') return e.estado==='Borrador';
     if(cat==='__os') return e.estado==='Respuesta OS'||!!e.respuesta_os;
     if(cat==='__pend') return e.estado==='Nuevo'||e.estado==='Draft listo';
@@ -740,6 +745,7 @@ function renderCatChips(){
   el.innerHTML = `<button class="chip" data-cat="*">Todos ${chipN('*')}</button>`
     + cats.map(c=>`<button class="chip" data-cat="${esc(c)}">${esc(c)} ${chipN(c)}</button>`).join('')
     + `<button class="chip" data-cat="__pend">⏳ Pendientes de mí ${chipN('__pend')}</button>
+       <button class="chip" data-cat="__rev" title="Correos marcados como revisados — fuera de los filtros de trabajo">✔️ Revisado ${chipN('__rev')}</button>
        <button class="chip" data-cat="__brr">📝 Borradores ${chipN('__brr')}</button>
        <button class="chip" data-cat="__os" title="Correos que el equipo respondió por FUERA de la interfaz (Out Side)">🌐 Respuesta OS ${chipN('__os')}</button>
        <button class="chip" data-cat="__env">📤 Enviados ${chipN('__env')}</button>
@@ -771,7 +777,7 @@ const CAT_CLASS={'Documentación':'cat-Documentación','Proceso':'cat-Proceso','
 const CAT_ALIAS={'Quejas y alertas':['Quejas y alertas','Queja y reclamo','Alerta']};
 function catMatch(cat,eCat){ const l=CAT_ALIAS[cat]; return l?l.includes(eCat):eCat===cat; }
 function catNorm(c){ return (c==='Queja y reclamo'||c==='Alerta')?'Quejas y alertas':c; }
-const ST_CLASS={'Nuevo':'st-Nuevo','Prompt recibido':'st-Prompt','Draft listo':'st-Draft','Aprobado':'st-Aprobado','Enviado':'st-Enviado','Descartado':'st-Nuevo','Borrador':'st-Borrador','Respuesta OS':'st-OS'};
+const ST_CLASS={'Nuevo':'st-Nuevo','Prompt recibido':'st-Prompt','Draft listo':'st-Draft','Aprobado':'st-Aprobado','Enviado':'st-Enviado','Descartado':'st-Nuevo','Borrador':'st-Borrador','Respuesta OS':'st-OS','Revisado':'st-Revisado'};
 
 let mailOrden='desc'; // 'desc' = más recientes primero · 'asc' = orden de llegada
 let cuentaFilter='';  // '' = todas las cuentas
@@ -787,6 +793,8 @@ function visibleEmails(){
     if(osFilter==='no' && esOS(e)) return false;
     if(catFilter==='__env') return e.estado==='Enviado';
     if(e.estado==='Descartado') return false;
+    if(catFilter==='__rev') return e.estado==='Revisado';
+    if(e.estado==='Revisado') return false;
     if(catFilter==='__brr') return e.estado==='Borrador';
     if(catFilter==='__os') return e.estado==='Respuesta OS'||!!e.respuesta_os;
     if(catFilter==='__pend') return e.estado==='Nuevo'||e.estado==='Draft listo';
@@ -862,7 +870,7 @@ document.addEventListener('click',ev=>{
 function mailCardHtml(e){
   return `
     <div class="mail-card ${e.email_id===selId?'sel':''}" onclick="select('${e.email_id}')">
-      <div class="row1"><span class="from">${esc(e.remitente_nombre||e.remitente_email)}</span><span class="date">${esc(fechaLarga(e.fecha_recibido))}</span></div>
+      <div class="row1"><span class="from">${esc(e.remitente_nombre||e.remitente_email)}</span><span class="date">${esc(fechaLarga(e.fecha_recibido))}</span>${e.estado==='Revisado'?`<button class="rev-btn" onclick="event.stopPropagation();reabrir('${e.email_id}')" title="Quitar la marca — vuelve a Pendientes de mí">↩ Reabrir</button>`:`<button class="rev-btn" onclick="event.stopPropagation();revisar('${e.email_id}')" title="Marcar como revisado — se mueve a su propio filtro">✔ Revisado</button>`}</div>
       <div class="subj">${esc(e.asunto)}</div>
       <div class="sum">${esc(e.resumen)}</div>
       <div class="tags">
@@ -1046,6 +1054,7 @@ function renderDetail(id){
     <div class="btn-row">
       <button class="btn btn-primary" id="genBtn" onclick="generateNow('${e.email_id}')">⚡ Generar respuesta AHORA</button>
       <button class="btn btn-ghost" onclick="guardarBorrador('${e.email_id}')" title="Guarda la instrucción sin generar ni enviar — para que otra persona del equipo la confirme">📝 Guardar borrador</button>
+      <button class="btn btn-ghost" onclick="revisar('${e.email_id}')" title="Marcar como revisado — se mueve a su propio filtro">✔ Revisado</button>
       <button class="btn btn-ghost" onclick="discard('${e.email_id}')">Descartar</button>
     </div>
     <div id="genStatus"></div>
@@ -1065,6 +1074,7 @@ function renderDetail(id){
       <button class="btn btn-approve" id="sendBtn" onclick="approveAndSend('${e.email_id}')">✅ Aprobar y ENVIAR AHORA</button>
       <button class="btn btn-ghost" onclick="guardarBorradorDraft('${e.email_id}')" title="Guarda tus ediciones sin enviar — para que otra persona del equipo confirme">📝 Guardar borrador</button>
       <button class="btn btn-ghost" onclick="toggleNewPrompt()">↻ Modificar con nueva instrucción</button>
+      <button class="btn btn-ghost" onclick="revisar('${e.email_id}')" title="Marcar como revisado — se mueve a su propio filtro">✔ Revisado</button>
       <button class="btn btn-ghost" onclick="discard('${e.email_id}')">Descartar</button>
     </div>
     <div id="newPromptWrap" style="display:none">
@@ -1139,6 +1149,18 @@ async function guardarBorradorDraft(id){
   const cuerpo=document.getElementById('draftBox')?document.getElementById('draftBox').value:(e.draft_final||e.draft_cuerpo);
   const r=await api('guardar_borrador',{email_id:id,draft_final:cuerpo});
   if(r.ok){ e.draft_final=cuerpo; e.estado='Borrador'; toast('📝 Borrador guardado con tus ediciones — pendiente de confirmación'); renderMailList(); renderDetail(id); }
+  else toast('❌ '+(r.error||'error'));
+}
+async function revisar(id){
+  const r=await api('revisar',{email_id:id});
+  if(r.ok){ const e=EMAILS.find(x=>x.email_id===id); e.estado='Revisado';
+    if(selId===id){ selId=null; document.getElementById('mailDetail').innerHTML='<div class="empty">Selecciona un correo.</div>'; }
+    toast('✔ Marcado como Revisado — lo encuentras en su propio filtro'); renderMailList(); }
+  else toast('❌ '+(r.error||'error'));
+}
+async function reabrir(id){
+  const r=await api('no_revisado',{email_id:id});
+  if(r.ok){ const e=EMAILS.find(x=>x.email_id===id); e.estado='Nuevo'; toast('↩ Reabierto — vuelve a ⏳ Pendientes de mí'); renderMailList(); }
   else toast('❌ '+(r.error||'error'));
 }
 async function discard(id){
