@@ -204,6 +204,440 @@ function handle(body) {
       return { ok: true, accesos: accOut };
     }
 
+    /* ── Auditoría (7-sep-2026): solicitud de activación de un cliente en Syntage.
+       Crea la tarea para Juan y le avisa por DM (excepción explícita al silencio de Slack, orden de Juan 7-sep). */
+    case 'syntage_activar_solicitud': {
+      const uS = checkUser(body.auth);
+      if (!uS.ok) return uS;
+      const cid = String(body.company_id || '').trim(), nom = String(body.cliente || cid).trim();
+      if (!cid) return { ok: false, error: 'falta company_id' };
+      const shT = getOrCreate(ss, 'Tareas', ['tarea_id','fecha_creacion','creado_por','responsable','titulo','origen','ref_id','cliente','estado','fecha_finalizacion','ultima_actualizacion','descripcion','clientes','fecha_entrega']);
+      ensureTareasCols(shT);
+      const tid = 'T-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
+      shT.appendRow([tid, now, uS.email, 'juan@tally.legal', 'Activar en Syntage: ' + nom + ' (' + cid + ')', 'Auditoría · Syntage', cid, nom, 'Sin iniciar', '', now,
+        'Solicitado desde la vista de Auditoría por ' + uS.email + '. La activación habilita las reglas automáticas del semáforo (opinión, declaraciones y CFDI directo del SAT).', nom, '']);
+      const dm = calcAvisarJuan_('🚦 *Solicitud de activación en Syntage*\n' + (uS.nombre || uS.email) + ' pide activar a *' + nom + '* (' + cid + ') para el semáforo de auditoría.\nTarea creada: ' + tid + ' → https://tally-accounting-ops.netlify.app/#tareas');
+      return { ok: true, tarea_id: tid, dm: !!(dm && dm.ok), dm_error: (dm && dm.error) || '' };
+    }
+
+    case 'report_client_data': {
+      if (!body.company_id) return { ok: false, error: 'falta company_id' };
+      return buildClientData(String(body.company_id).trim());
+    }
+
+    /* Guardado de textos largos (contextos de reunión / secciones editadas)
+       por CHUNKS — el canal JSONP es GET y la URL tiene límite, así que la
+       interfaz manda el texto en pedazos secuenciales.
+       body: { tabla:'ctx'|'sec', id?, seq, chunk, last,
+               company_id, cliente?, tipo?, titulo?, idioma?, autor? } */
+    case 'ctx_save': {
+      const tab = body.tabla === 'sec' ? 'Reporte_Secciones' : 'Reporte_Contextos';
+      const sh = getOrCreate(ss, tab, HEADERS[tab]);
+      const seq = Number(body.seq || 0);
+      let id = String(body.id || '').trim();
+      if (seq === 0) {
+        if (id && findRow(sh, 1, id)) {
+          // regrabar contenido desde cero (edición)
+          const row = findRow(sh, 1, id);
+          if (tab === 'Reporte_Contextos') {
+            if (body.tipo   !== undefined) sh.getRange(row, 4).setValue(body.tipo);
+            if (body.titulo !== undefined) sh.getRange(row, 5).setValue(body.titulo);
+            sh.getRange(row, 6).setValue(String(body.chunk || ''));
+            sh.getRange(row, 7).setValue(now);
+          } else {
+            if (body.tipo   !== undefined) sh.getRange(row, 3).setValue(body.tipo);
+            if (body.titulo !== undefined) sh.getRange(row, 4).setValue(body.titulo);
+            sh.getRange(row, 5).setValue(String(body.chunk || ''));
+            if (body.idioma !== undefined) sh.getRange(row, 6).setValue(body.idioma);
+            sh.getRange(row, 7).setValue(now);
+          }
+        } else {
+          id = (tab === 'Reporte_Secciones' ? 'SEC-' : 'CTX-') + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+          if (tab === 'Reporte_Contextos') {
+            sh.appendRow([id, body.company_id || '', body.cliente || '', body.tipo || 'reunion',
+                          body.titulo || '', String(body.chunk || ''), now, body.autor || 'interfaz']);
+          } else {
+            sh.appendRow([id, body.company_id || '', body.tipo || 'estrategia', body.titulo || '',
+                          String(body.chunk || ''), body.idioma || 'en', now, 'si']);
+          }
+        }
+      } else {
+        const row = findRow(sh, 1, id);
+        if (!row) return { ok: false, error: 'id no encontrado para chunk: ' + id };
+        const col = tab === 'Reporte_Contextos' ? 6 : 5;
+        const cell = sh.getRange(row, col);
+        cell.setValue(String(cell.getValue()) + String(body.chunk || ''));
+        sh.getRange(row, 7).setValue(now);
+      }
+      const rowF = findRow(sh, 1, id);
+      const colF = tab === 'Reporte_Contextos' ? 6 : 5;
+      return { ok: true, id: id, len: String(sh.getRange(rowF, colF).getValue()).length, last: !!body.last };
+    }
+
+    /* Borrado de un contexto/sección (acción explícita de Juan en la interfaz). */
+    case 'ctx_delete': {
+      const tab = body.tabla === 'sec' ? 'Reporte_Secciones' : 'Reporte_Contextos';
+      const sh = ss.getSheetByName(tab);
+      if (!sh) return { ok: false, error: 'pestaña inexistente' };
+      const row = findRow(sh, 1, body.id);
+      if (!row) return { ok: false, error: 'id no encontrado' };
+      sh.deleteRow(row);
+      return { ok: true, deleted: body.id };
+    }
+
+    /* Incluir/excluir una sección del reporte final. body: { id, incluir:'si'|'no' } */
+    case 'sec_toggle': {
+      const sh = ss.getSheetByName('Reporte_Secciones');
+      const row = sh ? findRow(sh, 1, body.id) : null;
+      if (!row) return { ok: false, error: 'id no encontrado' };
+      sh.getRange(row, 8).setValue(body.incluir === 'no' ? 'no' : 'si');
+      return { ok: true, id: body.id, incluir: body.incluir };
+    }
+
+    /* Generación IA de secciones del reporte (Claude API, en tiempo real).
+       body: { kind:'resumen'|'proyeccion'|'estrategia', company_id, lang:'en'|'es',
+               contexto_ids?: 'CTX-1,CTX-2', instruccion?, estrategia_tipo? } */
+    case 'report_generate': {
+      const key = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
+      if (!key) return { ok: false, error: 'SIN_API_KEY: configura ANTHROPIC_API_KEY en Propiedades del script.' };
+      if (!body.company_id) return { ok: false, error: 'falta company_id' };
+
+      const data = buildClientData(String(body.company_id).trim());
+      if (!data.ok) return data;
+      const lang = body.lang === 'es' ? 'es' : 'en';
+      const kind = String(body.kind || 'resumen');
+
+      // Contextos seleccionados (notas de reuniones, contexto de proyección…)
+      let ctxTxt = '';
+      const ctxSh = ss.getSheetByName('Reporte_Contextos');
+      if (ctxSh && ctxSh.getLastRow() > 1) {
+        const ids = String(body.contexto_ids || '').split(',').map(function(s){ return s.trim(); }).filter(String);
+        const rows = ctxSh.getRange(2, 1, ctxSh.getLastRow() - 1, 8).getValues();
+        rows.forEach(function(r) {
+          if (String(r[1]).trim() !== String(body.company_id).trim()) return;
+          if (ids.length && ids.indexOf(String(r[0])) < 0) return;
+          ctxTxt += '\n--- [' + r[3] + '] ' + (r[4] || 'sin título') + ' (' + String(r[6]).slice(0, 10) + ') ---\n' + r[5] + '\n';
+        });
+      }
+      if (ctxTxt.length > 24000) ctxTxt = ctxTxt.slice(-24000); // proteger el prompt
+
+      const idioma = lang === 'es' ? 'ESPAÑOL' : 'INGLÉS';
+      const base = 'Eres el redactor de reportes de cliente de Tally (plataforma para abrir y operar empresa en México; lleva la contabilidad, impuestos y representación de empresas extranjeras que venden en marketplaces mexicanos). Escribes PARA EL CLIENTE: claro, concreto, profesional y cálido, SIN tecnicismos fiscales sin explicar (si mencionas IVA/ISR/DIOT, explica en una frase qué significan para su negocio). REGLAS DURAS: (1) idioma de salida: ' + idioma + ', sin excepción; (2) NO inventes cifras, fechas ni compromisos — usa exclusivamente los datos y contextos proporcionados; si un dato NO está, simplemente omítelo y NO lo menciones (ver REGLA CERO); (3) montos en MXN con formato $12,345; (4) FORMATO DE SALIDA: primera línea exactamente "TITULO: <título corto de la sección>", línea en blanco, luego el cuerpo. En el cuerpo puedes usar líneas que inicien con "- " para viñetas y líneas que inicien con "## " para subtítulos. Nada de markdown adicional.' + REGLA_CERO;
+      let mission, maxTok = 1800;
+      if (kind === 'resumen') {
+        // Resumen ejecutivo en clave de STORYTELLING para un CEO.
+        mission = 'MISIÓN: escribe la APERTURA NARRATIVA del reporte mensual — lo primero que lee el CEO del cliente.\n\n' +
+          'No es un resumen contable: es la historia del mes de SU NEGOCIO en México, contada con los números como evidencia. Piensa como un analista que le explica a un dueño ocupado qué pasó, qué significa y qué decidir.\n\n' +
+          'ESTRUCTURA OBLIGATORIA (usa exactamente estos marcadores):\n' +
+          'QUOTE: <una sola frase, máximo 18 palabras, que capture el titular del mes. Debe ser afirmativa y concreta, no genérica. Ej: "Vendiste menos, pero por primera vez el fisco te devuelve dinero.">\n' +
+          '(línea en blanco)\n' +
+          '<2 o 3 párrafos cortos que desarrollen esa frase: qué pasó, por qué pasó, y qué implica para su operación y su caja.>\n' +
+          '## <subtítulo que signifique "los tres números que importan este mes", EN EL IDIOMA DE SALIDA>\n' +
+          '- <dato 1: cifra + qué significa en una frase>\n' +
+          '- <dato 2>\n' +
+          '- <dato 3>\n' +
+          '## <subtítulo que signifique "lo que te recomendamos decidir", EN EL IDIOMA DE SALIDA>\n' +
+          '<1 párrafo con la recomendación concreta: acelerar, corregir algo, o esperar. Sin ambigüedad.>\n\n' +
+          'CERO tecnicismos sin explicar. Si usas un término fiscal, márcalo así: [[término|explicación en una frase para alguien sin formación contable]]. Ej: [[IVA a favor|el gobierno te debe dinero porque pagaste más impuesto del que cobraste; se descuenta de los meses siguientes]].';
+        maxTok = 2200;
+      } else if (kind === 'proyeccion') {
+        mission = 'MISIÓN: escribe el ANÁLISIS DE PROYECCIÓN de la actividad del cliente para los próximos 3–6 meses.\n\n' +
+          '🚫 NO RECAPITULES EL HISTORIAL. El cliente ya vio la serie mensual en gráficas y en el resumen ejecutivo: NO escribas una sección de "tendencia observada", NO enumeres los meses uno por uno ni repitas cifras ya presentadas. Arranca directo en el futuro.\n\n' +
+          'Basa la proyección en la serie mensual y, sobre todo, en el CONTEXTO DE PROYECCIÓN cargado (estacionalidad, lanzamientos, inventario, planes del cliente).\n' +
+          'ESTRUCTURA: supuestos explícitos (máximo 3, cada uno en una línea) → proyección con rangos (escenario conservador y esperado) → qué implica en impuestos y flujo de caja → señales a vigilar. Deja claro que son estimaciones, no promesas.';
+        maxTok = 2200;
+      } else if (kind === 'estrategia') {
+        mission = 'MISIÓN: documenta PARA EL CLIENTE la estrategia discutida en la sesión (tipo: ' + (body.estrategia_tipo || 'fiscal') + '). Estructura: objetivo de la estrategia → situación actual (con los datos reales) → pasos accionables numerados con responsable (Tally o el cliente) y horizonte de tiempo → beneficio esperado → riesgos o condiciones. Sé específico y ejecutable; es el registro que el cliente se lleva de la sesión.';
+        maxTok = 2200;
+      } else {
+        mission = 'MISIÓN: escribe una sección breve del reporte del cliente sobre el tema indicado en la instrucción de Juan.';
+      }
+      // Storytelling y glosario aplican a TODAS las secciones del reporte del cliente
+      mission += '\n\nREGLAS DE NARRATIVA (aplican siempre):\n' +
+        '· 🔒 TODOS los subtítulos y viñetas van en el idioma de salida indicado — nunca mezcles idiomas dentro del reporte.\n' +
+        '· Escribe para un CEO, no para un contador: frases cortas, voz activa, cada párrafo con una idea.\n' +
+        '· Prohibido el relleno ("es importante mencionar", "cabe destacar"). Cada frase aporta un hecho o una consecuencia.\n' +
+        '· Todo término técnico va marcado como [[término|explicación de una frase, sin jerga]] la PRIMERA vez que aparece.\n' +
+        '· Si un número es llamativo (una caída, un salto, un saldo a favor), dilo explícitamente y explica la causa probable con los datos que tienes. No lo dejes que el lector lo deduzca.';
+
+      const user = mission +
+        '\n\n═══ DATOS DEL CLIENTE (fuente: ' + data.fuente + ') ═══\n' + digestForPrompt(data, body.periodo_id || '') +
+        (ctxTxt ? '\n\n═══ CONTEXTOS CARGADOS (notas de reuniones / proyección) ═══\n' + ctxTxt : '') +
+        (body.instruccion ? '\n\n═══ INSTRUCCIÓN ADICIONAL DE JUAN PARA ESTA SECCIÓN ═══\n' + body.instruccion : '');
+
+      const cfg = ss.getSheetByName('Config');
+      const modelRow = findRow(cfg, 1, 'modelo_redaccion');
+      const model = modelRow ? String(cfg.getRange(modelRow, 2).getValue()) : 'claude-sonnet-5';
+
+      const ct = claudeCall(key, model, base, user, Math.max(maxTok, 4000));
+      if (!ct.texto) return { ok: false, error: ct.error };
+      const mt = ct.texto.match(/^TITULO:\s*(.+)\n+([\s\S]+)$/);
+      const titulo = mt ? mt[1].trim() : (kind === 'resumen' ? (lang === 'es' ? 'Resumen ejecutivo' : 'Executive Summary') : kind);
+      const contenido = scrubInterno(mt ? mt[2].trim() : ct.texto);
+
+      // Persistir como sección del reporte (editable e incluible desde la interfaz)
+      const sec = getOrCreate(ss, 'Reporte_Secciones', HEADERS.Reporte_Secciones);
+      const sid = 'SEC-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+      const tipoSec = kind === 'estrategia' ? 'estrategia:' + (body.estrategia_tipo || 'fiscal') : kind;
+      sec.appendRow([sid, body.company_id, tipoSec, titulo, contenido, lang, now, 'si']);
+      return { ok: true, seccion_id: sid, tipo: tipoSec, titulo: titulo, contenido: contenido, idioma: lang };
+    }
+
+    /* ══════════ 📄 CIERRE MENSUAL DESDE DOCUMENTOS (v3.3) ══════════ */
+
+    /* Documentos del último período del cliente (o del período indicado).
+       body: { company_id, periodo_id? } */
+    case 'report_docs': {
+      if (!body.company_id) return { ok: false, error: 'falta company_id' };
+      return buildPeriodDocs(String(body.company_id).trim(), body.periodo_id || '');
+    }
+
+    /* Análisis de cierre del mes leyendo el CONTENIDO de esos documentos.
+       body: { company_id, periodo_id?, lang, instruccion? } */
+    /* FASE 1 · Solo extraer (y cachear) el texto de los documentos del período.
+       Se separa del análisis porque la conversión de Drive + OCR es lo que
+       agotaba el tiempo de la petición. Devuelve rápido y deja todo listo. */
+    /* Prueba directa del permiso de Drive: convierte un archivo mínimo propio.
+       Sirve para saber si el 403 está resuelto SIN correr un cierre entero. */
+    /* Vacía el caché de texto de documentos. `solo_vacias` limpia únicamente
+       las entradas fallidas que dejó una corrida anterior. */
+    case 'cache_purge': {
+      let n = 0;
+      if (body.archivo) n = docCacheDrop(String(body.archivo));
+      else if (body.todo) {
+        try { const sh = docCacheSheet(); const r = sh.getLastRow();
+              if (r > 1) { sh.deleteRows(2, r - 1); n = r - 1; } } catch (e) {}
+      } else n = docCacheDrop(null);            // solo las entradas vacías
+      return { ok: true, borradas: n };
+    }
+
+    /* Prueba el modelo configurado con una petición mínima y devuelve qué pasó.
+       Sirve para separar "el modelo está mal configurado" de "el prompt es largo". */
+    case 'diag_modelo': {
+      const k = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
+      if (!k) return { ok: false, error: 'SIN_API_KEY' };
+      const cfgM = ss.getSheetByName('Config');
+      const rowM = findRow(cfgM, 1, 'modelo_redaccion');
+      const modelo = rowM ? String(cfgM.getRange(rowM, 2).getValue()) : 'claude-sonnet-5';
+      const r = claudeCall(k, modelo, 'Responde exactamente con el formato pedido.',
+                           'Escribe la línea: TITULO: prueba\n\nY debajo una sola frase corta.', 1500);
+      return { ok: true, modelo: modelo, respaldo: MODELO_RESPALDO,
+               funciona: !!r.texto, intentos: r.intentos || 0,
+               modelo_usado: r.modelo_usado || modelo,
+               detalle: r.texto ? ('Respondió correctamente en ' + (r.intentos || 1) + ' intento(s).') : r.error };
+    }
+
+    case 'diag_drive': {
+      const out2 = { ok: true, scope_drive: false, detalle: '', scopes: [], falta_drive: true, manifiesto: false };
+
+      /* Qué permisos tiene REALMENTE concedidos este token. Es la respuesta
+         definitiva: si `.../auth/drive` no aparece aquí, no importa cuántas
+         veces se re-autorice — el proyecto no lo está pidiendo. */
+      try {
+        const ti = UrlFetchApp.fetch('https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=' +
+                                     encodeURIComponent(ScriptApp.getOAuthToken()), { muteHttpExceptions: true });
+        if (ti.getResponseCode() === 200) {
+          const sc = String((JSON.parse(ti.getContentText()) || {}).scope || '');
+          out2.scopes = sc.split(/\s+/).filter(String);
+          out2.falta_drive = out2.scopes.indexOf('https://www.googleapis.com/auth/drive') < 0;
+        }
+      } catch (e) { out2.scopes = []; }
+
+      let tmp = null, conv = '';
+      try {
+        /* Se prueba la CADENA COMPLETA que usa el análisis: crear → convertir →
+           exportar a texto. Si los tres pasos pasan, los documentos contables
+           se pueden leer de verdad. */
+        tmp = DriveApp.createFile('tally-ops-diag.csv', 'ingresos,monto\nventas,1234', MimeType.CSV);
+        conv = driveConvert(tmp.getId(), false);
+        if (!conv) { out2.detalle = 'Paso «convertir» falló — ' + (_driveErr || 'sin detalle'); }
+        else {
+          const txt = driveExportText(conv, 'text/csv');
+          out2.scope_drive = !!(txt && txt.indexOf('1234') >= 0);
+          out2.detalle = out2.scope_drive
+            ? 'Cadena completa correcta: crear → convertir → leer texto. Los documentos contables se pueden procesar.'
+            : ('Paso «leer texto» falló — ' + (_driveErr || 'la exportación vino vacía'));
+        }
+      } catch (e) {
+        out2.detalle = 'No se pudo ni crear el archivo de prueba: ' + String(e).slice(0, 140) +
+                       ' — al script le falta el permiso de escritura de Drive.';
+      }
+      try { if (conv) DriveApp.getFileById(conv).setTrashed(true); } catch (e) {}
+      try { if (tmp) tmp.setTrashed(true); } catch (e) {}
+
+      /* Si el proyecto tiene manifiesto con oauthScopes, ESE manifiesto manda y
+         la detección automática del código queda anulada — por eso puede no
+         pedir permisos nuevos por más veces que se ejecute. */
+      out2.manifiesto = out2.scopes.length > 0 && out2.falta_drive;
+      return out2;
+    }
+
+    case 'report_close_prepare': {
+      if (!body.company_id) return { ok: false, error: 'falta company_id' };
+      const docsP = buildPeriodDocs(String(body.company_id).trim(), body.periodo_id || '');
+      if (!docsP.ok) return docsP;
+      const force = !!body.force;
+      const leidos = [], vacios = [], diag = [];
+      docsParaLeer(docsP.documentos).forEach(function (d) {
+        const txt = extractDocText(d.archivo, force, docsP.carpeta_drive);
+        if (txt) { leidos.push(d.archivo_nombre); diag.push({ archivo: d.archivo_nombre, tipo: d.tipo, ok: true, chars: txt.length }); }
+        else { vacios.push(d.archivo_nombre); diag.push({ archivo: d.archivo_nombre, tipo: d.tipo, ok: false, motivo: _extractMotivo }); }
+      });
+      return { ok: true, periodo_id: docsP.periodo_id, periodo: docsP.periodo_label,
+               leidos: leidos, no_leidos: vacios, diagnostico: diag,
+               carpeta_drive: docsP.carpeta_drive || '',
+               total_documentos: (docsP.documentos || []).length };
+    }
+
+    /* ══════════ 🧮 REVISIÓN TÉCNICA DEL CIERRE (v3.11) ══════════
+       INTERNA. No es el reporte del cliente: es el papel de trabajo con el que
+       el contador evalúa su propio cierre — coherencia entre documentos,
+       variaciones que no cuadran, riesgos fiscales — y recibe estrategias
+       concretas para corregir. Vive en el modal Ops, nunca en el documento. */
+    case 'report_close_technical': {
+      const keyT = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
+      if (!keyT) return { ok: false, error: 'SIN_API_KEY: configura ANTHROPIC_API_KEY en Propiedades del script.' };
+      if (!body.company_id) return { ok: false, error: 'falta company_id' };
+
+      const docsT = buildPeriodDocs(String(body.company_id).trim(), body.periodo_id || '');
+      if (!docsT.ok) return docsT;
+      const dataT = buildClientData(String(body.company_id).trim());
+      if (!dataT.ok) return dataT;
+
+      const extT = [];
+      docsParaLeer(docsT.documentos).forEach(function (d) {
+        let t = docCacheGet(docBasename(d.archivo));
+        if (t === null) t = extractDocText(d.archivo, false, docsT.carpeta_drive);
+        if (t) extT.push({ tipo: d.tipo, label: d.label, nombre: d.archivo_nombre, contenido: t.slice(0, 7000) });
+      });
+
+      const cfgT = ss.getSheetByName('Config');
+      const mrT = findRow(cfgT, 1, 'modelo_redaccion');
+      const modelT = mrT ? String(cfgT.getRange(mrT, 2).getValue()) : 'claude-sonnet-5';
+
+      const sysT =
+        'Eres el CONTADOR REVISOR SENIOR de Tally. Revisas el cierre mensual que preparó el equipo contable de una empresa mexicana ' +
+        'propiedad de un vendedor extranjero de marketplaces. Tu lector es el CONTADOR, no el cliente: escribe con tecnicismos, ' +
+        'con referencias a LISR / LIVA / CFF y a la mecánica real del SAT cuando aplique.\n\n' +
+        'Este documento es INTERNO. Aquí SÍ debes señalar lo que falta, lo que no cuadra y lo que se hizo tarde — es exactamente su propósito.\n\n' +
+        'REGLAS: (1) usa SOLO las cifras entregadas; si algo no se puede verificar, dilo como hallazgo ("no verificable con los documentos del período"), ' +
+        'no lo inventes; (2) montos en MXN $12,345.67; (3) sé específico: cita la cifra y el documento donde la viste.\n\n' +
+        'FORMATO: primera línea "TITULO: <título>", línea en blanco, luego el cuerpo con "## " para subtítulos y "- " para viñetas.\n\n' +
+        'ESTRUCTURA OBLIGATORIA:\n' +
+        '## Semáforo del cierre\n' +
+        '- Una línea que empiece con 🟢, 🟡 o 🔴 y el veredicto en máximo 15 palabras.\n' +
+        '## Cuadre entre documentos\n' +
+        'Contrasta estado de resultados, balance, cálculo de impuestos y lo declarado en el sistema. Señala cada diferencia con su importe. ' +
+        'Verifica al menos: ingresos del ER contra ventas del sistema; IVA e ISR del cálculo contra lo declarado; retenciones de marketplace contra los certificados; ' +
+        'que el resultado del ejercicio del ER llegue al capital del balance.\n' +
+        '## Hallazgos y riesgo fiscal\n' +
+        'Cada hallazgo: qué se observó → por qué importa → riesgo concreto (multa, rechazo de deducción, discrepancia en la anual, requerimiento).\n' +
+        '## Qué corregir antes de cerrar en firme\n' +
+        'Lista accionable y priorizada, con responsable (Contabilidad / Fiscal / Cliente).\n' +
+        '## Estrategia fiscal propuesta\n' +
+        'De 2 a 4 estrategias concretas para este cliente según su patrón real de operación (estacionalidad, saldos a favor de IVA, retenciones de marketplace, ' +
+        'esquema de importación, pagos provisionales de ISR). Cada una con: acción → efecto esperado en caja o carga fiscal → condición o riesgo → horizonte. ' +
+        'Prioriza el aprovechamiento de saldos a favor, el coeficiente de utilidad para pagos provisionales, y la deducibilidad del inventario importado.';
+
+      const usrT = 'CLIENTE: ' + dataT.ficha.nombre + ' (' + dataT.ficha.company_id + ') · RFC ' + (dataT.ficha.rfc || 'N/D') +
+        '\nPERÍODO REVISADO: ' + docsT.periodo_label +
+        '\n\n═══ DATOS DEL SISTEMA (Clientes_por_periodo) ═══\n' + docsT.resumen_periodo +
+        '\n\n═══ SERIE MENSUAL ═══\n' + digestForPrompt(dataT, body.periodo_id || '') +
+        '\n\n═══ DOCUMENTOS DEL EXPEDIENTE ═══\n' +
+        'Presentes: ' + ((docsT.presentes || []).join(', ') || 'ninguno') +
+        '\nFaltantes de Tally: ' + ((docsT.faltan_tally || []).join(', ') || 'ninguno') +
+        '\nFaltantes del cliente: ' + ((docsT.faltan_cliente || []).join(', ') || 'ninguno') +
+        '\n\n═══ CONTENIDO DE LOS DOCUMENTOS ═══\n' +
+        (extT.length ? extT.map(function (e) { return '--- [' + (e.label || e.tipo) + '] ' + e.nombre + ' ---\n' + e.contenido; }).join('\n\n')
+                     : '(No hay texto extraído. Trabaja con los datos del sistema y marca como hallazgo que el cierre no es verificable documentalmente.)') +
+        (body.instruccion ? '\n\n═══ NOTA DE JUAN ═══\n' + body.instruccion : '');
+
+      const cT = claudeCall(keyT, modelT, sysT, usrT, 7000);
+      if (!cT.texto) return { ok: false, error: cT.error };
+      const mT = cT.texto.match(/^TITULO:\s*(.+)\n+([\s\S]+)$/);
+      const titT = mT ? mT[1].trim() : ('Revisión técnica — ' + docsT.periodo_label);
+      // OJO: NO pasa por scrubInterno — este documento es interno y debe decir lo que falta.
+      const contT = mT ? mT[2].trim() : cT.texto;
+
+      // Se guarda como sección con incluir='no': queda en el expediente pero NUNCA
+      // entra al reporte del cliente.
+      const secT = getOrCreate(ss, 'Reporte_Secciones', HEADERS.Reporte_Secciones);
+      const sidT = 'SEC-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+      secT.appendRow([sidT, body.company_id, 'tecnica', titT, contT, 'es', now, 'no']);
+      return { ok: true, seccion_id: sidT, tipo: 'tecnica', titulo: titT, contenido: contT,
+               periodo: docsT.periodo_label, documentos_leidos: extT.map(function (e) { return e.nombre; }) };
+    }
+
+    case 'report_close_analysis': {
+      const key = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
+      if (!key) return { ok: false, error: 'SIN_API_KEY: configura ANTHROPIC_API_KEY en Propiedades del script.' };
+      if (!body.company_id) return { ok: false, error: 'falta company_id' };
+
+      const docs = buildPeriodDocs(String(body.company_id).trim(), body.periodo_id || '');
+      if (!docs.ok) return docs;
+      const data = buildClientData(String(body.company_id).trim());
+      if (!data.ok) return data;
+
+      // Leer el CONTENIDO real de los archivos financieros del período
+      // El texto ya lo dejó listo `report_close_prepare` en el caché: aquí solo
+      // se lee, así esta petición se va casi entera en la llamada a Claude.
+      const extractos = [];
+      docsParaLeer(docs.documentos).forEach(function(d) {
+        let txt = docCacheGet(docBasename(d.archivo));
+        if (txt === null) txt = extractDocText(d.archivo, false, docs.carpeta_drive);
+        if (txt) extractos.push({ tipo: d.tipo, label: d.label, nombre: d.archivo_nombre, contenido: txt.slice(0, 6000) });
+        else docs.no_leidos.push(d.archivo_nombre + ' (' + d.tipo + ')');
+      });
+
+      const lang = body.lang === 'es' ? 'es' : 'en';
+      const idioma = lang === 'es' ? 'ESPAÑOL' : 'INGLÉS';
+      const cfg = ss.getSheetByName('Config');
+      const modelRow = findRow(cfg, 1, 'modelo_redaccion');
+      const model = modelRow ? String(cfg.getRange(modelRow, 2).getValue()) : 'claude-sonnet-5';
+
+      const system = 'Eres el contador senior de Tally que le cuenta el CIERRE MENSUAL al CEO de un cliente extranjero que opera en México. No entregas un estado financiero: cuentas la historia del mes con los números como evidencia, para alguien que decide y no tiene formación contable.\n\n' +
+        '🔒 REGLAS DURAS: (1) idioma de salida ' + idioma + '; (2) usa EXCLUSIVAMENTE las cifras de los documentos y datos entregados — NO inventes ni estimes; si una cifra no está, NO la menciones ni señales su ausencia: construye el análisis con las que sí tienes (ver REGLA CERO); (3) montos en MXN formato $12,345.67; (4) si hay línea de captura, transcríbela literal dígito por dígito con importe y fecha límite; JAMÁS inventes una.\n\n' +
+        '📣 NARRATIVA: frases cortas, voz activa, una idea por párrafo. Prohibido el relleno. Todo término técnico se marca [[término|explicación de una frase sin jerga]] la primera vez. Si un número llama la atención, explica la causa probable con los datos que tienes.\n\n' +
+        'FORMATO: primera línea "TITULO: <título>", línea en blanco, luego el cuerpo con "## " para subtítulos, "- " para viñetas y "QUOTE: " para la frase-titular.\n\n' +
+        'ESTRUCTURA OBLIGATORIA:\n' +
+        'QUOTE: <una frase de máximo 18 palabras que resuma el mes para el dueño>\n' +
+        '## Cómo cerró tu mes (2-3 frases desarrollando la frase-titular)\n' +
+        '## Lo que ganaste y lo que gastaste (estado de resultados en lenguaje llano: cuánto entró, cuánto costó operar, con qué te quedaste; compara con el mes anterior si tienes el dato)\n' +
+        '## Lo que tu empresa tiene y debe (balance: bancos, por cobrar, por pagar, capital — qué significa cada uno para él)\n' +
+        '## Tus impuestos este mes (IVA e ISR: cuánto salió, a pagar o a favor, y qué implica para su caja)\n' +
+        '## Qué tienes que pagar y cuándo (importe, línea de captura literal, fecha límite; si no hay pago, dilo en una frase y explica por qué)\n' +
+        '## Qué significa esto para tu operación (la lectura de negocio del cierre: qué está funcionando, qué vigilar y qué decidir el próximo mes)' +
+        REGLA_CERO;
+
+      const user = 'CLIENTE: ' + data.ficha.nombre + ' (' + data.ficha.company_id + ') · RFC ' + (data.ficha.rfc || 'N/D') +
+        '\nPERÍODO DE CIERRE: ' + docs.periodo_label +
+        '\n\n═══ DATOS DEL SISTEMA PARA ESTE PERÍODO ═══\n' + docs.resumen_periodo +
+        '\n\n═══ CONTENIDO DE LOS DOCUMENTOS CONTABLES DEL PERÍODO ═══\n' +
+        (extractos.length
+          ? extractos.map(function(e) { return '--- [' + (e.label || e.tipo) + '] ' + e.nombre + ' ---\n' + e.contenido; }).join('\n\n')
+          : '(No se pudo leer el contenido de ningún documento del período. Trabaja SOLO con los datos del sistema de arriba y dilo con naturalidad donde falte detalle.)') +
+        (body.instruccion ? '\n\n═══ INSTRUCCIÓN ADICIONAL DE JUAN ═══\n' + body.instruccion : '');
+
+      const ct = claudeCall(key, model, system, user, 6000);
+      if (!ct.texto) return { ok: false, error: ct.error };
+      const mt = ct.texto.match(/^TITULO:\s*(.+)\n+([\s\S]+)$/);
+      const titulo = mt ? mt[1].trim() : (lang === 'es' ? 'Cierre del mes' : 'Monthly close');
+      const contenido = scrubInterno(mt ? mt[2].trim() : ct.texto);
+
+      const sec = getOrCreate(ss, 'Reporte_Secciones', HEADERS.Reporte_Secciones);
+      const sid = 'SEC-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+      sec.appendRow([sid, body.company_id, 'cierre', titulo, contenido, lang, now, 'si']);
+      return { ok: true, seccion_id: sid, tipo: 'cierre', titulo: titulo, contenido: contenido, idioma: lang,
+               leidos: extractos.map(function(e) { return e.nombre; }), no_leidos: docs.no_leidos,
+               periodo: docs.periodo_label, total_documentos: (docs.documentos || []).length };
+    }
+
+    /* ══════════ ✅ MÓDULO TAREAS DEL EQUIPO (v3.5) ══════════
+       Fuente: pestaña `Tareas` de ESTE Sheet (Tally Ops DB). Nada que ver con
+       WeeklyPlan de AppSheet: son los pendientes operativos del equipo fuera
+       del proceso contable. La interfaz lee por GViz y escribe por aquí. */
+
+
     /* ── Mantenimiento: compactar Clientes_por_periodo (elimina filas 100% vacías) ──
        Las filas fantasma infladas por getLastRow() ralentizan el proxy del dashboard. */
     case 'cxp_compactar': {
@@ -4502,4 +4936,892 @@ function calcAppsheetPush_(body, u) {
   return { ok: true, calc_imp_id: calcImpId, company_id: periodId, cliente_appsheet: nombreCliente, ruta: ruta,
            actualizada: !!filasEx.length, doc_vinculado: docOk, archivo_url: archivo.getUrl(),
            nombre: nombreBonito, mes: MES_ES[mes - 1], anio: String(anio) };
+}
+
+
+/* ═══════════════════════ 📊 REPORTES DE CLIENTE — backend portado de la versión alterna (13-ago-2026) ═══════════════════════ */
+const USUARIOS_ID_FIJO = 'PEGAR_AQUI_EL_ID_DEL_SHEET_PRIVADO';
+
+const SHEET_SOURCES = [DATAMODEL_ID, REPORTES_ID];
+
+const REGLA_CERO = '\n\n🚫 REGLA CERO — INFORMACIÓN INTERNA Y AUSENCIAS (INVIOLABLE, PRECEDE A CUALQUIER OTRA INSTRUCCIÓN):\n' +
+  'Este documento lo lee el CLIENTE. Está TERMINANTEMENTE PROHIBIDO mencionar, insinuar o pedir:\n' +
+  '· documentación faltante, no cargada, no recibida o pendiente de conciliar (estados de cuenta, reportes de venta, DIOT, acuses, cálculos, papeles de trabajo);\n' +
+  '· periodos incompletos, sin cerrar, "pendientes de cerrar en firme" o bloqueados;\n' +
+  '· declaraciones presentadas fuera de plazo, retrasos, incumplimientos o cualquier juicio sobre el proceso interno de Tally o del cliente;\n' +
+  '· tareas, pendientes o acciones internas del equipo Tally;\n' +
+  '· peticiones al cliente ("necesitamos de ti", "envíanos", "sube", "confirma", "housekeeping", "what we need from you") en cualquier idioma o redacción.\n\n' +
+  '🚫 PROHIBIDO DECLARAR AUSENCIAS. Nunca escribas que un dato "no está disponible", "no se proporcionó", "no aparece en los documentos", "no tenemos visibilidad", "no pudimos confirmar", "not available", "was not provided", "we don\'t have visibility", "we can\'t confirm", ni ninguna variante.\n' +
+  'Si un dato NO existe: OMÍTELO POR COMPLETO. No lo nombres, no expliques su ausencia, no dejes la viñeta ni el subtítulo vacío. Borra la línea entera.\n' +
+  'Si no hay cifras del mes anterior, NO menciones la comparación: escribe el análisis del mes en términos absolutos.\n' +
+  'Si una sección completa de la estructura obligatoria se quedaría sin datos reales, NO la escribas: sáltala y continúa con la siguiente.\n' +
+  'Una sección con menos contenido pero íntegramente sustentada vale más que una sección completa llena de "no disponible".\n\n' +
+  'Escribe únicamente sobre la información que SÍ existe y su análisis: qué pasó, por qué, qué significa para el negocio y qué decidir.';
+
+const RX_AUSENCIA = new RegExp([
+  // español
+  'no (est[áa]|se) (disponible|encuentra|proporcion|entreg|report|carg|recib|pudo|pudieron)',
+  'no disponible', 'no se pudo', 'no pudimos', 'no contamos con', 'no tenemos (visibilidad|el dato|acceso)',
+  'no aparece(n)? en (los|el)', 'sin (informaci[óo]n|datos|documento|visibilidad)',
+  'no hay (informaci[óo]n|datos|documento|comparativo|cifras)',
+  '\\bfalta(n|nte|ntes)?\\b', '\\bpendiente(s)?\\b', 'no recibid', 'no cargad',
+  'cerrar en firme', 'fuera de (plazo|tiempo)', 'extempor[áa]n', '\\bretras', '\\batrasad',
+  'necesitamos de ti', 'necesitamos que', 'te pedimos', 'env[íi]anos', 'm[áa]ndanos', 's[úu]benos',
+  'queda pendiente', 'por conciliar', 'sin conciliar',
+  // inglés
+  'not available', 'not provided', 'were not (provided|available|received)',
+  'was not (provided|available|received)', 'no .{0,24}(figures|documents?|data) (were|was)',
+  'we (don\'?t|do not) have (visibility|access|the)', 'we (can\'?t|cannot) confirm',
+  'we (are|\'?re) (still )?(waiting|missing)', 'we (still )?need', 'we need from you',
+  'has(n\'?t| not) been (completed|reconciled|received)', 'still needs to be',
+  '\\bmissing\\b', '\\bawaiting\\b', '\\bpending\\b', '\\boutstanding item',
+  'please (send|upload|provide|confirm|share)', 'housekeeping',
+  'no visibility', 'unavailable', 'not on file', 'not in (our|the) (system|records|documents)',
+  'no [^.]{0,40}(was|were) (found|located|included|attached)', 'not found', 'could not (be )?(locate|find|read)',
+  'based on what was (submitted|provided)', 'in the documents provided', 'no .{0,20}(slip|statement|certificate) ',
+  'is(n\'?t| not) captured', 'we (have|had) on file', 'we (do not|don\'?t) (know|track|capture)',
+  'conflicting status', 'our (system|records) shows?', 'could be adjusted once'
+].join('|'), 'i');
+
+const RX_SECCION_VETADA = /^##\s*.*(tendencia observada|observed trend|recap|hist[óo]rico de ventas|sales history|qu[ée] necesitamos de ti|what we need from you|next steps from you|acciones de tu lado|pendientes)/i;
+
+const APPSHEET_APP_ID_DEFAULT = 'b70ebc3a-1a74-4e28-895a-0fd786727110';
+
+const DOC_LEIBLES = [
+  'estado_resultados',   // los cuatro estados financieros mandan
+  'balance_general',
+  'calculo_impuestos',
+  'balanza',
+  'extra',               // «Otros reportes»: Tax Summary y similares
+  'declaracion',         // acuse de declaración
+  'retencion',           // certificado de retención del marketplace
+  'estado_cuenta',       // estado de cuenta bancario
+  'diot'
+];
+
+const DOC_MAX_LEER = 6;                    // tope por corrida, para no agotar el tiempo
+
+const DOC_TABLES = [
+  { tabla: 'Balance_general',        tabs: ['Balance_general'],        tipo: 'balance_general',    label: 'Balance general',        col: ['Documento'] },
+  { tabla: 'balanza_comprobacion',   tabs: ['balanza_comprobacion'],   tipo: 'balanza',            label: 'Balanza de comprobación', col: ['Documento'] },
+  { tabla: 'calculo_impuestos',      tabs: ['calculo_impuestos'],      tipo: 'calculo_impuestos',  label: 'Cálculo de impuestos',   col: ['Documento'] },
+  { tabla: 'estado_resultados',      tabs: ['estado_resultados'],      tipo: 'estado_resultados',  label: 'Estado de resultados',   col: ['Documento'] },
+  { tabla: 'reportes_extra',         tabs: ['reportes_extra'],         tipo: 'extra',              label: 'Otros reportes',         col: ['Documento'] },
+  { tabla: 'declaracion_periodo',    tabs: ['declaracion_periodo'],    tipo: 'declaracion',        label: 'Acuse de declaración',   col: ['Documento'] },
+  { tabla: 'diot_periodo',           tabs: ['diot_periodo'],           tipo: 'diot',               label: 'DIOT',                   col: ['Documento'] },
+  { tabla: 'Estados_cuenta',         tabs: ['Estados_cuenta'],         tipo: 'estado_cuenta',      label: 'Estado de cuenta',       col: ['UrlVentas', 'Documento'] },
+  { tabla: 'Retenciones_por_periodo',tabs: ['Retenciones_por_periodo'],tipo: 'retencion',          label: 'Certificado de retención', col: ['URLRetencion', 'Documento'] }
+];
+
+const MODELO_RESPALDO = 'claude-sonnet-4-5-20250929';
+
+/** Lee una tabla vía AppSheet API (Find). Devuelve array de row-objetos con llaves normalizadas, o null si no hay key/config. */
+function appsheetFind(table) {
+  const props = PropertiesService.getScriptProperties();
+  const key = props.getProperty('APPSHEET_ACCESS_KEY');
+  if (!key) return null;
+  const appId = props.getProperty('APPSHEET_APP_ID') || APPSHEET_APP_ID_DEFAULT;
+  const url = 'https://api.appsheet.com/api/v2/apps/' + appId + '/tables/' + encodeURIComponent(table) + '/Action';
+  const resp = UrlFetchApp.fetch(url, {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { 'ApplicationAccessKey': key },
+    payload: JSON.stringify({ Action: 'Find', Properties: { Locale: 'en-US' }, Rows: [] })
+  });
+  if (resp.getResponseCode() !== 200) throw new Error('AppSheet API ' + resp.getResponseCode() + ' en ' + table + ': ' + resp.getContentText().slice(0, 120));
+  const list = JSON.parse(resp.getContentText());
+  if (!Array.isArray(list)) return [];
+  return list.map(function(r) {
+    const o = {};
+    Object.keys(r).forEach(function(k) { o[normKey(k)] = r[k]; });
+    return o;
+  });
+}
+
+/** Arma el paquete completo de datos del cliente para la interfaz y para la IA. */
+function buildClientData(companyId) {
+  const out = { ok: true, company_id: companyId, fuente: '', faltantes: [], avisos: [] };
+
+  const carga = clientRows('Clients_Load', ['Clients_Load'], companyId, out);
+  let c = carga[0];
+
+  // Respaldo final: la pestaña `Clientes` de la propia base de Tally Ops
+  // (copia de Clients_Load que ya alimenta el buscador ⌘K). Con esto el
+  // reporte NUNCA se cae por un problema de acceso a AppSheet/DataModel.
+  if (!c) {
+    try {
+      const shC = SpreadsheetApp.openById(DB_ID).getSheetByName('Clientes');
+      if (shC && shC.getLastRow() > 1) {
+        const H = shC.getRange(1, 1, 1, shC.getLastColumn()).getValues()[0].map(normKey);
+        const rows = shC.getRange(2, 1, shC.getLastRow() - 1, shC.getLastColumn()).getValues();
+        const cid = String(companyId).trim().toLowerCase();
+        for (let i = 0; i < rows.length && !c; i++) {
+          const o = {};
+          for (let j = 0; j < H.length; j++) o[H[j]] = rows[i][j];
+          if (String(o.companyid || '').trim().toLowerCase() === cid) {
+            c = { companyid: o.companyid, clientname: o.cliente, owner: o.owner, suspension: o.suspension };
+            out.fuente = 'ops_sheet';
+            out.avisos.push('Clients_Load no respondió; ficha tomada de la pestaña Clientes de Tally Ops.');
+          }
+        }
+      }
+    } catch (e) { out.avisos.push('Clientes (Ops): ' + String(e).slice(0, 100)); }
+  }
+
+  if (!c) {
+    return { ok: false,
+      error: 'No pude leer la ficha de ' + companyId + '. Revisé AppSheet, el Accounting_DataModel y la pestaña Clientes de Tally Ops.' +
+             (out.avisos.length ? ' Detalle: ' + out.avisos.join(' · ') : ' Ninguna de las tres fuentes devolvió filas para este ID.'),
+      avisos: out.avisos, faltantes: out.faltantes };
+  }
+  out.ficha = {
+    company_id: companyId,
+    nombre: pick(c, ['ClientName', 'Client Name']),
+    rfc: rfcLimpio(pick(c, ['RFC_v', 'RFC'])) || rfcLimpio(pick(c, ['RFC'])),
+    owner: pick(c, ['Owner']),
+    coeficiente: pick(c, ['Coeficiente_Utilidad', 'Coeficiente de utilidad']),
+    suspension: pick(c, ['Suspension']),
+    first_shipment: pick(c, ['First Shipment', 'First_Shipment']),
+    payoneer: pick(c, ['Payoneer']),
+    otro_banco: pick(c, ['Otro Banco', 'Otro_Banco']),
+    canal_ml: pick(c, ['Canal_ML'])
+  };
+
+  out.roles = clientRows('Client Roles and Mails', ['Client Roles and Mails', 'CONTACT_ROLES'], companyId, out)
+    .map(function(r) {
+      return { nombre: pick(r, ['Nombre Completo', 'Nombre']), email: pick(r, ['Email']),
+               rol: pick(r, ['Rol']), idioma: pick(r, ['Idioma']) };
+    });
+
+  /* ⭐ Serie mensual. CORREGIDO (verificado contra AppSheet, INSIGHTCONNECT
+     AZ007386, agosto 2026):
+
+       · VentasList      → LA VENTA DEL MES. Es la columna «Ventas período» que
+                           se ve en AppSheet. ESTA es la buena.
+       · SalesLastPeriod → NO es del mes: es un valor a nivel CLIENTE que se
+                           repite idéntico en todas sus filas (en AZ007386 vale
+                           61,430.24 en los siete meses). Tomarlo primero hacía
+                           que la gráfica mostrara la misma barra siete veces.
+                           Queda solo como respaldo si VentasList viene vacío.
+       · PeriodoRetencion → retención del marketplace del mes.
+       · RFC              → puede traer el marcador de control «NO MATCH»; el
+                           RFC real está en la columna virtual RFC_v.
+       · "Estado Declaración" es VIRTUAL y en varios clientes devuelve
+                           "Sin iniciar" para todo: manda EstadoCliente. */
+  var rowsP = clientRows('Clientes_por_periodo', ['Clientes_por_periodo'], companyId, out);
+  // Duplicados (ej. registro fantasma AZ006458 con el mismo mes): ordenar para
+  // que la fila cuyo PeriodID contiene el company_id canónico gane el merge.
+  rowsP.sort(function(a, b) {
+    var pa = String(pick(a, ['PeriodID', 'Period ID'])).indexOf(companyId) >= 0 ? 0 : 1;
+    var pb = String(pick(b, ['PeriodID', 'Period ID'])).indexOf(companyId) >= 0 ? 0 : 1;
+    return pa - pb;
+  });
+  out.periodos = rowsP.map(function(r) {
+      return {
+        periodo_id: pick(r, ['PeriodID', 'Period ID']),
+        mes: pick(r, ['MesPeriodo', 'Mes Periodo', 'Mes']),
+        anio: pick(r, ['AñoPeríodo', 'AñoPeriodo', 'Año Periodo', 'Anio', 'Año']),
+        tipo_declaracion: pick(r, ['DeclaracionTipo', 'Declaracion Tipo']),
+        estado_declaracion: pick(r, ['EstadoCliente', 'Estado Cliente']) ||
+                            pick(r, ['Estado Declaración', 'Estado Declaracion', 'EstadoDeclaracion']),
+        estado_cliente: pick(r, ['EstadoCliente', 'Estado Cliente']),
+        iva: numStrict(pick(r, ['IVA_pagar', 'IVA a pagar', 'IVA'])),
+        isr: numStrict(pick(r, ['ISR_pagar', 'ISR a pagar', 'ISR'])),
+        ingresos: numStrict(pick(r, ['VentasList', 'Ventas List'])) ||
+                  numStrict(pick(r, ['SalesLastPeriod', 'Sales Last Period'])),
+        retencion: numStrict(pick(r, ['PeriodoRetencion', 'Periodo Retencion', 'Periodo Retención'])),
+        fecha_declaracion: pick(r, ['Fecha_Declaracion', 'Fecha Declaracion']),
+        responsable: pick(r, ['Responsable']),
+        notas: String(pick(r, ['Notas_Declaracion', 'Notas Declaracion']) || '').slice(0, 400),
+        _rfc: rfcLimpio(pick(r, ['RFC_v', 'RFC']))
+      };
+    });
+
+  /* El RFC de la ficha puede llegar como marcador de control ("NO MATCH").
+     Las filas de período traen el RFC real en la columna virtual RFC_v: se usa
+     como respaldo para no mostrarle al cliente una identidad fiscal falsa. */
+  if (!out.ficha.rfc) {
+    for (var iR = 0; iR < out.periodos.length && !out.ficha.rfc; iR++) {
+      if (out.periodos[iR]._rfc) out.ficha.rfc = out.periodos[iR]._rfc;
+    }
+  }
+  out.periodos.forEach(function (p) { delete p._rfc; });
+
+  out.ventas = clientRows('Reportes_de_venta', ['Reportes_de_venta', 'Reportes de venta'], companyId, out)
+    .map(function(r) {
+      return {
+        mes: pick(r, ['MesPeriodo', 'Mes Periodo', 'Mes']),
+        anio: pick(r, ['AñoPeriodo', 'AñoPeríodo', 'Año Periodo', 'Anio', 'Año']),
+        ingresos: toNum(pick(r, ['Ingresos'])),
+        gastos: toNum(pick(r, ['Gastos'])),
+        transferencias: toNum(pick(r, ['Transferencias'])),
+        impuesto: toNum(pick(r, ['Impuesto', 'Impuestos']))
+      };
+    });
+
+  // Pendientes del equipo para este cliente — desde la pestaña `Tareas` de este
+  // Sheet (tracking operativo propio del equipo), NO desde WeeklyPlan de AppSheet.
+  out.tareas = [];
+  try {
+    const shT = SpreadsheetApp.openById(DB_ID).getSheetByName('Tareas');
+    if (shT && shT.getLastRow() > 1) {
+      const H = shT.getRange(1, 1, 1, shT.getLastColumn()).getValues()[0].map(normKey);
+      const iId = H.indexOf('tareaid'), iResp = H.indexOf('responsable'), iTit = H.indexOf('titulo'),
+            iCli = H.indexOf('cliente'), iEst = H.indexOf('estado'), iOri = H.indexOf('origen'),
+            iEnt = H.indexOf('fechaentrega');
+      const nombreCli = String(out.ficha.nombre || '').toLowerCase();
+      shT.getRange(2, 1, shT.getLastRow() - 1, shT.getLastColumn()).getValues().forEach(function(r) {
+        if (!String(r[iId] || '').trim()) return;
+        if (/finaliz/i.test(String(r[iEst] || ''))) return;
+        const c = String(r[iCli] || '').toLowerCase();
+        if (!c) return;
+        if (c.indexOf(companyId.toLowerCase()) < 0 && (!nombreCli || c.indexOf(nombreCli.slice(0, 12)) < 0)) return;
+        out.tareas.push({ tarea: r[iTit], categoria: r[iOri], owner: r[iResp], status: r[iEst], due: r[iEnt] });
+      });
+    }
+  } catch (e) { out.avisos.push('Tareas: ' + String(e).slice(0, 80)); }
+  out.tareas = out.tareas.slice(0, 25);
+
+  const bk = clientRows('Bancos', ['Bancos'], companyId, out);
+  out.bancos = bk.length ? {
+    payoneer: pick(bk[0], ['Payoneer']), otro: pick(bk[0], ['Otro (banco)', 'Otro banco', 'Otro']),
+    status_otro: pick(bk[0], ['STATUS_otro', 'Status otro']), comentarios: pick(bk[0], ['Comentarios'])
+  } : null;
+
+  out.generado = new Date().toISOString();
+  return out;
+}
+
+/** Documentos del último período (o del período pedido) del cliente. */
+function buildPeriodDocs(companyId, periodoId) {
+  const out = { ok: true, fuente: '', faltantes: [], avisos: [], no_leidos: [] };
+
+  const per = clientRows('Clientes_por_periodo', ['Clientes_por_periodo'], companyId, out);
+  if (!per.length) return { ok: false, error: 'sin períodos para ' + companyId, avisos: out.avisos };
+
+  // Elegir el período objetivo
+  const conClave = per.map(function(r) {
+    const y = parseInt(pick(r, ['AñoPeríodo', 'AñoPeriodo', 'Anio', 'Año'])) || 0;
+    const m = monthNumGS(pick(r, ['MesPeriodo', 'Mes Periodo', 'Mes']));
+    return { r: r, y: y, m: m, k: y * 100 + m, pid: String(pick(r, ['PeriodID', 'Period ID'])) };
+  }).filter(function(x) { return x.k > 0; }).sort(function(a, b) { return b.k - a.k; });
+  if (!conClave.length) return { ok: false, error: 'los períodos del cliente no tienen mes/año legibles' };
+  let target = conClave[0];
+  if (periodoId) {
+    const f = conClave.filter(function(x) { return x.pid === periodoId; })[0];
+    if (f) target = f;
+  }
+  // Preferir la fila cuyo PeriodID contiene el company_id canónico ante duplicados del mismo mes
+  const mismoMes = conClave.filter(function(x) { return x.k === target.k; });
+  const canon = mismoMes.filter(function(x) { return x.pid.indexOf(companyId) >= 0; })[0];
+  if (canon) target = canon;
+
+  const MES_ES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  out.periodo_id = target.pid;
+  out.periodo_label = MES_ES[target.m] + ' ' + target.y;
+  out.periodo_anio = target.y;
+  out.periodo_mes = target.m;
+  // Catálogo de períodos disponibles (para el selector de la interfaz), sin duplicados de mes
+  const vistos = {};
+  out.periodos_disponibles = conClave.filter(function(x) {
+    if (vistos[x.k]) return false;
+    vistos[x.k] = true; return true;
+  }).map(function(x) {
+    return { periodo_id: x.pid, label: MES_ES[x.m] + ' ' + x.y, k: x.k };
+  });
+
+  // Carpeta de Drive del cliente (viene como JSON serializado)
+  const fc = String(pick(target.r, ['Folder_Cliente', 'Folder Cliente']) || '');
+  out.carpeta_drive = '';
+  try { const j = JSON.parse(fc); out.carpeta_drive = j.Url || j.url || ''; }
+  catch (e) { const m2 = fc.match(/https?:\/\/[^"\s,}]+/); out.carpeta_drive = m2 ? m2[0] : ''; }
+
+  // Resumen del período que va al prompt
+  const R = [];
+  R.push('Período: ' + out.periodo_label + ' (PeriodID ' + target.pid + ')');
+  R.push('Tipo de declaración: ' + (pick(target.r, ['DeclaracionTipo']) || 'N/D') +
+         ' · Estado: ' + (pick(target.r, ['EstadoCliente', 'Estado Declaración']) || 'N/D') +
+         ' · Fecha de declaración: ' + (pick(target.r, ['Fecha_Declaracion']) || 'no presentada'));
+  R.push('Ventas del período: ' + (numStrict(pick(target.r, ['VentasList'])) || numStrict(pick(target.r, ['SalesLastPeriod']))).toFixed(2));
+  R.push('IVA determinado: ' + numStrict(pick(target.r, ['IVA_pagar'])).toFixed(2) + ' (negativo = saldo a favor del cliente)');
+  R.push('ISR determinado: ' + numStrict(pick(target.r, ['ISR_pagar'])).toFixed(2));
+  R.push('Retención de Amazon del período: ' + numStrict(pick(target.r, ['PeriodoRetencion'])).toFixed(2));
+  // Notas_Declaracion es bitácora interna del equipo: NO entra al prompt del cliente.
+  out.resumen_periodo = R.join('\n');
+
+  // Recolectar documentos del período en todas las tablas
+  const docs = [];
+  DOC_TABLES.forEach(function(t) {
+    let rows = [];
+    try { rows = clientRows(t.tabla, t.tabs, companyId, out); }
+    catch (e) { out.avisos.push(t.tabla + ': ' + String(e).slice(0, 80)); return; }
+    rows.forEach(function(r) {
+      const y = parseInt(pick(r, ['AñoPeríodo', 'AñoPeriodo', 'Año Periodo', 'Anio', 'Año'])) || 0;
+      const m = monthNumGS(pick(r, ['MesPeriodo', 'Mes Periodo', 'Mes']));
+      // Si la fila trae mes/año, exigir que coincidan con el período objetivo
+      if (y && m && (y !== target.y || m !== target.m)) return;
+      const archivo = pick(r, t.col);
+      if (!archivo) return;
+      docs.push({
+        tipo: t.tipo, label: t.label, tabla: t.tabla,
+        archivo: String(archivo), archivo_nombre: docBasename(archivo),
+        fecha_carga: pick(r, ['Fecha de carga', 'Fecha_carga', 'FechaRecepción', 'FechaRecepcion']) || ''
+      });
+    });
+  });
+  out.documentos = docs;
+  out.total_documentos = docs.length;
+  // Qué falta para un cierre completo, separando de quién depende cada cosa:
+  // lo que produce Tally internamente vs. lo que el cliente nos debe entregar.
+  const presentes = {};
+  docs.forEach(function(d) { presentes[d.tipo] = true; });
+  const CHECKLIST = [
+    { tipo: 'estado_resultados', label: 'Estado de resultados', quien: 'tally' },
+    { tipo: 'balance_general',   label: 'Balance general',      quien: 'tally' },
+    { tipo: 'calculo_impuestos', label: 'Cálculo de impuestos', quien: 'tally' },
+    { tipo: 'declaracion',       label: 'Acuse de declaración', quien: 'tally' },
+    { tipo: 'estado_cuenta',     label: 'Estado de cuenta bancario', quien: 'cliente' }
+  ];
+  const faltan = CHECKLIST.filter(function(x) { return !presentes[x.tipo]; });
+  out.faltantes_cierre = faltan.map(function(x) { return x.label; });            // compat
+  out.faltan_tally   = faltan.filter(function(x) { return x.quien === 'tally'; }).map(function(x) { return x.label; });
+  out.faltan_cliente = faltan.filter(function(x) { return x.quien === 'cliente'; }).map(function(x) { return x.label; });
+  out.presentes = CHECKLIST.filter(function(x) { return presentes[x.tipo]; }).map(function(x) { return x.label; });
+  return out;
+}
+
+function claudeCall(key, model, system, user, maxTok) {
+  const TOPE = 16000;
+  let presupuesto = Math.max(1200, maxTok || 3000);
+  let ultimo = { texto: '', error: 'sin intentos' };
+
+  for (let intento = 1; intento <= 3; intento++) {
+    const sys = (intento === 1) ? system
+      : (system + '\n\n⏱ IMPORTANTE: responde DIRECTAMENTE con el formato pedido. ' +
+         'No razones en voz alta ni escribas preámbulos: empieza por la línea "TITULO:" en tu primera palabra.');
+    const resp = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      payload: JSON.stringify({ model: model, max_tokens: presupuesto, system: sys,
+                                messages: [{ role: 'user', content: user }] })
+    });
+    const code = resp.getResponseCode();
+    if (code !== 200) {
+      const cuerpo = resp.getContentText();
+      // 429/529: la API está saturada — reintentar tras una pausa corta
+      if ((code === 429 || code === 529) && intento < 3) { Utilities.sleep(2500 * intento); continue; }
+      return { texto: '', error: 'Claude API ' + code + ': ' + cuerpo.slice(0, 180), intentos: intento };
+    }
+    const ct = claudeTexto(resp.getContentText());
+    if (ct.texto) return { texto: ct.texto, error: '', intentos: intento, tokens: presupuesto };
+    ultimo = ct;
+    if (ct.stop === 'max_tokens' && presupuesto < TOPE) { presupuesto = Math.min(presupuesto * 2, TOPE); continue; }
+    break;
+  }
+  /* Último recurso: el modelo configurado puede estar razonando de más o no
+     comportarse como esperamos. Se repite una vez con un modelo de respaldo
+     conocido antes de darse por vencido. */
+  if (model !== MODELO_RESPALDO) {
+    const alt = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      payload: JSON.stringify({ model: MODELO_RESPALDO, max_tokens: TOPE, system: system,
+                                messages: [{ role: 'user', content: user }] })
+    });
+    if (alt.getResponseCode() === 200) {
+      const ca = claudeTexto(alt.getContentText());
+      if (ca.texto) return { texto: ca.texto, error: '', intentos: 4, modelo_usado: MODELO_RESPALDO };
+    }
+  }
+
+  return { texto: '', intentos: 4,
+           error: ultimo.error + ' — se reintentó con hasta ' + TOPE + ' tokens y también con el modelo de respaldo, ' +
+                  'y ninguno produjo texto. Revisa la fila «modelo_redaccion» de la pestaña Config.' };
+}
+
+/* Extrae el texto de una respuesta de la API de Claude tolerando el formato:
+   concatena TODOS los bloques de texto (algunos modelos devuelven primero un
+   bloque de razonamiento) y, si no hay ninguno, explica por qué en vez de
+   soltar un "respuesta sin bloque de texto" que no dice nada. */
+function claudeTexto(cuerpo) {
+  let j = null;
+  try { j = JSON.parse(cuerpo); } catch (e) { return { texto: '', error: 'respuesta ilegible de la API: ' + String(cuerpo).slice(0, 160) }; }
+  if (j && j.error) return { texto: '', error: 'API: ' + (j.error.message || JSON.stringify(j.error)).slice(0, 180) };
+  const blocks = (j && j.content) || [];
+  const partes = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    if (b && b.type === 'text' && b.text) partes.push(b.text);
+  }
+  const texto = partes.join('\n').trim();
+  const stop = (j && j.stop_reason) || '';
+  if (texto) return { texto: texto, error: '', stop: stop };
+  const tipos = blocks.map(function (b) { return (b && b.type) || '?'; }).join(', ') || 'ninguno';
+  const sr = (j && j.stop_reason) || '?';
+  return { texto: '', stop: sr, error: sr === 'max_tokens'
+    ? 'el modelo consumió todo el presupuesto de tokens sin llegar a escribir (stop_reason: max_tokens · bloques: ' + tipos + ')'
+    : ('la respuesta no traía texto (stop_reason: ' + sr + ' · bloques: ' + tipos + ')') };
+}
+
+function clientRows(table, tabNames, companyId, out) {
+  const cid = String(companyId).trim().toLowerCase();
+  let api = null, sheet = null;
+
+  // 1) AppSheet API (si hay key)
+  try { api = appsheetFind(table); }
+  catch (e) { out.avisos.push(table + ' (api): ' + String(e).slice(0, 120)); api = null; }
+
+  const hitsApi = api ? api.filter(function(r) { return matchCliente(r, cid); }) : null;
+  if (hitsApi && hitsApi.length) { if (!out.fuente) out.fuente = 'appsheet_api'; return hitsApi; }
+
+  // 2) Respaldo: lectura directa del spreadsheet Accounting_DataModel.
+  //    Se intenta SIEMPRE que la API no haya dado filas de este cliente —
+  //    no solo cuando falta la key: la API puede responder vacía por Security
+  //    Filter, por una tabla no expuesta o por una respuesta parcial.
+  try { sheet = readDataModelRows(tabNames); }
+  catch (e) { out.avisos.push(table + ' (sheet): ' + String(e).slice(0, 120)); sheet = null; }
+
+  const hitsSheet = sheet ? sheet.filter(function(r) { return matchCliente(r, cid); }) : null;
+  if (hitsSheet && hitsSheet.length) { if (!out.fuente) out.fuente = 'datamodel_sheet'; return hitsSheet; }
+
+  // Sin filas para este cliente en ninguna fuente: registrar por qué
+  if ((api && !api.length) || (sheet && !sheet.length)) out.faltantes.push(table);
+  else if (!api && !sheet) out.faltantes.push(table + ' (sin acceso)');
+  else out.faltantes.push(table + ' (sin filas del cliente)');
+  if (!out.fuente && api) out.fuente = 'appsheet_api';
+  if (!out.fuente && sheet) out.fuente = 'datamodel_sheet';
+  return [];
+}
+
+/** Digest de texto plano de los datos del cliente para el prompt de la IA. */
+function digestForPrompt(d, periodoId) {
+  const L = [];
+  // Período global de análisis: la serie se corta ahí, para que el reporte
+  // hable del mes que el equipo eligió y no siempre del último cargado.
+  let corte = 0;
+  if (periodoId) {
+    const pr = (d.periodos || []).filter(function (p) { return String(p.periodo_id) === String(periodoId); })[0];
+    if (pr) corte = (parseInt(pr.anio) || 0) * 100 + (monthNumGS(pr.mes) || 0);
+  }
+  const f = d.ficha;
+  L.push('CLIENTE: ' + f.nombre + ' (' + f.company_id + ') · RFC ' + (f.rfc || 'N/D') + ' · Owner Tally: ' + (f.owner || 'N/D'));
+  if (String(f.suspension).trim()) L.push('⚠️ Suspensión: ' + f.suspension);
+  L.push('Bancos: Payoneer=' + (f.payoneer || 'N/D') + (d.bancos ? ' · Otro banco: ' + (d.bancos.otro || 'N/D') + ' (' + (d.bancos.status_otro || '') + ') ' + (d.bancos.comentarios || '') : ''));
+  L.push('');
+  L.push('SERIE MENSUAL (ventas, impuestos y declaraciones — fuente Clientes_por_periodo):');
+  d.periodos.filter(function (p) {
+    if (!corte) return true;
+    return ((parseInt(p.anio) || 0) * 100 + (monthNumGS(p.mes) || 0)) <= corte;
+  }).forEach(function(p) {
+    L.push('· ' + p.anio + '-' + p.mes + ' | ventas $' + p.ingresos.toFixed(2) +
+           ' | IVA $' + p.iva.toFixed(2) + ' (negativo = saldo a favor) | ISR $' + p.isr.toFixed(2) +
+           ' | retención Amazon $' + p.retencion.toFixed(2) +
+           ' | declaración: ' + (p.estado_declaracion || 'N/D') + ' (' + (p.tipo_declaracion || '') + ')' +
+           (p.fecha_declaracion ? ' | presentada: ' + p.fecha_declaracion : '') +
+           '');
+  });
+  // REGLA CERO: tareas internas, notas de bitácora y tablas sin datos NO entran
+  // al prompt del cliente. Si no están en el prompt, no pueden salir en el reporte.
+  return L.join('\n');
+}
+
+/** Nombre de archivo a partir de la ruta que guarda AppSheet. */
+function docBasename(p) {
+  const s = String(p || '').trim();
+  if (!s) return '';
+  const parts = s.split('/');
+  return parts[parts.length - 1];
+}
+
+/** Borra del caché la entrada de un archivo (o todas las vacías si no se da nombre). */
+function docCacheDrop(nombre) {
+  try {
+    const sh = docCacheSheet();
+    if (sh.getLastRow() < 2) return 0;
+    const v = sh.getRange(2, 1, sh.getLastRow() - 1, 4).getValues();
+    let borradas = 0;
+    for (let i = v.length - 1; i >= 0; i--) {
+      const vacio = !String(v[i][3] || '').trim();
+      const coincide = nombre ? (String(v[i][0]) === nombre) : vacio;
+      if (coincide) { sh.deleteRow(i + 2); borradas++; }
+    }
+    return borradas;
+  } catch (e) { return 0; }
+}
+
+function docCacheGet(nombre) {
+  try {
+    const sh = docCacheSheet();
+    if (sh.getLastRow() < 2) return null;
+    const v = sh.getRange(2, 1, sh.getLastRow() - 1, 4).getValues();
+    for (let i = 0; i < v.length; i++) {
+      if (String(v[i][0]) !== nombre) continue;
+      const t = String(v[i][3] || '');
+      return t.trim() ? t : null;      // un vacío histórico no bloquea el reintento
+    }
+  } catch (e) {}
+  return null;
+}
+
+function docCachePut(nombre, texto) {
+  /* Solo se cachea el ÉXITO. Cachear un vacío convertía un fallo temporal
+     (permiso de Drive, timeout) en permanente: aunque después se arreglara,
+     la caché seguía devolviendo "". Si no hay texto, no se guarda nada y el
+     siguiente intento vuelve a leer el archivo de verdad. */
+  if (!String(texto || '').trim()) { docCacheDrop(nombre); return; }
+  try {
+    const sh = docCacheSheet();
+    const t = String(texto || '').slice(0, 45000);      // tope de celda
+    let fila = 0;
+    if (sh.getLastRow() > 1) {
+      const v = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+      for (let i = 0; i < v.length && !fila; i++) if (String(v[i][0]) === nombre) fila = i + 2;
+    }
+    const row = [nombre, new Date().toISOString(), t.length, t];
+    if (fila) sh.getRange(fila, 1, 1, 4).setValues([row]);
+    else sh.appendRow(row);
+  } catch (e) {}
+}
+
+/* ══════════ CACHÉ DE TEXTO DE DOCUMENTOS ══════════
+   Convertir un xls y hacer OCR de un PDF en Drive cuesta 10-40 s por archivo.
+   Con 5 documentos el análisis se pasaba del timeout del cliente. El texto de
+   un documento del período NO cambia, así que se cachea por nombre de archivo
+   en la pestaña `Doc_Cache` y el análisis siguiente es instantáneo.
+   "Releer documentos" vuelve a extraer (force = true).                       */
+function docCacheSheet() {
+  return getOrCreate(SpreadsheetApp.openById(DB_ID), 'Doc_Cache', ['archivo', 'fecha', 'chars', 'texto']);
+}
+
+/** Documentos de un período ordenados por prioridad de lectura. */
+function docsParaLeer(documentos) {
+  return (documentos || [])
+    .filter(function (d) { return DOC_LEIBLES.indexOf(d.tipo) >= 0; })
+    .sort(function (a, b) { return DOC_LEIBLES.indexOf(a.tipo) - DOC_LEIBLES.indexOf(b.tipo); })
+    .slice(0, DOC_MAX_LEER);
+}
+
+function driveConvert(fileId, ocr) {
+  const url = 'https://www.googleapis.com/drive/v2/files/' + fileId + '/copy?convert=true' +
+              (ocr ? '&ocr=true&ocrLanguage=es' : '');
+  const resp = UrlFetchApp.fetch(url, {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    payload: JSON.stringify({ title: 'tmp-tally-ops-' + Date.now() })
+  });
+  const code = resp.getResponseCode();
+  if (code !== 200) {
+    _driveErr = (code === 403)
+      ? 'Drive API 403 — al script le falta el permiso de escritura de Drive. Arréglalo así: en el editor de Apps Script, Ejecutar cualquier función una vez y ACEPTAR los permisos nuevos; luego Implementar → Nueva versión. Si sigue igual, activa el manifiesto (⚙️ Configuración del proyecto → «Mostrar appsscript.json») y pega los oauthScopes del archivo appsscript.json que viene en el paquete.'
+      : ('Drive API ' + code + ': ' + resp.getContentText().slice(0, 90));
+    return '';
+  }
+  const j = JSON.parse(resp.getContentText());
+  return j.id || '';
+}
+
+/* Exporta un archivo de Google (Doc/Sheet) a texto plano usando la API REST
+   de Drive. Es el camino que MENOS permisos exige: con el scope de Drive basta.
+   Evita `DocumentApp.openById` y `SpreadsheetApp.openById`, que piden además los
+   scopes de Documentos y Hojas de cálculo — cada uno de ellos era otro 403. */
+function driveExportText(fileId, mimeDestino) {
+  const url = 'https://www.googleapis.com/drive/v3/files/' + fileId +
+              '/export?mimeType=' + encodeURIComponent(mimeDestino);
+  const resp = UrlFetchApp.fetch(url, {
+    method: 'get', muteHttpExceptions: true,
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }
+  });
+  const code = resp.getResponseCode();
+  if (code !== 200) { _driveErr = 'export ' + code + ': ' + resp.getContentText().slice(0, 80); return ''; }
+  return resp.getContentText();
+}
+
+function extractDocText(rutaArchivo, force, carpetaCliente) {
+  _extractMotivo = ''; _driveErr = '';
+  const nombre = docBasename(rutaArchivo);
+  if (!nombre) { _extractMotivo = 'ruta vacía'; return ''; }
+  if (/\.(zip|rar|7z|png|jpg|jpeg)$/i.test(nombre)) { _extractMotivo = 'formato no legible (' + nombre.split('.').pop() + ')'; return ''; }
+  if (!force) {
+    const hit = docCacheGet(nombre);
+    if (hit !== null) { if (!hit) _extractMotivo = 'en caché como vacío — usa «Releer documentos»'; return hit; }
+  }
+  const loc = findDriveFile(rutaArchivo, carpetaCliente);
+  const file = loc.file;
+  if (!file) { _extractMotivo = 'no se encontró en Drive — ' + (loc.error || ''); return ''; }
+
+  const mime = file.getMimeType();
+  let tmpId = '', texto = '';
+  /* Cada lectura intenta primero la exportación REST (solo scope de Drive) y
+     solo si falla recurre a DocumentApp/SpreadsheetApp, que exigen scopes extra. */
+  const leerDoc = function (id) {
+    const t = driveExportText(id, 'text/plain');
+    if (t) return t;
+    try { return DocumentApp.openById(id).getBody().getText(); }
+    catch (e) { _extractMotivo = motivoPermiso(e); return ''; }
+  };
+  const leerHoja = function (id) {
+    const t = driveExportText(id, 'text/csv');
+    if (t) return t;
+    try { return sheetToText(id); }
+    catch (e) { _extractMotivo = motivoPermiso(e); return ''; }
+  };
+  try {
+    if (mime === MimeType.GOOGLE_SHEETS) {
+      texto = leerHoja(file.getId());
+    } else if (mime === MimeType.GOOGLE_DOCS) {
+      texto = leerDoc(file.getId());
+    } else if (/excel|spreadsheet|ms-excel|\.xls/i.test(mime + ' ' + nombre)) {
+      tmpId = driveConvert(file.getId(), false);
+      if (tmpId) texto = leerHoja(tmpId);
+    } else if (/pdf/i.test(mime + ' ' + nombre)) {
+      tmpId = driveConvert(file.getId(), true);          // OCR
+      if (tmpId) texto = leerDoc(tmpId);
+    } else if (/csv|text/i.test(mime)) {
+      texto = file.getBlob().getDataAsString().slice(0, 8000);
+    }
+  } catch (e) {
+    texto = ''; _extractMotivo = motivoPermiso(e);
+  }
+  if (tmpId) { try { DriveApp.getFileById(tmpId).setTrashed(true); } catch (e) {} }
+  const salida = String(texto || '').replace(/\n{3,}/g, '\n\n').trim();
+  if (!salida && !_extractMotivo) {
+    _extractMotivo = _driveErr ? ('conversión falló — ' + _driveErr)
+                               : ('el archivo se abrió (' + mime + ') pero no devolvió texto');
+  }
+  docCachePut(nombre, salida);
+  return salida;
+}
+
+/* Localiza en Drive el archivo que AppSheet guarda como
+   "<tabla>_Files_/<nombre>". `getFilesByName` sobre todo el Drive falla cuando
+   la carpeta de datos de AppSheet no está compartida con la cuenta del script,
+   así que se intenta por varias vías y se reporta cuál funcionó — o por qué no. */
+function findDriveFile(rutaArchivo, carpetaCliente) {
+  const ruta = String(rutaArchivo || '');
+  const nombre = docBasename(ruta);
+  if (!nombre) return { file: null, via: '', error: 'ruta vacía' };
+  const intentos = [];
+
+  // 1) por nombre exacto en todo el Drive visible
+  try {
+    const it = DriveApp.getFilesByName(nombre);
+    if (it.hasNext()) return { file: it.next(), via: 'nombre' };
+    intentos.push('nombre exacto: sin resultados');
+  } catch (e) { intentos.push('nombre exacto: ' + String(e).slice(0, 50)); }
+
+  // 2) dentro de la subcarpeta que nombra la propia ruta (p.ej. estado_resultados_Files_)
+  const carp = ruta.indexOf('/') > 0 ? ruta.split('/')[0] : '';
+  if (carp) {
+    try {
+      const fs = DriveApp.getFoldersByName(carp);
+      while (fs.hasNext()) {
+        const it2 = fs.next().getFilesByName(nombre);
+        if (it2.hasNext()) return { file: it2.next(), via: 'carpeta ' + carp };
+      }
+      intentos.push('carpeta ' + carp + ': sin el archivo');
+    } catch (e) { intentos.push('carpeta ' + carp + ': ' + String(e).slice(0, 50)); }
+  }
+
+  // 3) búsqueda por título parcial (el id corto que antecede al primer punto)
+  const corto = nombre.split('.')[0];
+  if (corto && corto.length >= 6) {
+    try {
+      const q = DriveApp.searchFiles('title contains "' + corto.replace(/"/g, '') + '"');
+      if (q.hasNext()) return { file: q.next(), via: 'búsqueda ' + corto };
+      intentos.push('búsqueda "' + corto + '": sin resultados');
+    } catch (e) { intentos.push('búsqueda: ' + String(e).slice(0, 50)); }
+  }
+
+  // 4) dentro de la carpeta de Drive del cliente, un nivel de subcarpetas
+  if (carpetaCliente) {
+    try {
+      const m = String(carpetaCliente).match(/[-\w]{25,}/);
+      if (m) {
+        const root = DriveApp.getFolderById(m[0]);
+        const it3 = root.getFilesByName(nombre);
+        if (it3.hasNext()) return { file: it3.next(), via: 'carpeta del cliente' };
+        const subs = root.getFolders();
+        while (subs.hasNext()) {
+          const it4 = subs.next().getFilesByName(nombre);
+          if (it4.hasNext()) return { file: it4.next(), via: 'subcarpeta del cliente' };
+        }
+        intentos.push('carpeta del cliente: sin el archivo');
+      }
+    } catch (e) { intentos.push('carpeta del cliente: ' + String(e).slice(0, 50)); }
+  }
+
+  return { file: null, via: '', error: intentos.join(' · ') };
+}
+
+/** ¿La fila pertenece a este cliente? Acepta IDs compuestos (YYYY-M_AZ######). */
+function matchCliente(r, cid) {
+  const v = String(pick(r, ['Company_Id', 'Company_id', 'company_id', 'CompanyID'])).trim().toLowerCase();
+  if (!v) return false;
+  return v === cid || (v.indexOf('_') > 0 && v.split('_').pop() === cid);
+}
+
+/** Mes en texto → número (versión server-side). */
+function monthNumGS(v) {
+  const s = String(v == null ? '' : v).trim().toLowerCase();
+  if (!s) return 0;
+  if (/^\d+$/.test(s)) return parseInt(s);
+  const M = { enero:1, febrero:2, marzo:3, abril:4, mayo:5, junio:6, julio:7, agosto:8, septiembre:9, setiembre:9, octubre:10, noviembre:11, diciembre:12,
+              january:1, february:2, march:3, april:4, may:5, june:6, july:7, august:8, september:9, october:10, november:11, december:12 };
+  if (M[s]) return M[s];
+  const k3 = s.slice(0, 3);
+  const M3 = { ene:1, feb:2, mar:3, abr:4, may:5, jun:6, jul:7, ago:8, sep:9, oct:10, nov:11, dic:12, apr:4, aug:8, dec:12 };
+  return M3[k3] || 0;
+}
+
+/* Los errores de permisos de Apps Script nombran el scope que falta al final
+   del mensaje, justo donde la interfaz lo cortaba. Aquí se extrae y se convierte
+   en una instrucción concreta. */
+function motivoPermiso(e) {
+  const m = String(e || '');
+  if (!/permissions are not sufficient|no tiene permisos suficientes|insufficient/i.test(m)) {
+    return 'error al leer: ' + m.slice(0, 110);
+  }
+  const sc = m.match(/https:\/\/www\.googleapis\.com\/auth\/[\w.]+/);
+  return 'falta un permiso en el manifiesto' + (sc ? ': añade "' + sc[0] + '" a oauthScopes en appsscript.json' :
+         ' (el mensaje no dice cuál; usa el appsscript.json completo del paquete)');
+}
+
+/** Normaliza nombres de columna: minúsculas, sin acentos, solo [a-z0-9]. */
+function normKey(s) {
+  return String(s).toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function numStrict(v) {
+  v = String(v == null ? '' : v).replace(/[$,\s]/g, '');
+  return /^-?\d+(\.\d+)?$/.test(v) ? parseFloat(v) : 0;
+}
+
+function openSS(id) {
+  if (!_ssCache[id]) _ssCache[id] = SpreadsheetApp.openById(id);
+  return _ssCache[id];
+}
+
+/** Primer valor no vacío de un row-objeto probando varios nombres de columna. */
+function pick(o, candidates) {
+  for (let i = 0; i < candidates.length; i++) {
+    const v = o[normKey(candidates[i])];
+    if (v !== undefined && String(v).trim() !== '') return v;
+  }
+  return '';
+}
+
+/** Busca la pestaña en TODAS las fuentes (Accounting_DataModel y Reportes)
+ *  y devuelve sus filas como objetos con llaves normalizadas. */
+function readDataModelRows(tabNames) {
+  let sh = null, errs = [];
+  for (let s = 0; s < SHEET_SOURCES.length && !sh; s++) {
+    try {
+      const ss = openSS(SHEET_SOURCES[s]);
+      for (let i = 0; i < tabNames.length && !sh; i++) sh = ss.getSheetByName(tabNames[i]);
+    } catch (e) { errs.push(String(e).slice(0, 60)); }
+  }
+  if (!sh) { if (errs.length) throw new Error(errs.join(' | ')); return []; }
+  if (sh.getLastRow() < 2) return [];
+  const data = sh.getDataRange().getValues();
+  const H = data[0].map(normKey);
+  const rows = [];
+  for (let i = 1; i < data.length; i++) {
+    const o = {};
+    for (let j = 0; j < H.length; j++) o[H[j]] = data[i][j];
+    rows.push(o);
+  }
+  return rows;
+}
+
+/* El RFC puede venir con marcadores del control de calidad ("NO MATCH",
+   "PENDIENTE"…) en vez de un RFC. Se descartan para no imprimirlos al cliente
+   como si fueran su identidad fiscal. */
+function rfcLimpio(v) {
+  const t = String(v == null ? '' : v).trim().toUpperCase();
+  if (!t) return '';
+  if (/^(NO MATCH|NOMATCH|N\/?D|PENDIENTE|SIN RFC|-{1,})$/.test(t)) return '';
+  return /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/.test(t) ? t : '';   // formato RFC válido
+}
+
+function scrubInterno(texto) {
+  const lineas = String(texto || '').split('\n');
+  const out = [];
+  let saltando = false;
+  for (let i = 0; i < lineas.length; i++) {
+    const L = lineas[i];
+    if (/^##\s+/.test(L)) {                      // ¿arranca una sección?
+      // Se descarta la sección si el subtítulo delata contenido interno o si
+      // TODO su cuerpo (hasta el siguiente "## ") declara ausencias.
+      let cuerpo = [], j = i + 1;
+      while (j < lineas.length && !/^##\s+/.test(lineas[j])) { cuerpo.push(lineas[j]); j++; }
+      const conTexto = cuerpo.filter(function(x) { return x.trim(); });
+      const todasAusencia = conTexto.length > 0 && conTexto.every(function(x) { return RX_AUSENCIA.test(x); });
+      saltando = RX_SECCION_VETADA.test(L) || RX_AUSENCIA.test(L) || todasAusencia;
+      if (saltando) continue;
+      out.push(L); continue;
+    }
+    if (saltando) continue;                      // cuerpo de una sección vetada
+    if (L.trim() && RX_AUSENCIA.test(L)) continue;   // viñeta o párrafo con ausencia
+    out.push(L);
+  }
+  // Un subtítulo que se quedó sin cuerpo tampoco debe salir
+  const res = [];
+  for (let k = 0; k < out.length; k++) {
+    if (/^##\s+/.test(out[k])) {
+      let hay = false;
+      for (let m = k + 1; m < out.length && !/^##\s+/.test(out[m]); m++) if (out[m].trim()) { hay = true; break; }
+      if (!hay) continue;
+    }
+    res.push(out[k]);
+  }
+  return res.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/** Hoja de cálculo → texto tabulado (solo celdas con contenido). */
+function sheetToText(id) {
+  const ss2 = SpreadsheetApp.openById(id);
+  const partes = [];
+  ss2.getSheets().slice(0, 3).forEach(function(sh) {
+    if (sh.getLastRow() < 1) return;
+    const vals = sh.getRange(1, 1, Math.min(sh.getLastRow(), 120), Math.min(sh.getLastColumn(), 12)).getDisplayValues();
+    const lineas = vals.map(function(row) {
+      return row.map(function(c) { return String(c).trim(); }).filter(String).join(' | ');
+    }).filter(String);
+    if (lineas.length) partes.push('[hoja: ' + sh.getName() + ']\n' + lineas.join('\n'));
+  });
+  return partes.join('\n\n');
+}
+
+function toNum(v) {
+  const n = parseFloat(String(v).replace(/[$,\s]/g, ''));
+  return isNaN(n) ? 0 : n;
+}
+
+/** ¿El Sheet de usuarios está configurado y es alcanzable? */
+function usuariosConfigurado() {
+  if (!USUARIOS_ID || USUARIOS_ID.indexOf('PEGAR') === 0) return { ok: false, error: 'USUARIOS_ID sin configurar: pégalo en Propiedades del script (USUARIOS_ID) o en la constante USUARIOS_ID_FIJO del Apps Script.' };
+  try { SpreadsheetApp.openById(USUARIOS_ID); }
+  catch (e) { return { ok: false, error: 'USUARIOS_ID configurado pero no se pudo abrir el Sheet: ' + String(e).slice(0, 90) }; }
+  return { ok: true };
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  🔑 PERMISO DE DRIVE — por qué existe esta función que nunca se ejecuta   ║
+   ╚══════════════════════════════════════════════════════════════════════════╝
+   Apps Script decide qué permisos pedir LEYENDO EL CÓDIGO, no ejecutándolo.
+   Con solo `DriveApp.getFilesByName(...)` concede un scope de lectura, y con ese
+   token la API REST de Drive (que es la que convierte xlsx→Sheet y hace OCR de
+   los PDFs) responde 403 "insufficient authentication scopes".
+   Nombrar aquí un método de ESCRITURA obliga a Apps Script a pedir el scope
+   completo `.../auth/drive`. La función no se llama nunca; existe para que el
+   detector la vea. Si la borras, la conversión de documentos vuelve a fallar.
+   Tras pegar esta versión: Ejecutar una vez cualquier función → aceptar los
+   permisos nuevos → Implementar → Nueva versión.                              */
+function _forzarScopeDrive_NO_EJECUTAR_() {
+  if (true) return;                                   // guardia: jamás corre
+  const f = DriveApp.createFile('tmp', '');           // ← exige scope de escritura
+  f.setTrashed(true);
+  DriveApp.getRootFolder().createFolder('tmp');
+  DriveApp.getFileById('x').makeCopy('y');
 }
