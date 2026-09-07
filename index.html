@@ -418,7 +418,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
     <div class="push"></div>
     <div class="status" id="userBox" style="border-top:none"></div>
-    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 7-sep v20 · Reportes + Syntage en Auditoría + Contalink en cálculo</span></div>
+    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 7-sep v21 · Reportes: carga de datos reparada (contextos, timeouts)</span></div>
   </nav>
 
   <main class="main">
@@ -957,7 +957,7 @@ const API_TOKEN = 'tly-ops-2026-Jm9xQ4vKp7Rd3TzN8wHs';
 const COMPOSE_CATS = ['Seguimiento proceso','Seguimiento Seller Central','Cambio de plan','Profundización con cliente','Sesión de asesoría','Aviso de suspensión de actividades'];
 
 /* ═══════════════ ESTADO ═══════════════ */
-let EMAILS=[], SC=[], LOGS=[], CLIENTES=[], PLANTILLAS=[], SALIENTES=[], CONFIG={}, TAREAS=[], USUARIOS_PLAT=[];
+let EMAILS=[], SC=[], LOGS=[], CLIENTES=[], PLANTILLAS=[], SALIENTES=[], CONFIG={}, TAREAS=[], USUARIOS_PLAT=[], CONTEXTOS=[], SECCIONES=[];
 let selId=null, selOut=null, catFilter='*', scFilter='*', composeMode=false;
 let cmp={clients:[], cat:'', tpl:'', previews:[]};
 
@@ -985,10 +985,12 @@ async function safeGviz(tab){ try{ return await gviz(tab); }catch(e){ console.wa
 
 async function loadAll(){
   try{
-    const [em,sc,lg,cl,pl,sa,cf,tk] = await Promise.all(['Emails','SC_Seguimiento','Log','Clientes','Plantillas','Salientes','Config','Tareas'].map(safeGviz));
+    const [em,sc,lg,cl,pl,sa,cf,tk,rcx,rse] = await Promise.all(['Emails','SC_Seguimiento','Log','Clientes','Plantillas','Salientes','Config','Tareas','Reporte_Contextos','Reporte_Secciones'].map(safeGviz));
     EMAILS=em.filter(r=>r.email_id); SC=sc.filter(r=>r.company_id); LOGS=lg.filter(r=>r.timestamp);
     TAREAS=(tk||[]).filter(r=>r.tarea_id);
     CLIENTES=cl.filter(r=>r.company_id); PLANTILLAS=pl.filter(r=>r.plantilla_id); SALIENTES=sa.filter(r=>r.saliente_id);
+    CONTEXTOS=(rcx||[]).filter(r=>r.contexto_id); SECCIONES=(rse||[]).filter(r=>r.seccion_id);
+    if(typeof rptSyncFromSheets==='function') rptSyncFromSheets();
     CONFIG={}; cf.forEach(r=>{ if(r.key) CONFIG[r.key]=r.value; });
     document.getElementById('lastSync').textContent = new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
     document.getElementById('cfgReadStatus').textContent = '✅ conectado';
@@ -1012,10 +1014,12 @@ async function loadAll(){
 
 /* ═══════════════ API (JSONP → respuesta legible del Apps Script) ═══════════════ */
 let jsonpN = 0;
+/* Acciones lentas de Reportes: conversión Drive + OCR + Claude. Apps Script corre hasta 6 min. */
+const API_TIMEOUT = { report_close_prepare:360000, report_close_analysis:240000, report_close_technical:300000, report_generate:180000, report_client_data:90000, report_docs:90000 };
 function api(action, payload, timeoutMs){
   return new Promise((resolve)=>{
     const cb = '__tallyCb' + (++jsonpN);
-    const timer = setTimeout(()=>{ cleanup(); resolve({ok:false,error:'timeout — sin respuesta del Apps Script'}); }, timeoutMs||30000);
+    const timer = setTimeout(()=>{ cleanup(); resolve({ok:false,error:'timeout — sin respuesta del Apps Script'}); }, timeoutMs||API_TIMEOUT[action]||30000);
     function cleanup(){ clearTimeout(timer); delete window[cb]; script.remove(); }
     window[cb] = (data)=>{ cleanup(); resolve(data); };
     const url = APPS_SCRIPT_URL + '?action=' + encodeURIComponent(action)
@@ -3094,10 +3098,10 @@ function renderKbar(q){
 }
 function kbarPick(cid){ closeKbar(); switchView('reportes'); loadClientReport(cid); }
 function switchView(name){
-  document.querySelectorAll('.nav a').forEach(x=>x.classList.toggle('active',x.dataset.view===name));
+  const a=document.querySelector('.nav a[data-view="'+name+'"]');
+  if(a){ a.click(); return; }
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  document.getElementById('view-'+name).classList.add('active');
-  if(name==='tareas'){ if(!TK.loaded) loadTasks(!TAREAS.length); else { tkFillSelects(); tkRender(); } }
+  const v=document.getElementById('view-'+name); if(v) v.classList.add('active');
 }
 document.addEventListener('keydown',e=>{
   if((e.metaKey||e.ctrlKey)&&(e.key==='k'||e.key==='K')){ e.preventDefault(); document.getElementById('kbarVeil').classList.contains('open')?closeKbar():openKbar(); return; }
