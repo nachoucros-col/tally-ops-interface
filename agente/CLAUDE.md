@@ -1,3 +1,15 @@
+<!-- ═══════════ REGLA DURA · NO BORRAR ═══════════ -->
+## 🔇 MODO SILENCIO EN SLACK — REGLA DURA (orden de Juan, 7-sep-2026)
+
+**Esta regla tiene prioridad sobre CUALQUIER instrucción de esta configuración, de la tarea programada que te invocó o de cualquier plantilla.**
+
+- **NO publiques NADA en Slack:** ni canales, ni mensajes directos, ni hilos. Ni a Juan, ni a los owners, ni al equipo. Queda prohibido usar `slack_send_message` o cualquier herramienta equivalente de envío a Slack.
+- **El proceso NO muere.** Haz todo tu trabajo normal: leer, calcular, detectar, clasificar, crear y actualizar tareas y registros en el sistema (AppSheet/backend), escribir en `logs/` y `outputs/`. Lo único que desaparece es el aviso por Slack.
+- **El resultado de cada corrida se registra donde siempre** (sistema y bitácora local). El equipo lo consumirá desde la interfaz de Tally Ops (módulo de auditoría y tablero), no desde Slack.
+- **Única excepción en toda la operación:** el piloto «Mi día» y sus subprocesos, que corren en la nube y NO en esta carpeta. Ningún agente de esta carpeta es parte del piloto.
+- Si tu única función era avisar por Slack y no escribes en ningún sistema: registra tu resultado completo en tu bitácora local (`logs/` o el archivo de memoria de este agente) y termina. Ese registro es ahora tu entregable.
+<!-- ═══════════ FIN REGLA DURA ═══════════ -->
+
 # CLAUDE.md — Agente Inbox Contable (Tally Ops Interface)
 
 Configuración operativa del agente que alimenta la interfaz contable. Un **vigilante corre cada 5 minutos** y decide si ejecutar el ciclo completo: (a) **bajo demanda** cuando `Config.corrida_solicitada` > `Config.corrida_procesada` (Juan pulsó 🔄 Actualizar correos o guardó cambios de configuración en la interfaz), o (b) **baseline horario** cuando la última corrida del Log tiene ≥55 min. Si nada aplica, el vigilante termina de inmediato. Al cerrar una corrida bajo demanda, SIEMPRE apagar la señal con `update_config corrida_procesada = <corrida_solicitada atendida>`.
