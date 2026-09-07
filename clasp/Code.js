@@ -4940,6 +4940,9 @@ function calcAppsheetPush_(body, u) {
 
 
 /* ═══════════════════════ 📊 REPORTES DE CLIENTE — backend portado de la versión alterna (13-ago-2026) ═══════════════════════ */
+const _ssCache = {};
+var _driveErr = '';       // último motivo de fallo de Drive, para diagnóstico
+var _extractMotivo = '';  // por qué quedó vacío el último documento (diagnóstico)
 const USUARIOS_ID_FIJO = 'PEGAR_AQUI_EL_ID_DEL_SHEET_PRIVADO';
 
 const SHEET_SOURCES = [DATAMODEL_ID, REPORTES_ID];
