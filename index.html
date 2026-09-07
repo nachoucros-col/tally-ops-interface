@@ -102,6 +102,104 @@ h1{font-size:28px;font-weight:700;letter-spacing:-0.015em;margin-bottom:4px}
 .tag.st-Revisado{background:#e6f4ee;color:#0c6b4b;border:1px solid #bfe3d3}
 .rev-btn{margin-left:auto;font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid var(--gray-200,#e5e5e5);background:#fff;color:#0c6b4b;cursor:pointer;white-space:nowrap}
 .rev-btn:hover{background:#e6f4ee;border-color:#bfe3d3}
+
+/* ═══ 📊 Reportes de cliente — estilos portados de la versión alterna (13-ago) ═══ */
+.tnum,.num,.kpi .kv,.tile .val{font-feature-settings:'tnum' 1;font-variant-numeric:tabular-nums}
+.lang-toggle{display:inline-flex;background:var(--fill);border-radius:var(--r-sm);padding:2px;gap:2px}
+.lang-toggle button{padding:6px 15px;font-size:13px;font-weight:500;background:transparent;color:var(--t1);border-radius:8px;transition:background var(--dur) var(--ease)}
+.lang-toggle button.on{background:var(--card);box-shadow:var(--sh-1);font-weight:700}
+/* ══ tarjetas base ══ */
+.detail,.cfg-card,.chart-card,.kpi,.tile,.preview-card,.rpt-head,.rpt-panel,.tk-detail,.mail-card,.tcard,.sec-card,.ctx-item{
+  background:var(--card);border-radius:var(--r-lg);border:.5px solid rgba(0,0,0,.03);box-shadow:var(--sh-1);
+}
+/* ══ KPI tiles ══ */
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+.kpi{padding:20px 21px 18px;display:flex;flex-direction:column;min-height:132px}
+.kpi .kl{font-size:12.5px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--t2);line-height:1.35}
+.kpi .kv{font-size:34px;font-weight:700;letter-spacing:-.035em;line-height:1.06;margin-top:auto}
+.kpi .ks{font-size:12.5px;color:var(--t3);margin-top:7px;line-height:1.4}
+.mini-table{font-size:12.5px}
+.mini-table td,.mini-table th{padding:8px 11px}
+/* ══ avisos ══ */
+.dx{font-size:12px;color:var(--t3);line-height:1.5;margin-top:10px;padding:9px 12px;background:var(--fill);border-radius:var(--r-sm)}
+.per-sel{display:inline-flex;align-items:center;gap:9px;background:var(--card);border:.5px solid var(--sep-strong);
+  border-radius:var(--r-pill);padding:6px 8px 6px 15px;box-shadow:var(--sh-1)}
+.per-sel>span{font-size:11.5px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--t3)}
+.per-sel select{font-family:inherit;font-size:14px;font-weight:500;color:var(--t1);border:0;background:var(--fill);
+  border-radius:var(--r-pill);padding:7px 12px;cursor:pointer;max-width:210px}
+.per-sel select:focus{outline:2px solid var(--violet);outline-offset:1px}
+.polar-leg{display:flex;flex-wrap:wrap;gap:6px 20px;margin:2px 0 12px;font-size:12px;color:var(--t3)}
+.polar-leg span{display:inline-flex;align-items:center;gap:7px}
+.polar-leg i{width:10px;height:10px;border-radius:3px;flex:none}
+.tec{margin-top:14px;border:.5px solid var(--sep-strong);border-radius:var(--r-lg);background:var(--card);overflow:hidden}
+.tec-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 18px;border-bottom:.5px solid var(--sep);background:var(--card-2);font-size:14.5px}
+.tec-tag{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:3px 8px;border-radius:5px;background:#fdeee6;color:#a8451a}
+.tec-per{margin-left:auto;font-size:12.5px;color:var(--t3)}
+.tec-b{padding:16px 20px 8px;font-size:14px;line-height:1.6;color:var(--t1)}
+.tec-b h5{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t2);margin:18px 0 8px}
+.tec-b h5:first-child{margin-top:0}
+.tec-b p{margin:0 0 9px}
+.tec-li{position:relative;padding-left:16px;margin-bottom:7px}
+.tec-li::before{content:'';position:absolute;left:3px;top:9px;width:4px;height:4px;border-radius:50%;background:var(--t3)}
+.tec-sem{font-weight:600;font-size:15px;padding:10px 14px;border-radius:var(--r-sm);background:var(--fill);margin-bottom:12px}
+.kbd{background:var(--fill);border:.5px solid var(--sep-strong);border-radius:6px;padding:1px 7px;font-size:11.5px;font-weight:500;color:var(--t2)}
+/* ══ ⌘K ══ */
+.kbar-veil{position:fixed;inset:0;background:rgba(28,28,30,.42);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
+  z-index:150;display:none;align-items:flex-start;justify-content:center;padding-top:12vh}
+.kbar-veil.open{display:flex}
+.kbar{background:var(--card);border-radius:var(--r-xl);width:580px;max-width:92vw;box-shadow:var(--sh-3);overflow:hidden}
+.kbar input{width:100%;border:0;padding:18px 22px;font-size:16.5px;background:var(--card);border-bottom:.5px solid var(--sep);border-radius:0}
+.kbar input:focus{outline:none}
+.kbar .klist{max-height:340px;overflow-y:auto}
+.kbar .kitem{padding:12px 22px;cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:baseline;font-size:14px}
+.kbar .kitem small{color:var(--t3);font-size:12.5px}
+.kbar .kitem.on{background:var(--violet-soft)}
+.kbar .khint{padding:9px 22px;font-size:11.5px;color:var(--t3);border-top:.5px solid var(--sep);display:flex;gap:15px}
+/* ══ modales genéricos ══ */
+.modal-veil{position:fixed;inset:0;background:rgba(28,28,30,.5);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+  z-index:160;display:none;align-items:center;justify-content:center;padding:5vh 20px}
+.modal-veil.open{display:flex}
+.modal{background:var(--card);border-radius:var(--r-xl);width:760px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:var(--sh-3)}
+.modal-h{position:sticky;top:0;background:rgba(255,255,255,.92);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
+  padding:24px 32px 18px;border-bottom:.5px solid var(--sep);display:flex;justify-content:space-between;align-items:flex-start;gap:20px;z-index:2}
+.modal-h h2{font-size:25px;font-weight:700;letter-spacing:-.028em;line-height:1.15}
+.modal-h .mh-sub{font-size:13.5px;color:var(--t2);margin-top:6px;max-width:56ch}
+.modal-x{background:var(--fill);width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:var(--t2);font-size:16px;flex-shrink:0}
+.modal-x:hover{background:var(--fill-2)}
+.modal-b{padding:26px 32px 34px}
+.modal-b p{font-size:15.5px;line-height:1.6;color:var(--t1);margin-bottom:14px;max-width:64ch}
+.modal-b p.sec{color:var(--t2)}
+.verdicts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:6px 0 26px}
+.stat-row{display:flex;gap:22px;flex-wrap:wrap;margin:20px 0 4px;padding-top:18px;border-top:.5px solid var(--sep)}
+.stat-row .st b{display:block;font-size:26px;font-weight:700;letter-spacing:-.03em;line-height:1.1}
+.stat-row .st span{font-size:12.5px;color:var(--t3);line-height:1.4;display:block;margin-top:3px;max-width:22ch}
+/* ══ 📊 Reportes ══ */
+.rpt-head{padding:22px 26px;margin-bottom:20px;display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between}
+.rpt-head h2{font-size:24px;font-weight:700;letter-spacing:-.028em;line-height:1.15}
+.rpt-head .rmeta{font-size:13px;color:var(--t2);margin-top:5px}
+.rpt-actions{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+.rpt-grid{display:grid;grid-template-columns:minmax(420px,1.3fr) minmax(340px,1fr);gap:20px;align-items:start}
+.chart-card{padding:20px 22px 18px;margin-bottom:16px}
+.chart-card h4{font-size:16px;font-weight:700;letter-spacing:-.015em;margin-bottom:4px}
+.chart-card .csub{font-size:13px;color:var(--t2);margin-bottom:14px;line-height:1.45}
+.chart-card svg{width:100%;height:auto;display:block}
+.rpt-panel{padding:22px;position:sticky;top:89px;max-height:calc(100vh - 113px);overflow-y:auto}
+.rpt-panel h3{font-size:16px;font-weight:700;letter-spacing:-.02em;margin-bottom:9px}
+.ctx-item{padding:12px 14px;margin-bottom:9px;font-size:13.5px;box-shadow:none;background:var(--card-2)}
+.ctx-item .ctx-top{display:flex;gap:9px;align-items:center;justify-content:space-between}
+.ctx-item .ctx-title{font-weight:500;flex:1;cursor:pointer}
+.ctx-item .ctx-prev{color:var(--t2);margin-top:8px;white-space:pre-wrap;display:none;line-height:1.5}
+.ctx-item.open .ctx-prev{display:block}
+.gen-row{display:flex;gap:9px;flex-wrap:wrap;margin:11px 0 4px}
+.doclist{display:flex;flex-direction:column;gap:7px}
+.docitem{display:flex;align-items:center;gap:10px;padding:10px 13px;background:var(--card-2);border:.5px solid var(--sep);border-radius:var(--r-md);font-size:13px}
+.docitem .di-ic{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;background:var(--violet-soft);color:#4326c4;font-size:12px;flex:none}
+.docitem .di-n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.docitem .di-t{font-size:11px;color:var(--t3);white-space:nowrap}
+.kcol .khint{font-size:11.5px;color:var(--t3);margin-bottom:12px}
+.rpt-grid{grid-template-columns:1fr}
+.rpt-panel{position:static;max-height:none}
+.qgrid,.verdicts{grid-template-columns:1fr}
 /* 🚦 Auditoría */
 .aud-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;border-radius:999px;padding:4px 12px;white-space:nowrap}
 .aud-verde{background:#e6f4ee;color:#0c6b4b}.aud-amarillo{background:#fff6dd;color:#946a00}.aud-rojo{background:#fde3e3;color:#c62828}.aud-blanco{background:var(--gray-100,#f0f0f0);color:var(--gray-500,#777)}
@@ -312,6 +410,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <a href="#bandeja" class="active" data-view="bandeja">📥 Bandeja</a>
     <a href="#calculo" data-view="calculo">🧮 Cálculo de impuestos</a>
     <a href="#auditoria" data-view="auditoria">🚦 Auditoría</a>
+    <a href="#reportes" data-view="reportes">📊 Reportes</a>
     <a href="#sc" data-view="sc" style="display:none">📦 Documentación</a><!-- oculto por orden de Juan 29-jul-2026, hasta nueva orden -->
     <a href="#tareas" data-view="tareas">✅ Tareas</a>
     <a href="#log" data-view="log" style="display:none">🕐 Actividad</a>
@@ -319,7 +418,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
     <div class="push"></div>
     <div class="status" id="userBox" style="border-top:none"></div>
-    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 7-sep v19 · filtro Revisado + módulo de Auditoría</span></div>
+    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 7-sep v20 · Reportes + Syntage en Auditoría + Contalink en cálculo</span></div>
   </nav>
 
   <main class="main">
@@ -361,6 +460,115 @@ tr:hover td{background:rgba(96,71,255,.04)}
         <div class="head-actions"><button class="chip" onclick="audCargar(true)" title="Vuelve a leer la foto del almacén y los accesos">🔄 Actualizar</button></div>
       </div>
       <div id="audRoot"><div class="dash-empty">Cargando…</div></div>
+    </section>
+
+    <!-- ══ 📊 REPORTES DE CLIENTE (portado de la versión alterna 13-ago · 7-sep-2026) ══ -->
+    <section class="view" id="view-reportes">
+      <h1>Reportes de cliente</h1>
+      <p class="lead">Selecciona un cliente (<span class="kbd">⌘K</span> desde cualquier vista), revisa su actividad de ventas e impuestos, carga contexto de reuniones y proyección, documenta estrategias en vivo y exporta el reporte HTML→PDF con el sistema de diseño de Tally.</p>
+      <div id="rptEmpty" class="detail" style="position:static;max-height:none">
+        <div class="empty">
+          <div style="font-size:34px;margin-bottom:10px">📊</div>
+          Ningún cliente cargado.<br><br>
+          <button class="btn btn-primary" onclick="openKbar()">🔍 Buscar cliente &nbsp;<span class="kbd" style="background:rgba(255,255,255,.2);border-color:transparent;color:#fff">⌘K</span></button>
+        </div>
+      </div>
+      <div id="rptBody" style="display:none">
+        <div class="rpt-head">
+          <div>
+            <h2 id="rptName">—</h2>
+            <div class="rmeta" id="rptMeta">—</div>
+          </div>
+          <div class="rpt-actions">
+            <div class="lang-toggle" title="Idioma del reporte">
+              <button id="langEN" onclick="setRptLang('en')">EN</button>
+              <button id="langES" onclick="setRptLang('es')">ES</button>
+            </div>
+            <label class="per-sel" title="Período de análisis — manda sobre KPIs, gráficas, cierre y reporte">
+              <span>Período</span>
+              <select id="rptPeriodo" onchange="setRptPeriodo(this.value)"><option value="">Último con datos</option></select>
+            </label>
+            <button class="btn btn-ghost" onclick="openKbar()">🔄 Cambiar cliente</button>
+            <button class="btn btn-ghost" onclick="rptPreview()">👁 Vista previa</button>
+            <button class="btn btn-primary" onclick="rptDownload()">⬇️ Descargar reporte HTML</button>
+            <button class="btn btn-ghost" onclick="openOps()" title="Vista interna del equipo — nada de esto sale en el reporte del cliente">⚙️ Ops</button>
+          </div>
+        </div>
+        <div class="rpt-grid">
+          <div>
+            <div class="kpis" id="rptKpis"></div>
+            <div class="chart-card">
+              <h4>Ventas mensuales (MXN)</h4>
+              <div class="csub">Ingresos por período — fuente: Clientes por período (AppSheet)</div>
+              <div id="chartVentas"></div>
+            </div>
+            <div class="chart-card">
+              <h4>Impuestos del período (MXN)</h4>
+              <div class="csub">IVA + ISR determinados por mes — fuente: Clientes por período</div>
+              <div class="polar-leg"><span><i style="background:#c9591f"></i>Arriba del cero: impuesto a pagar</span><span><i style="background:#17864a"></i>Debajo del cero: saldo a tu favor</span></div>
+              <div id="chartImpuestos"></div>
+            </div>
+            <div class="chart-card">
+              <h4>Detalle mes a mes</h4>
+              <div class="csub">Declaraciones, impuestos y ventas consolidados</div>
+              <div id="rptTable" style="overflow-x:auto"></div>
+            </div>
+            <div class="chart-card" id="cierreCard">
+              <h4>Cierre del mes — documentos del período</h4>
+              <div class="csub" id="cierreSub">Balance general, estado de resultados, cálculo de impuestos, acuses y estados de cuenta.</div>
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+                <label style="margin:0;text-transform:none;letter-spacing:0;font-size:13px;color:var(--t2);font-weight:500">Período a analizar</label>
+                <select id="periodoSel" style="width:auto;min-width:190px" onchange="setRptPeriodo(this.value)"><option>—</option></select>
+              </div>
+              <div id="docsList"></div>
+              <div class="btn-row">
+                <button class="btn btn-primary" id="cierreBtn" onclick="rptGenerate('cierre')">📄 Analizar cierre del mes</button>
+                <button class="btn btn-ghost" onclick="releerDocs()" title="Vacía el caché y vuelve a convertir y hacer OCR de los archivos">🔄 Releer documentos</button>
+                <button class="btn btn-ghost" id="tecBtn" onclick="rptTecnica()" title="Papel de trabajo del contador — nunca sale en el reporte del cliente">🧮 Revisión técnica (interno)</button>
+                <a id="driveLink" href="#" target="_blank" rel="noopener" class="btn btn-ghost" style="display:none;text-decoration:none">📁 Carpeta del cliente</a>
+              </div>
+              <div id="cierreStatus"></div>
+                <div id="docDiag"></div>
+                <div id="tecPanel"></div>
+            </div>
+          </div>
+          <aside class="rpt-panel">
+            <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:16px" onclick="openSesion()">💡 ¿Por qué es importante esta sesión?</button>
+            <h3>🗒 Contexto de la sesión</h3>
+            <p style="font-size:13px;color:var(--t2);margin-bottom:10px;line-height:1.5">Todo lo que se levanta en la sesión: contexto del negocio, la proyección que el cliente dice, y las estrategias que acordamos. Se guarda al expediente del cliente y alimenta la generación del reporte.</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+              <select id="ctxTipo" onchange="ctxTipoChange()">
+                <option value="contexto">Contexto</option>
+                <option value="proyeccion">Proyección</option>
+                <option value="estrategia">Estrategia</option>
+              </select>
+              <input type="text" id="ctxTitulo" placeholder="Título corto">
+            </div>
+            <div id="stratWrap" style="display:none;margin-bottom:8px">
+              <select id="stratTipo">
+                <option value="fiscal">Estrategia fiscal</option>
+                <option value="impuestos">Impuestos (IVA / ISR / retenciones)</option>
+                <option value="bancaria-flujo">Cuentas bancarias y flujo de caja</option>
+                <option value="operacion">Operación saludable en México</option>
+              </select>
+            </div>
+            <textarea id="ctxBox" rows="5" placeholder="Ej: lanza 2 SKUs nuevos en septiembre y espera duplicar inventario para Q4 (Buen Fin + Navidad). Su cuello de botella es la aduana, no la venta."></textarea>
+            <div class="btn-row" style="margin-top:9px">
+              <button class="btn btn-primary" id="ctxGenBtn" onclick="ctxGenerate()">✨ Generar sección</button>
+              <button class="btn btn-ghost" id="ctxSaveBtn" onclick="ctxSaveFromBox()">💾 Solo guardar</button>
+            </div>
+            <div id="ctxStatus"></div>
+            <div id="genRptStatus"></div>
+            <div class="gen-row" style="margin-top:14px">
+              <button class="btn btn-ghost" onclick="rptGenerate('resumen')">🧠 Resumen ejecutivo</button>
+            </div>
+            <h3 style="margin-top:20px">📚 Expediente del cliente <span class="tip">ℹ️<span class="tiptext">Notas y contextos guardados de este cliente (pestaña Reporte_Contextos). Los que dejes ✓ marcados se usan como contexto al generar cualquier sección del reporte.</span></span></h3>
+            <div id="ctxList" style="margin-bottom:6px"></div>
+            <h3 style="margin-top:20px">📄 Secciones del reporte <span class="tip">ℹ️<span class="tiptext">Todo lo generado queda aquí (pestaña Reporte_Secciones), editable. Solo las secciones con ✓ entran al reporte final. Tus ediciones se respetan tal cual.</span></span></h3>
+            <div id="secList"></div>
+          </aside>
+        </div>
+      </div>
     </section>
 
     <!-- ══ BANDEJA ══ -->
@@ -524,6 +732,13 @@ tr:hover td{background:rgba(96,71,255,.04)}
         <input id="cxCiec" class="cx-input" type="password" autocomplete="new-password" placeholder="••••••••">
         <div class="cx-nav"><button class="btn" onclick="cxSolicitarSyntage()">Sí, pedir la conexión</button><button class="btn secondary" onclick="cxGo(4)">No, continuar sin SAT</button></div>
         <div id="cxSynMsg" class="cx-hint"></div>
+        <div style="border-top:1px dashed rgba(0,0,0,.15);margin-top:14px;padding-top:12px">
+          <b>📥 O carga la información directamente desde Contalink</b>
+          <p class="cx-hint" style="margin:6px 0 8px">Sin la conexión al SAT, el IVA acreditable pagado del mes puede tomarse del auxiliar de Contalink. Captura el importe por período: el cálculo lo usará y el documento citará la fuente con una alerta.</p>
+          <div id="cxCtkForm"></div>
+          <div class="cx-nav"><button class="btn secondary" id="cxCtkBtn" onclick="cxCtkForm()">Capturar desde Contalink</button></div>
+          <div id="cxCtkMsg" class="cx-hint"></div>
+        </div>
       </div>
       <div class="cx-nav"><button class="btn secondary" onclick="cxGo(2)">← Atrás</button><button class="btn" onclick="cxGo(4)" id="cxNext3">Continuar →</button></div>
     </div>
@@ -639,6 +854,73 @@ tr:hover td{background:rgba(96,71,255,.04)}
 
   </main>
 </div>
+<!-- ══ MODAL: OPS (interno) ══ -->
+<div class="modal-veil" id="opsVeil" onclick="if(event.target===this)closeModal('opsVeil')">
+  <div class="modal">
+    <div class="modal-h">
+      <div>
+        <div class="eyebrow mut">Vista interna · no sale en el reporte del cliente</div>
+        <h2>Ops — <span id="opsCliente">cliente</span></h2>
+        <div class="mh-sub">Pendientes del equipo, documentación faltante del período y avisos del sistema. Esto es para ti y para el equipo, no para la sesión con el cliente.</div>
+      </div>
+      <button class="modal-x" onclick="closeModal('opsVeil')">✕</button>
+    </div>
+    <div class="modal-b" id="opsBody"></div>
+  </div>
+</div>
+
+<!-- ══ MODAL: POR QUÉ IMPORTA LA SESIÓN ══ -->
+<div class="modal-veil" id="sesionVeil" onclick="if(event.target===this)closeModal('sesionVeil')">
+  <div class="modal">
+    <div class="modal-h">
+      <div>
+        <div class="eyebrow">La sesión mensual de reporte</div>
+        <h2>El cierre no termina cuando declaramos. Termina cuando el cliente entiende sus números.</h2>
+        <div class="mh-sub">Guion de la sesión y por qué esta reunión es el instrumento más importante del mes.</div>
+      </div>
+      <button class="modal-x" onclick="closeModal('sesionVeil')">✕</button>
+    </div>
+    <div class="modal-b">
+      <p>Instalamos la sesión mensual de reporte porque encontramos un patrón: <b>en tres de cada cuatro relaciones que revisamos, el problema no fue la calidad técnica — fue que el cliente no supo que el trabajo estaba hecho.</b> Cerrábamos el mes ante la autoridad, no ante el cliente.</p>
+      <p class="sec">Esta sesión hace tres trabajos con una sola acción: <b>entrega el reporte</b> —el cuello que nos estaba costando la reputación—, <b>genera evidencia documental</b> del expediente contable, y <b>produce el veredicto</b> que necesitamos para decidir el portafolio. Deja de ser una junta de cortesía.</p>
+
+      <div class="eyebrow" style="margin-top:30px">Las cuatro preguntas que se responden en cada sesión</div>
+      <div class="qgrid">
+        <div class="qcard"><div class="qn">1</div><h4>¿Qué necesita realmente?</h4><p>No lo que contrató: lo que le hace falta hoy para operar.</p></div>
+        <div class="qcard"><div class="qn">2</div><h4>¿Cuál es su expectativa real en México?</h4><p>Su forecast dicho por él, no inferido por nosotros.</p></div>
+        <div class="qcard"><div class="qn">3</div><h4>¿Qué cuellos de botella percibe?</h4><p>Los suyos, que casi nunca son los que nosotros suponemos.</p></div>
+        <div class="qcard"><div class="qn">4</div><h4>¿Qué apoyo o asesoría necesita?</h4><p>Dónde podemos empujar y dónde no.</p></div>
+      </div>
+
+      <div class="eyebrow">Y de esas cuatro respuestas sale un veredicto</div>
+      <div class="verdicts">
+        <div class="vcard v1"><h4>Importar y vender más</h4><p>El cliente está listo. Aceleramos.</p></div>
+        <div class="vcard v2"><h4>Corregir procesos o insumos</h4><p>Quiere crecer pero algo lo frena. Lo arreglamos primero.</p></div>
+        <div class="vcard v3"><h4>Asesorarlo sobre su suspensión</h4><p>México no es su camino hoy. Lo acompañamos a salir ordenado.</p></div>
+      </div>
+
+      <div class="aside">Las respuestas se escriben en el <b>Contexto de la sesión</b> de esta misma pantalla. Ahí quedan en el expediente del cliente y alimentan el reporte del mes siguiente — la sesión no solo entrega, <b>levanta evidencia</b>.</div>
+
+      <div class="eyebrow" style="margin-top:26px">Lo que nos empujó a instalarla</div>
+      <div class="stat-row">
+        <div class="st"><b>3 de 4</b><span>relaciones con el mismo síntoma: el trabajo se hizo y no llegó</span></div>
+        <div class="st"><b>78%</b><span>de la cartera sin un solo estado de cuenta cargado</span></div>
+        <div class="st"><b>14</b><span>clientes declarando sin respaldo bancario</span></div>
+      </div>
+      <p class="sec" style="margin-top:22px;font-size:14.5px">El cliente que canceló este mes no canceló por mala contabilidad: canceló la contabilidad y se quedó con todo lo demás. <b>Cancela lo que no ve.</b> Esta sesión es lo que lo hace ver.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ⌘K BUSCADOR DE CLIENTES ══ -->
+<div class="kbar-veil" id="kbarVeil" onclick="if(event.target===this)closeKbar()">
+  <div class="kbar">
+    <input type="text" id="kbarInput" placeholder="Busca cliente por nombre, ID (AZ…) u owner…" autocomplete="off">
+    <div class="klist" id="kbarList"></div>
+    <div class="khint"><span><span class="kbd">↑↓</span> navegar</span><span><span class="kbd">↵</span> abrir reporte</span><span><span class="kbd">esc</span> cerrar</span></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- ══ DASHBOARD · detalle de cliente (capa 3) ══ -->
@@ -2323,6 +2605,19 @@ function audSemaforo(c){
   const color=rojos.length?'rojo':(amar.length?'amarillo':'verde');
   return {color,rojos,amar,label:color==='verde'?'Verde — auditoría positiva':color==='amarillo'?'En corrección':'Riesgo activo'};
 }
+function audSyn(c){
+  const u=String(c.en_universo||'');
+  if(u==='sí'||u==='no') return {c:'verde',t:'Activo'};
+  if(u==='sin lectura') return {c:'amarillo',t:'Activo, sin lectura'};
+  return {c:'rojo',t:'Inactivo'};
+}
+async function audSolicitarSyntage(id,nombre,btn){
+  if(btn){btn.disabled=true;btn.textContent='Enviando…';}
+  const r=await api('syntage_activar_solicitud',{company_id:id,cliente:nombre,auth:dashAuth()},60000);
+  if(btn){btn.disabled=false;btn.textContent='⚡ Solicitar activación en Syntage';}
+  if(r&&r.ok) toast('✅ Solicitud enviada: tarea creada'+(r.dm?' y DM a Juan entregado':' (el DM a Juan no salió: '+(r.dm_error||'?')+')'));
+  else toast('❌ '+((r&&r.error)||'error al solicitar'));
+}
 function audScEstado(id){
   if(AUD.accesos===null) return {c:'blanco',t:'Accesos sin conectar (backend anterior)'};
   const a=AUD.accesos[String(id||'').trim()];
@@ -2385,6 +2680,7 @@ function audVistaOwners(){
   return `${audMiga()}
   <div class="aud-kpis">
     <div class="aud-kpi"><div class="l">Clientes en el corte</div><div class="v">${AUD.rows.length}</div><div class="s">${calif} califican (universo SAT) · ${B} sin calificar</div></div>
+    <div class="aud-kpi"><div class="l">Conectados a Syntage</div><div class="v">${AUD.rows.filter(c=>audSyn(c).c!=='rojo').length}</div><div class="s">de ${AUD.rows.length} del corte · la conexión habilita las reglas automáticas del semáforo</div></div>
     <div class="aud-kpi"><div class="l">Semáforo</div><div class="v">🟢 ${G} · 🟡 ${Y} · 🔴 ${R}</div><div class="s">del período ${esc(AUD.periodo)}</div></div>
     <div class="aud-kpi"><div class="l">Métrica #4 · % en verde</div><div class="v" style="color:#0c6b4b">${m4}%</div><div class="s">auditorías positivas / clientes calificables</div></div>
     <div class="aud-kpi"><div class="l">Accesos Seller Central</div><div class="v">${AUD.accesos===null?'—':'🟢 '+os.reduce((s,o)=>s+o.sg,0)+' · 🟡 '+os.reduce((s,o)=>s+o.sy,0)+' · 🔴 '+os.reduce((s,o)=>s+o.sr,0)}</div><div class="s">${AUD.accesos===null?'requiere el deploy del backend':'gestionables desde CX, en el detalle del cliente'}</div></div>
@@ -2401,10 +2697,11 @@ function audVistaOwner(){
     <td>${audPill(s.color,s.label)}</td>
     <td style="text-align:right"><b>${s.rojos.length+s.amar.length}</b></td>
     <td>${audPill(sc.c,sc.t)}</td>
+    <td>${audPill(audSyn(c).c,audSyn(c).t)}</td>
     <td>${dashTags(c)}</td>
     <td><span class="chip" style="pointer-events:none">Detalle por período →</span></td></tr>`).join('');
   return `${audMiga()}
-  <table class="aud-tabla"><thead><tr><th>Cliente</th><th>Auditoría</th><th style="text-align:right">Elementos abiertos</th><th>Acceso Seller Central</th><th>Conexión</th><th></th></tr></thead><tbody>${filas||'<tr><td colspan="6">Sin clientes de este owner en el corte.</td></tr>'}</tbody></table>`;
+  <table class="aud-tabla"><thead><tr><th>Cliente</th><th>Auditoría</th><th style="text-align:right">Elementos abiertos</th><th>Acceso Seller Central</th><th>Syntage</th><th>Conexión</th><th></th></tr></thead><tbody>${filas||'<tr><td colspan="7">Sin clientes de este owner en el corte.</td></tr>'}</tbody></table>`;
 }
 function audVistaCliente(){
   const c=AUD.rows.find(x=>x.company_id===AUD.cliente);
@@ -2431,6 +2728,12 @@ function audVistaCliente(){
   <div class="aud-h2">Desglose por período</div>
   <div class="aud-q">La historia del cliente, mes a mes — cada fila con los elementos de ese cierre.</div>
   <div id="audPeriodos"><div class="dash-empty">Cargando períodos…</div></div>
+  <div class="aud-h2">Conexión a Syntage (SAT)</div>
+  <div class="aud-q">La conexión activa las reglas automáticas del semáforo: opinión, declaraciones y facturas directo del SAT.</div>
+  <div class="aud-panel"><b>${audPill(audSyn(c).c,audSyn(c).t)}</b> <span style="font-size:12.5px;color:var(--gray-500,#777);margin-left:8px">${dashConexion(c).t}</span>
+    ${audSyn(c).c==='rojo'?`<div style="margin-top:10px"><button class="btn btn-primary" onclick="audSolicitarSyntage('${esc(c.company_id)}','${esc(String(c.cliente||'').replace(/['"]/g,''))}',this)">⚡ Solicitar activación en Syntage</button></div>
+    <div style="font-size:12px;color:var(--gray-500,#777);margin-top:8px">Crea la tarea de activación y le avisa a Juan por DM — él aprueba y conecta al cliente.</div>`:''}
+  </div>
   <div class="aud-h2">Acceso · Amazon Seller Central</div>
   <div class="aud-q">Gestión desde CX, aquí mismo.</div>
   ${acc}`;
@@ -2444,7 +2747,7 @@ async function audLlenarPeriodos(){
     const row=AUD.cache[per].find(x=>x.company_id===AUD.cliente);
     if(!row){ filas.push(`<tr><td><b>${esc(per)}</b></td><td>${audPill('blanco','Sin datos en este corte')}</td><td>—</td></tr>`); }
     else { const s=audSemaforo(row);
-      const det=[...s.rojos,...s.amar].map(x=>x[0]).join(' · ')||'Cierre limpio';
+      const det=s.color==='blanco'?'Fuera del universo SAT del mes':([...s.rojos,...s.amar].map(x=>x[0]).join(' · ')||'Cierre limpio');
       filas.push(`<tr><td><b>${esc(per)}</b></td><td>${audPill(s.color,s.label)}</td><td style="font-size:12.5px">${esc(det)}</td></tr>`); }
     if(document.getElementById('audPeriodos')!==el) return; // el usuario navegó
     el.innerHTML=`<table class="aud-tabla"><thead><tr><th style="width:110px">Período</th><th style="width:210px">Estado</th><th>Elementos del cierre</th></tr></thead><tbody>${filas.join('')}</tbody></table>`;
@@ -2539,6 +2842,1500 @@ async function cliQuitar(cid,email){
   if(r.ok){ c.contacto_email=nuevos; toast('Correo eliminado'); renderClientes(); }
   else toast('❌ '+(r.error||'error'));
 }
+/* ═══════════════ 📊 REPORTES DE CLIENTE ═══════════════ */
+const RPT={cid:null,data:null,docs:null,lang:'en',ctxSel:{},loading:false,periodo:'',periodoK:0,forceDocs:false,tecnica:null};
+
+/* — modales — */
+function openModal(id){ document.getElementById(id).classList.add('open'); document.body.style.overflow='hidden'; }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); document.body.style.overflow=''; }
+function openSesion(){ openModal('sesionVeil'); }
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){
+  ['opsVeil','sesionVeil','faqVeil'].forEach(id=>{ const el=document.getElementById(id); if(el&&el.classList.contains('open')) closeModal(id); });
+  if(typeof tkCloseSide==='function'){ const s=document.getElementById('tkSide'); if(s&&s.classList.contains('open')) tkCloseSide(); } }});
+
+/* — Ops: todo lo interno, fuera de la vista del cliente — */
+function openOps(){
+  if(!RPT.data){ toast('Carga un cliente primero'); return; }
+  const d=RPT.data, t=d.tareas||[], dk=RPT.docs;
+  document.getElementById('opsCliente').textContent=d.ficha.nombre||RPT.cid;
+  const falt=(dk&&dk.faltantes_cierre)||[];
+  document.getElementById('opsBody').innerHTML=`
+    <div class="eyebrow mut">Pendientes del equipo · WeeklyPlan</div>
+    ${t.length?`<table class="mini-table"><thead><tr><th>Tarea</th><th>Categoría</th><th>Owner</th><th>Estatus</th></tr></thead><tbody>${
+      t.map(x=>`<tr><td>${esc(x.tarea)}</td><td>${esc(x.categoria)}</td><td>${esc(x.owner)}</td><td>${esc(x.status)}</td></tr>`).join('')
+    }</tbody></table>
+    <div class="btn-row"><button class="btn btn-ghost" onclick="closeModal('opsVeil');switchView('tareas')">✅ Abrir el tablero de tareas</button></div>`
+    :'<p class="sec">Sin tareas abiertas para este cliente. 🎉</p>'}
+
+    <div class="eyebrow mut" style="margin-top:32px">Documentación del período ${dk?'· '+esc(dk.periodo_label):''}</div>
+    ${dk?`${(dk.faltan_cliente&&dk.faltan_cliente.length)?`<p class="sec">📥 <b>El cliente nos debe:</b> ${dk.faltan_cliente.map(esc).join(' · ')}.</p>`:''}
+       ${(dk.faltan_tally&&dk.faltan_tally.length)?`<p class="sec">🛠 <b>Falta generar de nuestro lado:</b> ${dk.faltan_tally.map(esc).join(' · ')}.</p>`:''}
+       ${(dk.presentes&&dk.presentes.length)?`<p class="sec" style="color:var(--ok)">✅ Ya en el expediente: ${dk.presentes.map(esc).join(' · ')}.</p>`:''}
+       ${falt.length?'<div class="notice warn">⚠️ Sin estos documentos el cierre queda declarado pero sin respaldo. Es el patrón que ya nos costó reputación: el trabajo se hace y no llega.</div>':'<div class="notice ok">✅ Cierre con respaldo completo.</div>'}`
+      : '<p class="sec">Aún no se han leído los documentos del período.</p>'}
+    ${dk&&dk.no_leidos&&dk.no_leidos.length?`<div class="notice info" style="margin-top:10px">📄 Archivos que existen pero no se pudieron leer automáticamente: ${dk.no_leidos.map(esc).join(', ')}</div>`:''}
+
+    <div class="eyebrow mut" style="margin-top:32px">Sistema</div>
+    <p class="sec">Fuente de datos: <b>${esc(d.fuente||'—')}</b>${d.faltantes&&d.faltantes.length?' · tablas sin datos para este cliente: '+d.faltantes.map(esc).join(', '):''}</p>
+    ${d.avisos&&d.avisos.length?`<div class="notice warn" style="margin-top:10px">${d.avisos.map(esc).join('<br>')}</div>`:''}
+    ${d.bancos?`<p class="sec" style="margin-top:14px">Bancos: Payoneer <b>${esc(d.bancos.payoneer||'N/D')}</b> · Otro: <b>${esc(d.bancos.otro||'N/D')}</b> ${d.bancos.status_otro?'('+esc(d.bancos.status_otro)+')':''} ${esc(d.bancos.comentarios||'')}</p>`:''}`;
+  openModal('opsVeil');
+}
+
+/* — documentos del período — */
+async function loadDocs(force){
+  if(!RPT.cid) return;
+  const el=document.getElementById('docsList');
+  if(RPT.docs && !force){ renderDocs(); return; }
+  const pid=RPT.periodo||'';        // el período global manda
+  el.innerHTML='<span style="color:var(--t3);font-size:13px">⏳ Leyendo documentos del período…</span>';
+  const r=await api('report_docs',{company_id:RPT.cid, periodo_id:pid});
+  if(!r.ok){ el.innerHTML='<div class="notice warn">❌ '+esc(r.error||'no se pudieron leer los documentos')+'</div>'; RPT.docs=null; return; }
+  RPT.docs=r; renderDocs();
+}
+const DOC_IC={balance_general:'⚖️',balanza:'📊',calculo_impuestos:'🧮',estado_resultados:'📈',declaracion:'🧾',diot:'📋',estado_cuenta:'🏦',retencion:'🔖',extra:'📎'};
+function renderDocs(){
+  const d=RPT.docs, el=document.getElementById('docsList');
+  if(!d) return;
+  document.getElementById('cierreSub').innerHTML=`Período <b>${esc(d.periodo_label)}</b> · ${d.total_documentos} documento${d.total_documentos===1?'':'s'} en el expediente`;
+  const sel=document.getElementById('periodoSel');
+  if(sel && d.periodos_disponibles && d.periodos_disponibles.length){
+    // Espejo del selector global: cambiarlo aquí cambia el período de TODA la vista.
+    const opts=d.periodos_disponibles.slice();
+    // Si el período global no está en la lista de documentos, se añade igual:
+    // el espejo nunca debe quedarse en blanco ni contradecir al selector global.
+    if(RPT.periodo && !opts.some(p=>p.periodo_id===RPT.periodo)){
+      const g=rptPeriodosDisponibles().find(x=>x.pid===RPT.periodo);
+      if(g) opts.unshift({periodo_id:g.pid,label:g.label});
+    }
+    sel.innerHTML=opts.map(p=>`<option value="${esc(p.periodo_id)}" ${p.periodo_id===(RPT.periodo||d.periodo_id)?'selected':''}>${esc(p.label)}</option>`).join('');
+    sel.value=RPT.periodo||d.periodo_id;
+  }
+  const dl=document.getElementById('driveLink');
+  if(d.carpeta_drive){ dl.href=d.carpeta_drive; dl.style.display=''; } else dl.style.display='none';
+  el.innerHTML=(d.documentos&&d.documentos.length)
+    ? `<div class="doclist">${d.documentos.map(x=>`<div class="docitem">
+        <span class="di-ic">${DOC_IC[x.tipo]||'📄'}</span>
+        <span class="di-n" title="${esc(x.archivo_nombre)}"><b>${esc(x.label)}</b> — ${esc(x.archivo_nombre)}</span>
+        ${x.fecha_carga?`<span class="di-t">${esc(String(x.fecha_carga).slice(0,10))}</span>`:''}
+      </div>`).join('')}</div>
+      ${(d.faltan_cliente&&d.faltan_cliente.length)?`<div class="notice warn">📥 <b>El cliente nos debe:</b> ${d.faltan_cliente.map(esc).join(' · ')} — pídeselo en la sesión.</div>`:''}
+      ${(d.faltan_tally&&d.faltan_tally.length)?`<div class="notice info">🛠 <b>Falta generar de nuestro lado:</b> ${d.faltan_tally.map(esc).join(' · ')}</div>`:''}
+      ${(!d.faltan_cliente&&!d.faltan_tally&&d.faltantes_cierre&&d.faltantes_cierre.length)?`<div class="notice warn">⚠️ Falta para cerrar en firme: ${d.faltantes_cierre.map(esc).join(' · ')}</div>`:''}
+      ${(d.faltan_cliente&&!d.faltan_cliente.length&&d.faltan_tally&&!d.faltan_tally.length)?'<div class="notice ok">✅ El período tiene los cinco documentos base del cierre.</div>':''}
+      ${dxDiag(d)}`
+    : ('<p style="color:var(--t2);font-size:13.5px">Sin documentos cargados para este período. El análisis usará solo los datos del sistema.</p>'+dxDiag(d));
+}
+
+/* Diagnóstico INTERNO de la lectura de documentos. Sirve para distinguir
+   "el documento no existe" de "el backend no lo está leyendo": si una tabla
+   aparece aquí como vacía pero el archivo sí está en AppSheet, lo que falla
+   es la fuente (Apps Script desactualizado o tabla fuera de la app). */
+function dxDiag(d){
+  const f=(d.faltantes||[]), av=(d.avisos||[]);
+  if(!f.length && !av.length && d.fuente) return `<p class="dx">🔎 Fuente de lectura: <b>${esc(d.fuente)}</b> · todas las tablas respondieron.</p>`;
+  if(!f.length && !av.length) return '';
+  return `<p class="dx">🔎 Fuente: <b>${esc(d.fuente||'—')}</b>${f.length?` · tablas sin filas del cliente: <b>${f.map(esc).join(', ')}</b>`:''}${av.length?`<br>⚠️ ${av.map(esc).join(' · ')}`:''}
+    <br><span style="opacity:.75">Si el archivo sí existe en AppSheet, el Apps Script publicado está desactualizado: Implementar → Administrar implementaciones → Nueva versión (debe reportar v3.18 en Configuración).</span></p>`;
+}
+
+/* — utilidades de período — */
+const MES_N={enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,octubre:10,noviembre:11,diciembre:12,
+  january:1,february:2,march:3,april:4,may:5,june:6,july:7,august:8,september:9,october:10,november:11,december:12,
+  ene:1,feb:2,mar:3,abr:4,jun:6,jul:7,ago:8,sep:9,sept:9,oct:10,nov:11,dic:12,apr:4,aug:8,dec:12};
+function monthNum(m){ m=String(m??'').trim().toLowerCase(); if(!m)return 0; if(/^\d+$/.test(m))return +m; return MES_N[m]||MES_N[m.slice(0,4)]||MES_N[m.slice(0,3)]||0; }
+const MES_LBL={en:['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+               es:['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']};
+const MES_FULL={en:['','January','February','March','April','May','June','July','August','September','October','November','December'],
+                es:['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']};
+function fmtM(n,dec){ n=Number(n)||0; return '$'+n.toLocaleString('en-US',{minimumFractionDigits:dec??0,maximumFractionDigits:dec??0}); }
+
+function rptSeries(){
+  const map={};
+  const keep=(cur,val)=>{ val=+val||0; return val!==0?val:(cur||0); };          // no pisar un dato con 0
+  const keepS=(cur,val)=>{ val=String(val??'').trim(); return val||cur||''; };  // idem para strings
+  const touch=(anio,mes)=>{ const y=parseInt(anio),m=monthNum(mes); if(!y||!m)return null;
+    const k=y*100+m; map[k]=map[k]||{key:k,y,m,ingresos:0,gastos:0,transferencias:0,retencion:0,iva:0,isr:0,estado:'',tipo:'',fecha:''}; return map[k]; };
+  // Fuente principal: Clientes_por_periodo (trae ventas, IVA/ISR, retención y estado).
+  // El backend ya ordena para que ante meses duplicados gane la fila canónica.
+  (RPT.data?.periodos||[]).forEach(p=>{ const r=touch(p.anio,p.mes); if(!r)return;
+    r.iva=keep(r.iva,p.iva); r.isr=keep(r.isr,p.isr);
+    r.ingresos=keep(r.ingresos,p.ingresos); r.retencion=keep(r.retencion,p.retencion);
+    r.estado=keepS(r.estado,p.estado_declaracion||p.estado_cliente); r.tipo=keepS(r.tipo,p.tipo_declaracion); r.fecha=keepS(r.fecha,p.fecha_declaracion); });
+  // Complemento: Reportes_de_venta (si algún mes trae montos capturados ahí).
+  (RPT.data?.ventas||[]).forEach(v=>{ const r=touch(v.anio,v.mes); if(!r)return;
+    r.ingresos=keep(r.ingresos,v.ingresos); r.gastos=keep(r.gastos,v.gastos);
+    r.transferencias=keep(r.transferencias,v.transferencias); r.retencion=keep(r.retencion,v.impuesto); });
+  let arr=Object.values(map).sort((a,b)=>a.key-b.key);
+  // El período global manda: la serie termina en el mes elegido.
+  if(RPT.periodoK) arr=arr.filter(r=>r.key<=RPT.periodoK);
+  return arr.slice(-13);
+}
+
+/* ═══ período global de análisis ═══
+   Un solo control gobierna KPIs, gráficas, documentos de cierre y el reporte.
+   Se arma con los períodos reales del cliente (Clientes_por_periodo). */
+function rptPeriodosDisponibles(){
+  const vistos={}, out=[];
+  ((RPT.data&&RPT.data.periodos)||[]).forEach(p=>{
+    const y=parseInt(p.anio), m=monthNum(p.mes);
+    if(!y||!m) return;
+    const k=y*100+m;
+    if(vistos[k]) return;
+    vistos[k]=1;
+    out.push({pid:String(p.periodo_id||''),k,y,m,label:MES_FULL.es[m]+' '+y});
+  });
+  return out.sort((a,b)=>b.k-a.k);
+}
+function renderPeriodoSel(){
+  const sel=document.getElementById('rptPeriodo');
+  if(!sel) return;
+  const lista=rptPeriodosDisponibles();
+  const ult=lista[0];
+  sel.innerHTML='<option value="">'+(ult?'Último con datos · '+esc(ult.label):'Último con datos')+'</option>'
+    + lista.map(p=>`<option value="${esc(p.pid)}" data-k="${p.k}" ${p.pid===RPT.periodo?'selected':''}>${esc(p.label)}</option>`).join('');
+  sel.value=RPT.periodo||'';
+}
+function setRptPeriodo(pid){
+  RPT.periodo=pid||'';
+  const hit=rptPeriodosDisponibles().find(p=>p.pid===RPT.periodo);
+  RPT.periodoK = hit ? hit.k : 0;
+  renderRpt();
+  loadDocs(true);                       // los documentos del cierre siguen al período
+  toast(RPT.periodo ? '📅 Período de análisis: '+(hit?hit.label:RPT.periodo) : '📅 Período: último con datos');
+}
+/** Etiqueta del período efectivo (el elegido, o el último de la serie). */
+function periodoLabel(S){
+  const hit=rptPeriodosDisponibles().find(p=>p.pid===RPT.periodo);
+  if(hit) return hit.label;
+  const last=S&&S[S.length-1];
+  return last?MES_FULL.es[last.m]+' '+last.y:'—';
+}
+const SUSP_OK=/^(no|n\/?a|-|ninguna?|false)$/i;
+function suspActiva(s){ s=String(s??'').trim(); return s!=='' && !SUSP_OK.test(s); }
+
+/* — gráfica de barras SVG autocontenida —
+   Eje cero explícito: los importes negativos (saldo a favor) crecen HACIA ABAJO.
+   `color` acepta un hex (una sola serie) o {pos,neg} para polaridad:
+   cálido = impuesto a pagar · verde = saldo a tu favor.
+   El signo se lee por POSICIÓN respecto al cero y por la etiqueta directa, no
+   solo por el color — que es lo que hace legible el par también con daltonismo. */
+function barChartSVG(rows,valFn,color,lang){
+  if(!rows.length) return '<p style="color:#8a877e;font-size:13px">Sin datos de la serie para este cliente.</p>';
+  const POS=(typeof color==='object'&&color)?color.pos:color;
+  const NEG=(typeof color==='object'&&color)?color.neg:color;
+  const W=720,H=230,padL=8,padR=8,padT=26,padB=24;
+  const vals=rows.map(valFn);
+  const vmax=Math.max(0,...vals), vmin=Math.min(0,...vals);
+  const hayNeg=vmin<0;
+  const rango=(vmax-vmin)||1;
+  // Espacio reservado para las etiquetas directas dentro del área de trazado
+  const LBL=15;
+  const top=padT+LBL, bot=H-padB-(hayNeg?LBL:0), plotH=bot-top;
+  const zeroY=top+plotH*(vmax/rango);
+  const iw=(W-padL-padR)/rows.length, bw=Math.min(iw*0.62,24);   // marca fina: tope 24px
+  const y=v=>zeroY-(v/rango)*plotH;
+
+  let s='<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" role="img">';
+  // Rejilla recesiva a media altura de cada brazo
+  const guias=hayNeg?[vmax/2,vmin/2]:[vmax/2,vmax];
+  guias.forEach(g=>{ if(!g) return; const gy=y(g);
+    s+='<line x1="'+padL+'" y1="'+gy+'" x2="'+(W-padR)+'" y2="'+gy+'" stroke="#f1efe9" stroke-width="1"/>'; });
+  // Línea del cero: es el eje, no una guía — va más marcada
+  s+='<line x1="'+padL+'" y1="'+zeroY+'" x2="'+(W-padR)+'" y2="'+zeroY+'" stroke="#d8d5cc" stroke-width="1"/>';
+
+  rows.forEach((r,i)=>{
+    const v=valFn(r), neg=v<0, col=neg?NEG:POS;
+    const h=Math.abs(v)/rango*plotH;
+    const x=padL+iw*i+(iw-bw)/2, rr=Math.min(4,h/2);
+    const lbl=MES_LBL[lang][r.m]+' '+String(r.y).slice(2);
+    s+='<g class="bar-g">';
+    if(h>0.5){
+      // Extremo del dato redondeado 4px; escuadra pegada a la línea del cero.
+      s+= neg
+        ? '<path d="M'+x+' '+zeroY+' V'+(zeroY+h-rr)+' Q'+x+' '+(zeroY+h)+' '+(x+rr)+' '+(zeroY+h)+' H'+(x+bw-rr)+' Q'+(x+bw)+' '+(zeroY+h)+' '+(x+bw)+' '+(zeroY+h-rr)+' V'+zeroY+' Z" fill="'+col+'"><title>'+lbl+': '+fmtM(v,2)+'</title></path>'
+        : '<path d="M'+x+' '+zeroY+' V'+(zeroY-h+rr)+' Q'+x+' '+(zeroY-h)+' '+(x+rr)+' '+(zeroY-h)+' H'+(x+bw-rr)+' Q'+(x+bw)+' '+(zeroY-h)+' '+(x+bw)+' '+(zeroY-h+rr)+' V'+zeroY+' Z" fill="'+col+'"><title>'+lbl+': '+fmtM(v,2)+'</title></path>';
+    }
+    // Etiqueta directa: arriba del positivo, debajo del negativo. Lleva el signo.
+    const av=Math.abs(v);
+    const txt=(v===0)?'$0':((v<0?'−':'')+(av>=1000?fmtM(av/1000,av>=100000?0:1)+'k':fmtM(av)));
+    // Los ceros se etiquetan del lado donde vive la serie, para no dejar una
+    // fila de "$0" flotando arriba cuando todo el período fue saldo a favor.
+    const abajo = neg || (v===0 && hayNeg && vmax===0);
+    const ly = abajo ? (zeroY+h+12) : (zeroY-h-6);
+    s+='<text x="'+(x+bw/2)+'" y="'+ly+'" text-anchor="middle" font-size="10.5" font-weight="500" fill="'+(v===0?'#8a877e':'#212121')+'" font-family="DM Sans,sans-serif">'+txt+'</text>';
+    // Mes siempre al pie, fuera del área de trazado
+    s+='<text x="'+(x+bw/2)+'" y="'+(H-8)+'" text-anchor="middle" font-size="10.5" fill="#8a877e" font-family="DM Sans,sans-serif">'+lbl+'</text>';
+    s+='</g>';
+  });
+  return s+'</svg>';
+}
+/* Polaridad de impuestos: a pagar (cálido) vs a favor (verde). Ambos son tokens
+   del sistema de Tally; el par se validó contra la superficie blanca de la tarjeta. */
+const TAX_POLAR={pos:'#c9591f',neg:'#17864a'};
+
+/* — ⌘K buscador — */
+let kbarIdx=0;
+function openKbar(){ const v=document.getElementById('kbarVeil'); v.classList.add('open');
+  const i=document.getElementById('kbarInput'); i.value=''; kbarIdx=0; renderKbar(''); setTimeout(()=>i.focus(),30); }
+function closeKbar(){ document.getElementById('kbarVeil').classList.remove('open'); }
+function kbarHits(q){
+  q=q.trim().toLowerCase();
+  const src=CLIENTES;
+  const hits=!q?src.slice(0,12):src.filter(c=>((c.cliente||'')+' '+(c.company_id||'')+' '+(c.owner||'')).toLowerCase().includes(q)).slice(0,12);
+  return hits;
+}
+function renderKbar(q){
+  const hits=kbarHits(q), el=document.getElementById('kbarList');
+  if(kbarIdx>=hits.length) kbarIdx=Math.max(0,hits.length-1);
+  el.innerHTML=hits.length?hits.map((c,i)=>`<div class="kitem ${i===kbarIdx?'on':''}" onmouseenter="kbarIdx=${i};renderKbar(document.getElementById('kbarInput').value)" onclick='kbarPick(${JSON.stringify(String(c.company_id))})'>
+      <span><b>${esc(c.cliente)}</b> <small>· ${esc(c.company_id)}</small></span><small>${esc(c.owner||'')}${String(c.suspension||'').trim()?' · ⚠️ suspensión':''}</small>
+    </div>`).join(''):'<div class="kitem"><small>Sin resultados en el directorio de clientes.</small></div>';
+}
+function kbarPick(cid){ closeKbar(); switchView('reportes'); loadClientReport(cid); }
+function switchView(name){
+  document.querySelectorAll('.nav a').forEach(x=>x.classList.toggle('active',x.dataset.view===name));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  if(name==='tareas'){ if(!TK.loaded) loadTasks(!TAREAS.length); else { tkFillSelects(); tkRender(); } }
+}
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&(e.key==='k'||e.key==='K')){ e.preventDefault(); document.getElementById('kbarVeil').classList.contains('open')?closeKbar():openKbar(); return; }
+  const open=document.getElementById('kbarVeil').classList.contains('open');
+  if(!open) return;
+  if(e.key==='Escape'){ closeKbar(); return; }
+  const hits=kbarHits(document.getElementById('kbarInput').value);
+  if(e.key==='ArrowDown'){ e.preventDefault(); kbarIdx=Math.min(kbarIdx+1,hits.length-1); renderKbar(document.getElementById('kbarInput').value); }
+  if(e.key==='ArrowUp'){ e.preventDefault(); kbarIdx=Math.max(kbarIdx-1,0); renderKbar(document.getElementById('kbarInput').value); }
+  if(e.key==='Enter' && hits[kbarIdx]){ kbarPick(String(hits[kbarIdx].company_id)); }
+});
+document.getElementById('kbarInput').addEventListener('input',e=>{ kbarIdx=0; renderKbar(e.target.value); });
+
+/* — carga de cliente — */
+async function loadClientReport(cid){
+  RPT.cid=cid; RPT.data=null; RPT.docs=null; RPT.ctxSel={}; RPT.periodo=''; RPT.periodoK=0;
+  document.getElementById('rptEmpty').style.display='none';
+  document.getElementById('rptBody').style.display='block';
+  document.getElementById('rptName').innerHTML='Cargando…';
+  document.getElementById('rptMeta').textContent=cid;
+  ['rptKpis','chartVentas','chartImpuestos','rptTable','docsList','ctxList','secList'].forEach(id=>{const e=document.getElementById(id); if(e) e.innerHTML='<span style="color:var(--t3);font-size:13px">⏳ …</span>';});
+  loadDocs(true);
+  const r=await api('report_client_data',{company_id:cid});
+  if(!r.ok){
+    const cli=CLIENTES.find(x=>x.company_id===cid);
+    document.getElementById('rptName').textContent=cli?cli.cliente:'No se pudo cargar el cliente';
+    document.getElementById('rptMeta').textContent=cid;
+    document.getElementById('rptKpis').innerHTML=
+      `<div class="notice warn" style="grid-column:1/-1">❌ ${esc(r.error||'no se pudieron cargar los datos')}
+       ${String(r.error||'').indexOf('desconocida')>=0?'<br><br>Falta publicar el Apps Script (Implementar → Nueva versión).':''}
+       <br><br><b>Qué revisar:</b> que el Apps Script tenga permiso de lectura sobre el Accounting_DataModel, o configura <code>APPSHEET_ACCESS_KEY</code> en Propiedades del script para leer por API.</div>`;
+    ['chartVentas','chartImpuestos','rptTable','docsList'].forEach(id=>{const e=document.getElementById(id); if(e) e.innerHTML='';});
+    return;
+  }
+  RPT.data=r;
+  const idio=(r.roles||[]).map(x=>String(x.idioma||'').toLowerCase()).find(Boolean)||'';
+  RPT.lang = idio.startsWith('es')||idio.includes('espa') ? 'es' : 'en';
+  (CONTEXTOS.filter(c=>c.company_id===cid)).forEach(c=>{ RPT.ctxSel[c.contexto_id]=true; });
+  renderRpt();
+}
+function setRptLang(l){ RPT.lang=l; renderRpt(); }
+
+function renderRpt(){
+  if(!RPT.data) return;
+  const d=RPT.data, f=d.ficha, S=rptSeries(), lang=RPT.lang;
+  document.getElementById('langEN').classList.toggle('on',lang==='en');
+  document.getElementById('langES').classList.toggle('on',lang==='es');
+  const parts=String(f.nombre||'').split(' ');
+  document.getElementById('rptName').innerHTML=esc(f.nombre||RPT.cid);
+  document.getElementById('rptMeta').innerHTML=`${esc(RPT.cid)} · RFC ${esc(f.rfc||'N/D')} · Owner: ${esc(f.owner||'—')}${suspActiva(f.suspension)?' · <b style="color:#b34a17">⚠️ Suspensión: '+esc(f.suspension)+'</b>':''} · fuente: ${esc(d.fuente||'—')}`;
+  renderPeriodoSel();
+  const last=S[S.length-1], ytd=S.filter(x=>last&&x.y===last.y);
+  const perLbl=periodoLabel(S), fijo=!!RPT.periodo;
+  document.getElementById('rptKpis').innerHTML=`
+    <div class="kpi"><div class="kl">Ventas ${fijo?'del período':'último mes'}</div><div class="kv">${last?fmtM(last.ingresos):'—'}</div><div class="ks">${last?MES_FULL.es[last.m]+' '+last.y:'sin serie'}</div></div>
+    <div class="kpi"><div class="kl">Impuestos ${fijo?'del período':'último mes'}</div><div class="kv">${last?fmtM(last.iva+last.isr,2):'—'}</div><div class="ks">IVA ${last?fmtM(last.iva,2):''} · ISR ${last?fmtM(last.isr,2):''}</div></div>
+    <div class="kpi"><div class="kl">Última declaración</div><div class="kv" style="font-size:16px">${last?esc(last.estado||'N/D'):'—'}</div><div class="ks">${last?esc(last.tipo||''):''} ${last&&last.fecha?'· '+esc(last.fecha):''}</div></div>`;
+  document.getElementById('chartVentas').innerHTML=barChartSVG(S,r=>r.ingresos,'#6047ff',lang);
+  document.getElementById('chartImpuestos').innerHTML=barChartSVG(S,r=>r.iva+r.isr,TAX_POLAR,lang);
+  document.getElementById('rptTable').innerHTML=rptTableHTML(S,'es');
+  renderCtxList(); renderSecList();
+}
+function rptTableHTML(S,lang){
+  const L=lang==='es'?['Período','Ventas','Gastos','Retención Amazon','IVA','ISR','Declaración']:['Period','Sales','Expenses','Amazon withholding','VAT (IVA)','Income tax (ISR)','Filing'];
+  if(!S.length) return '<p style="color:#8a877e;font-size:13px">'+(lang==='es'?'Sin datos mensuales.':'No monthly data yet.')+'</p>';
+  return `<table class="mini-table"><thead><tr>${L.map(h=>'<th>'+h+'</th>').join('')}</tr></thead><tbody>${
+    S.map(r=>`<tr><td>${MES_FULL[lang][r.m]} ${r.y}</td><td class="num">${fmtM(r.ingresos,2)}</td><td class="num">${fmtM(r.gastos,2)}</td><td class="num">${fmtM(r.retencion,2)}</td><td class="num">${fmtM(r.iva,2)}</td><td class="num">${fmtM(r.isr,2)}</td><td>${esc(r.estado||'')}${r.tipo?' <span style="color:#8a877e">('+esc(r.tipo)+')</span>':''}</td></tr>`).join('')
+  }</tbody></table>`;
+}
+
+/* — contextos (chunked save: el canal JSONP es GET con límite de URL) — */
+async function ctxSaveLong(tabla,meta,texto,id){
+  const CH=1100; let res=null;
+  for(let i=0, seq=0; i<texto.length || seq===0; i+=CH, seq++){
+    res=await api('ctx_save',Object.assign({},meta,{tabla,id:seq===0?(id||''):res.id,seq,chunk:texto.slice(i,i+CH),last:(i+CH>=texto.length)}));
+    if(!res.ok) return res;
+  }
+  return res;
+}
+function ctxTipoChange(){
+  const t=document.getElementById('ctxTipo').value;
+  document.getElementById('stratWrap').style.display = t==='estrategia' ? 'block' : 'none';
+  const ph={contexto:'Ej: lanza 2 SKUs nuevos en septiembre. Su cuello de botella es la aduana, no la venta.',
+            proyeccion:'Ej: espera duplicar inventario para Q4 (Buen Fin + Navidad); nov-dic históricamente +80% vs promedio.',
+            estrategia:'Ej: acreditar el saldo a favor de IVA contra los meses de Q4 y mover la dispersión de Payoneer a quincenal para cubrir el pago del 17.'};
+  document.getElementById('ctxBox').placeholder=ph[t]||'';
+  document.getElementById('ctxGenBtn').textContent = t==='estrategia'?'📌 Documentar estrategia':t==='proyeccion'?'📈 Generar proyección':'✨ Generar sección';
+}
+/* Un solo botón: guarda el contexto al expediente y genera la sección que toque. */
+async function ctxGenerate(){
+  const t=document.getElementById('ctxTipo').value;
+  if(t==='estrategia') return rptGenerate('estrategia');
+  if(t==='proyeccion') return rptGenerate('proyeccion');
+  const ok=await ctxSaveFromBox();
+  if(ok) toast('✅ Contexto guardado al expediente — ya se usa en las generaciones');
+}
+async function ctxSaveFromBox(){
+  if(!RPT.cid){ toast('Carga un cliente primero'); return false; }
+  const txt=document.getElementById('ctxBox').value.trim();
+  if(!txt){ toast('Escribe el contexto primero'); return false; }
+  const btn=document.getElementById('ctxSaveBtn'); btn.disabled=true;
+  document.getElementById('ctxStatus').innerHTML='<div class="notice info">💾 Guardando…</div>';
+  const tipoSel=document.getElementById('ctxTipo').value;
+  const meta={company_id:RPT.cid, cliente:RPT.data?.ficha?.nombre||'', tipo:tipoSel,
+              titulo:document.getElementById('ctxTitulo').value.trim()||({contexto:'Contexto',proyeccion:'Proyección',estrategia:'Estrategia'}[tipoSel]+' '+new Date().toISOString().slice(0,10)), autor:(AUTH&&AUTH.email)||'interfaz'};
+  const r=await ctxSaveLong('ctx',meta,txt);
+  btn.disabled=false; document.getElementById('ctxStatus').innerHTML='';
+  if(r.ok){ CONTEXTOS.push({contexto_id:r.id,company_id:RPT.cid,cliente:meta.cliente,tipo:meta.tipo,titulo:meta.titulo,contenido:txt,fecha:new Date().toISOString(),autor:meta.autor});
+    RPT.ctxSel[r.id]=true; document.getElementById('ctxBox').value=''; document.getElementById('ctxTitulo').value='';
+    renderCtxList(); return true; }
+  toast('❌ '+(r.error||'error al guardar'));
+  return false;
+}
+function renderCtxList(){
+  const el=document.getElementById('ctxList');
+  const list=CONTEXTOS.filter(c=>c.company_id===RPT.cid).sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+  if(!list.length){ el.innerHTML='<p style="color:var(--gray-500);font-size:12px">Sin contextos guardados para este cliente.</p>'; return; }
+  el.innerHTML=list.map(c=>`<div class="ctx-item" id="ctx-${esc(c.contexto_id)}">
+    <div class="ctx-top">
+      <input type="checkbox" ${RPT.ctxSel[c.contexto_id]?'checked':''} onchange="RPT.ctxSel['${esc(c.contexto_id)}']=this.checked" title="Usar en la generación IA">
+      <span class="ctx-title" onclick="this.closest('.ctx-item').classList.toggle('open')">${esc(c.titulo||'(sin título)')}</span>
+      <span class="tag tp-${esc(String(c.tipo||'otro').split(':')[0])}">${esc(c.tipo||'otro')}</span>
+      <button class="mini btn-ghost" onclick="ctxDelete('${esc(c.contexto_id)}')">🗑</button>
+    </div>
+    <div class="ctx-prev">${esc(String(c.contenido||'').slice(0,900))}${String(c.contenido||'').length>900?'…':''}<br><small style="color:var(--gray-500)">${esc(String(c.fecha).slice(0,16).replace('T',' '))} · ${esc(c.autor||'')}</small></div>
+  </div>`).join('');
+}
+async function ctxDelete(id){
+  if(!confirm('¿Borrar este contexto del historial del cliente?')) return;
+  const r=await api('ctx_delete',{tabla:'ctx',id});
+  if(r.ok){ CONTEXTOS=CONTEXTOS.filter(c=>c.contexto_id!==id); delete RPT.ctxSel[id]; toast('Contexto borrado'); renderCtxList(); }
+  else toast('❌ '+(r.error||'error'));
+}
+
+/* — generación IA — */
+/* Prueba el modelo configurado con una petición mínima. Separa el caso
+   "el modelo no responde" del caso "el prompt del cierre es demasiado largo". */
+async function diagModelo(){
+  const el=document.getElementById('cfgDrive');
+  el.innerHTML='<div class="notice info">🧠 Probando el modelo de redacción…</div>';
+  const r=await api('diag_modelo',{});
+  if(!r||!r.ok){ el.innerHTML='<div class="notice warn">❌ '+esc((r&&r.error)||'sin respuesta')+'</div>'; return; }
+  el.innerHTML = r.funciona
+    ? `<div class="notice ok">✅ Modelo <b>${esc(r.modelo_usado||r.modelo)}</b> — ${esc(r.detalle)}${r.modelo_usado&&r.modelo_usado!==r.modelo?' <b>Ojo:</b> respondió el de respaldo, no el configurado.':''}</div>`
+    : `<div class="notice warn">❌ El modelo <b>${esc(r.modelo)}</b> no produjo texto.<br>${esc(r.detalle)}
+       <br><br><b>Qué hacer:</b> abre la pestaña <b>Config</b> de la hoja Tally Ops DB, busca la fila <b>modelo_redaccion</b> y escribe <code style="user-select:all">${esc(r.respaldo||'')}</code>. No hace falta volver a publicar.</div>`;
+}
+
+/* Vacía el caché de texto y marca los documentos para relectura real.
+   Necesario cuando una corrida anterior falló y dejó entradas inservibles. */
+async function releerDocs(){
+  RPT.forceDocs=true;
+  const el=document.getElementById('docDiag'); if(el) el.innerHTML='<div class="notice info">🔄 Vaciando el caché de documentos…</div>';
+  const r=await api('cache_purge',{todo:true});
+  if(el) el.innerHTML = r&&r.ok
+    ? '<div class="notice ok">🔄 Caché vaciado'+(r.borradas?' ('+r.borradas+' entradas)':'')+'. Pulsa «Analizar cierre del mes»: los archivos se leerán de nuevo.</div>'
+    : '<div class="notice warn">❌ '+esc((r&&r.error)||'no se pudo vaciar el caché')+'</div>';
+  loadDocs(true);
+}
+
+/* Comprueba si el Apps Script tiene el permiso de Drive que necesita la
+   conversión de documentos (xlsx→Sheet y OCR de PDFs). Sin él, el análisis de
+   cierre se queda sin texto y solo puede usar los datos del sistema. */
+async function diagDrive(){
+  const el=document.getElementById('cfgDrive');
+  el.innerHTML='<div class="notice info">🔑 Probando la conversión de Drive…</div>';
+  const r=await api('diag_drive',{});
+  const lista=(r&&r.scopes&&r.scopes.length)
+    ? `<div class="dx" style="margin-top:10px">🔎 Permisos concedidos ahora mismo:${r.scopes.map(x=>'<br>'+(x==='https://www.googleapis.com/auth/drive'?'✅':'·')+' <code>'+esc(x)+'</code>').join('')}</div>`
+    : '';
+  if(r&&r.scope_drive){ el.innerHTML='<div class="notice ok">✅ '+esc(r.detalle||'Permiso de Drive correcto.')+'</div>'+lista; return; }
+
+  // Si ya hay scopes concedidos pero NO está el de Drive, el proyecto tiene un
+  // manifiesto que fija la lista: por eso nunca vuelve a pedir permisos nuevos.
+  const porManifiesto = r && r.manifiesto;
+  el.innerHTML='<div class="notice warn">❌ '+esc((r&&r.detalle)||(r&&r.error)||'sin respuesta')+
+    (porManifiesto
+      ? '<br><br><b>Ya sé por qué no te pide permisos nuevos.</b> El proyecto tiene un <b>manifiesto</b> con la lista de permisos fija, y esa lista <b>anula</b> la detección automática del código. Hay que editarla a mano:'+
+        '<br>1. Editor de Apps Script → ⚙️ <b>Configuración del proyecto</b>.'+
+        '<br>2. Marca <b>«Mostrar el archivo de manifiesto appsscript.json en el editor»</b>.'+
+        '<br>3. Abre <code>appsscript.json</code> y añade dentro de <code>oauthScopes</code> la línea:'+
+        '<br><code style="user-select:all">"https://www.googleapis.com/auth/drive"</code>'+
+        '<br>&nbsp;&nbsp;&nbsp;(si no existe <code>oauthScopes</code>, pega el bloque completo del <code>appsscript.json</code> del paquete)'+
+        '<br>4. Guarda → <b>Ejecutar</b> cualquier función → <b>acepta los permisos</b>.'+
+        '<br>5. <b>Implementar → Administrar implementaciones → Nueva versión</b> → prueba otra vez.'
+      : '<br><br><b>Cómo arreglarlo (2 minutos):</b>'+
+        '<br>1. Editor de Apps Script → <b>Ejecutar</b> cualquier función.'+
+        '<br>2. Acepta los permisos que pida.'+
+        '<br>3. <b>Implementar → Administrar implementaciones → Nueva versión</b>.'+
+        '<br>4. Vuelve aquí y prueba otra vez.')+
+    '<br><br><b>Si aun así no aparece el diálogo de permisos:</b> el consentimiento ya está dado y Google no lo repite. Revócalo y vuelve a autorizar — '+
+    '<a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a> → busca el proyecto → <b>Quitar acceso</b> → vuelve al editor y ejecuta una función.'+
+    '</div>'+lista;
+}
+
+/* ═══ Revisión técnica del cierre — papel de trabajo INTERNO ═══
+   Nunca entra al documento del cliente: se guarda con incluir='no' y el
+   generador del reporte excluye el tipo 'tecnica' explícitamente. */
+async function rptTecnica(){
+  if(!RPT.cid||!RPT.data){ toast('Carga un cliente primero'); return; }
+  const btn=document.getElementById('tecBtn'), el=document.getElementById('tecPanel');
+  btn.disabled=true;
+  el.innerHTML='<div class="notice info">🧮 <b>Paso 1 de 2</b> — leyendo los documentos contables del período…</div>';
+  const pre=await api('report_close_prepare',{company_id:RPT.cid,periodo_id:RPT.periodo||'',force:!!RPT.forceDocs});
+  RPT.forceDocs=false;
+  if(!pre.ok){ btn.disabled=false; el.innerHTML='<div class="notice warn">❌ '+esc(pre.error||'error')+'</div>'; return; }
+  el.innerHTML='<div class="notice info">🧠 <b>Paso 2 de 2</b> — revisando el cuadre y proponiendo estrategia fiscal…</div>';
+  setDocDiag(pre);
+  const r=await api('report_close_technical',{company_id:RPT.cid,periodo_id:RPT.periodo||''});
+  btn.disabled=false;
+  if(!r.ok){ el.innerHTML='<div class="notice warn">❌ '+esc(r.error||'error')+'</div>'; return; }
+  RPT.tecnica=r;
+  el.innerHTML=`<div class="tec">
+      <div class="tec-h"><span class="tec-tag">Interno · papel de trabajo</span>
+        <b>${esc(r.titulo)}</b><span class="tec-per">${esc(r.periodo||'')}</span></div>
+      <div class="tec-b">${tecHTML(r.contenido)}</div>
+      <div class="btn-row"><button class="btn btn-ghost" onclick="tecCopiar()">📋 Copiar</button></div>
+    </div>`;
+  toast('🧮 Revisión técnica lista');
+}
+function tecHTML(txt){
+  return String(txt||'').split('\n').map(l=>{
+    const t=l.trim();
+    if(!t) return '';
+    if(/^##\s+/.test(t)) return '<h5>'+esc(t.replace(/^##\s+/,''))+'</h5>';
+    if(/^[-·•]\s+/.test(t)){
+      const c=esc(t.replace(/^[-·•]\s+/,''));
+      const sem=/^🟢|^🟡|^🔴/.test(t.replace(/^[-·•]\s+/,''));
+      return '<div class="'+(sem?'tec-sem':'tec-li')+'">'+c+'</div>';
+    }
+    return '<p>'+esc(t)+'</p>';
+  }).join('');
+}
+function tecCopiar(){
+  if(!RPT.tecnica) return;
+  navigator.clipboard.writeText(RPT.tecnica.titulo+'\n\n'+RPT.tecnica.contenido)
+    .then(()=>toast('📋 Copiado')).catch(()=>toast('No se pudo copiar'));
+}
+function setDocDiag(pre){ const e=document.getElementById('docDiag'); if(e) e.innerHTML=docDiagHTML(pre); }
+/* Diagnóstico honesto por documento: por qué un archivo no dejó texto. */
+function docDiagHTML(pre){
+  const d=(pre&&pre.diagnostico)||[];
+  if(!d.length) return '<div class="notice warn">⚠️ Este período no tiene ningún documento legible cargado — ni estados financieros, ni cálculo de impuestos, ni resúmenes fiscales, ni acuses. El análisis solo podrá usar los datos del sistema.</div>';
+  const malos=d.filter(x=>!x.ok);
+  const es403=malos.some(x=>/403|insufficient|permiso de escritura/i.test(String(x.motivo||'')));
+  const faltaScope=malos.map(x=>String(x.motivo||'').match(/añade "(https:[^"]+)"/)).filter(Boolean)[0];
+  const noHallado=malos.some(x=>/no se encontró en Drive/i.test(String(x.motivo||'')));
+  const corto=m=>{ const t=String(m||'sin motivo'); return t.length>230?t.slice(0,230)+'…':t; };
+  return `<div class="dx" style="margin-top:10px">📄 Lectura de documentos — ${d.filter(x=>x.ok).length} de ${d.length} con texto${pre.carpeta_drive?` · <a href="${esc(pre.carpeta_drive)}" target="_blank" rel="noopener">abrir carpeta de Drive</a>`:''}
+    ${d.map(x=>`<br>${x.ok?'✅':'❌'} <b>${esc(x.archivo)}</b>${x.ok?` — ${x.chars} caracteres`:` — ${esc(corto(x.motivo))}`}`).join('')}
+    ${faltaScope?`<div class="notice warn" style="margin-top:10px">🔑 <b>Falta un permiso en el manifiesto.</b> Añádelo y vuelve a publicar:
+      <br>1. Editor de Apps Script → ⚙️ <b>Configuración del proyecto</b> → marca <b>«Mostrar el archivo de manifiesto appsscript.json»</b>.
+      <br>2. Abre <code>appsscript.json</code> y añade dentro de <code>oauthScopes</code>:
+      <br><code style="user-select:all">"${esc(faltaScope[1])}",</code>
+      <br>3. Guarda → <b>Ejecutar</b> cualquier función → acepta → <b>Implementar → Nueva versión</b>.
+      <br><span style="opacity:.8">Lo más simple: pega el <code>appsscript.json</code> completo del paquete, que ya trae todos.</span></div>`:''}
+    ${(es403&&!faltaScope)?`<div class="notice warn" style="margin-top:10px">🔑 <b>Es un permiso, no un acceso al archivo.</b> Los documentos están; el Apps Script no puede convertirlos.
+      <br>1. Editor de Apps Script → <b>Ejecutar</b> cualquier función → <b>acepta los permisos nuevos</b> (ahora piden Drive completo).
+      <br>2. <b>Implementar → Administrar implementaciones → Nueva versión</b>.
+      <br>3. Vuelve y pulsa «🔄 Releer documentos» y luego el análisis.
+      <br><span style="opacity:.8">Puedes comprobarlo en Configuración → «🔑 Probar permiso de Drive».</span></div>`:''}
+    ${(!es403&&noHallado)?'<div class="notice info" style="margin-top:10px">📁 Los archivos no aparecen en el Drive de la cuenta del Apps Script: comparte con ella la carpeta de datos de AppSheet.</div>':''}</div>`;
+}
+
+async function rptGenerate(kind){
+  if(!RPT.cid||!RPT.data){ toast('Carga un cliente primero'); return; }
+
+  /* Cierre del mes: lee los DOCUMENTOS del período (acción propia del backend). */
+  if(kind==='cierre'){
+    const btn=document.getElementById('cierreBtn'), cs=document.getElementById('cierreStatus');
+    btn.disabled=true;
+    // Dos fases: extraer/cachear el texto de los documentos, y luego analizar.
+    // Cada petición se mantiene dentro del límite de ejecución de Apps Script.
+    cs.innerHTML='<div class="notice info">📄 <b>Paso 1 de 2</b> — leyendo los documentos del período (conversión de hojas de cálculo y OCR de los PDFs). La primera vez tarda 1-2 min; después queda en caché y es inmediato.</div>';
+    const pre=await api('report_close_prepare',{company_id:RPT.cid,periodo_id:RPT.periodo||'',force:!!RPT.forceDocs});
+    RPT.forceDocs=false;
+    if(!pre.ok){
+      btn.disabled=false;
+      const esTimeout=/timeout/i.test(String(pre.error||''));
+      cs.innerHTML='<div class="notice warn">❌ '+esc(pre.error||'no se pudieron leer los documentos')+
+        (esTimeout?'<br><br>El texto de cada documento ya leído <b>quedó guardado en caché</b>: vuelve a pulsar «Analizar cierre del mes» y retomará donde se quedó. Suele resolverse en el segundo intento.':'')+'</div>';
+      toast('❌ '+(pre.error||'error')); return;
+    }
+    cs.innerHTML='<div class="notice info">🧠 <b>Paso 2 de 2</b> — analizando el cierre de <b>'+esc(pre.periodo||'')+'</b>'
+      +(pre.leidos&&pre.leidos.length?' con '+pre.leidos.length+' documento'+(pre.leidos.length===1?'':'s')+' leído'+(pre.leidos.length===1?'':'s'):' con los datos del sistema')+'… (~30-60s)</div>';
+    const r=await api('report_close_analysis',{company_id:RPT.cid,lang:RPT.lang,
+      periodo_id:RPT.periodo||''});
+    btn.disabled=false;
+    if(!r.ok){ cs.innerHTML='<div class="notice warn">❌ '+esc(r.error||'error')+'</div>'; toast('❌ '+(r.error||'error')); return; }
+    SECCIONES.push({seccion_id:r.seccion_id,company_id:RPT.cid,tipo:'cierre',titulo:r.titulo,contenido:r.contenido,idioma:r.idioma,fecha:new Date().toISOString(),incluir:'si'});
+    cs.innerHTML=`<div class="notice ${(r.leidos&&r.leidos.length)?'ok':'warn'}">${(r.leidos&&r.leidos.length)
+      ? '✅ Cierre de <b>'+esc(r.periodo||'')+'</b> analizado con '+r.leidos.length+' documento'+(r.leidos.length===1?'':'s')+' leído'+(r.leidos.length===1?'':'s')+'.'
+      : '⚠️ Cierre de <b>'+esc(r.periodo||'')+'</b> redactado <b>solo con los datos del sistema</b>: ningún documento contable dejó texto. El detalle de por qué está abajo.'}</div>`;
+    setDocDiag(pre);
+    toast('✅ Análisis de cierre listo'); renderSecList();
+    return;
+  }
+
+  const st=document.getElementById('genRptStatus');
+  let instruccion='', estrategia_tipo='';
+  if(kind==='estrategia'){
+    instruccion=document.getElementById('ctxBox').value.trim();
+    estrategia_tipo=document.getElementById('stratTipo').value;
+    if(!instruccion){ toast('Describe la estrategia acordada en la sesión'); return; }
+  }
+  // El contexto de sesión sin guardar se guarda solo (así también le llega completo a la IA)
+  const boxTxt=(kind==='estrategia')?'':document.getElementById('ctxBox').value.trim();
+  if(boxTxt){ st.innerHTML='<div class="notice info">💾 Guardando contexto de sesión…</div>'; await ctxSaveFromBox(); }
+  // Instrucciones largas viajan como contexto (límite de URL del canal JSONP)
+  if(instruccion.length>1200){
+    st.innerHTML='<div class="notice info">💾 Guardando notas de estrategia…</div>';
+    const r0=await ctxSaveLong('ctx',{company_id:RPT.cid,cliente:RPT.data.ficha.nombre,tipo:'sesion',titulo:'Notas de estrategia '+new Date().toISOString().slice(0,10),autor:(AUTH&&AUTH.email)||'interfaz'},instruccion);
+    if(r0.ok){ CONTEXTOS.push({contexto_id:r0.id,company_id:RPT.cid,tipo:'sesion',titulo:'Notas de estrategia',contenido:instruccion,fecha:new Date().toISOString()}); RPT.ctxSel[r0.id]=true; renderCtxList(); }
+    instruccion='Documenta la estrategia descrita en el contexto "Notas de estrategia" (el más reciente).';
+  }
+  const ids=Object.keys(RPT.ctxSel).filter(k=>RPT.ctxSel[k]);
+  st.innerHTML='<div class="notice info">⚡ Generando '+(kind==='resumen'?'resumen ejecutivo':kind==='proyeccion'?'análisis de proyección':'estrategia')+' en '+(RPT.lang==='es'?'español':'inglés')+'… (~20-40s)</div>';
+  const r=await api('report_generate',{kind,company_id:RPT.cid,lang:RPT.lang,contexto_ids:ids.join(','),instruccion,estrategia_tipo,periodo_id:RPT.periodo||''});
+  st.innerHTML='';
+  if(!r.ok){ toast('❌ '+(r.error||'error de generación')); st.innerHTML='<div class="notice warn">❌ '+esc(r.error||'error')+'</div>'; return; }
+  SECCIONES.push({seccion_id:r.seccion_id,company_id:RPT.cid,tipo:r.tipo,titulo:r.titulo,contenido:r.contenido,idioma:r.idioma,fecha:new Date().toISOString(),incluir:'si'});
+  document.getElementById('ctxBox').value=''; document.getElementById('ctxTitulo').value='';
+  toast('✅ Sección lista — revísala y edítala si hace falta');
+  renderSecList();
+}
+
+/* — secciones del reporte — */
+function renderSecList(){
+  const el=document.getElementById('secList');
+  const list=SECCIONES.filter(s=>s.company_id===RPT.cid).sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+  if(!list.length){ el.innerHTML='<p style="color:var(--gray-500);font-size:12px">Aún no hay secciones. Genera el resumen ejecutivo para empezar.</p>'; return; }
+  el.innerHTML=list.map(s=>{
+    const inc=String(s.incluir||'si')!=='no';
+    return `<div class="sec-card ${inc?'':'excl'}" id="sec-${esc(s.seccion_id)}">
+      <div class="sec-top">
+        <input type="checkbox" ${inc?'checked':''} onchange="secToggle('${esc(s.seccion_id)}',this.checked)" title="Incluir en el reporte final">
+        <span class="sec-title">${esc(s.titulo||s.tipo)}</span>
+        <span class="tag tp-${esc(String(s.tipo||'').split(':')[0])}">${esc(s.tipo)}</span>
+        <span class="tag acct">${esc(s.idioma||'')}</span>
+        <button class="mini btn-ghost" onclick="secDelete('${esc(s.seccion_id)}')">🗑</button>
+      </div>
+      <textarea rows="7" id="secTxt-${esc(s.seccion_id)}">${esc(s.contenido||'')}</textarea>
+      <div class="btn-row" style="margin-top:6px"><button class="mini btn-ghost" id="secSave-${esc(s.seccion_id)}" onclick="secSave('${esc(s.seccion_id)}')">💾 Guardar cambios</button>
+      <small style="color:var(--gray-500);align-self:center">${esc(String(s.fecha).slice(0,16).replace('T',' '))}</small></div>
+    </div>`;
+  }).join('');
+}
+async function secToggle(id,on){
+  const r=await api('sec_toggle',{id,incluir:on?'si':'no'});
+  if(r.ok){ const s=SECCIONES.find(x=>x.seccion_id===id); if(s)s.incluir=on?'si':'no'; renderSecList(); }
+  else toast('❌ '+(r.error||'error'));
+}
+async function secSave(id){
+  const s=SECCIONES.find(x=>x.seccion_id===id); if(!s) return;
+  const txt=document.getElementById('secTxt-'+id).value;
+  const btn=document.getElementById('secSave-'+id); btn.disabled=true; btn.textContent='⏳…';
+  const r=await ctxSaveLong('sec',{company_id:s.company_id,tipo:s.tipo,titulo:s.titulo,idioma:s.idioma},txt,id);
+  btn.disabled=false; btn.textContent='💾 Guardar cambios';
+  if(r.ok){ s.contenido=txt; toast('✅ Sección actualizada'); } else toast('❌ '+(r.error||'error'));
+}
+async function secDelete(id){
+  if(!confirm('¿Borrar esta sección del reporte?')) return;
+  const r=await api('ctx_delete',{tabla:'sec',id});
+  if(r.ok){ SECCIONES=SECCIONES.filter(x=>x.seccion_id!==id); toast('Sección borrada'); renderSecList(); }
+  else toast('❌ '+(r.error||'error'));
+}
+function rptSyncFromSheets(){
+  if(!RPT.cid) return;
+  if(document.activeElement && document.activeElement.tagName==='TEXTAREA') return; // no pisar edición en curso
+  CONTEXTOS.filter(c=>c.company_id===RPT.cid && RPT.ctxSel[c.contexto_id]===undefined).forEach(c=>RPT.ctxSel[c.contexto_id]=true);
+  if(document.getElementById('view-reportes').classList.contains('active')){ renderCtxList(); renderSecList(); }
+}
+
+/* — reporte HTML autocontenido para el cliente (export → PDF) — */
+/* Wordmark del reporte exportado. Usa el logotipo oficial si la interfaz lo tiene
+   cargado (assets/tally-logo.svg); si no, wordmark tipográfico en DM Sans Bold.
+   El reporte es autocontenido: el logo se embebe como data URI cuando está disponible. */
+function brandMarkHTML(px){
+  const img=document.getElementById('brandLogo');
+  if(img && img.complete && img.naturalWidth>0){
+    try{
+      const c=document.createElement('canvas');
+      c.width=img.naturalWidth; c.height=img.naturalHeight;
+      c.getContext('2d').drawImage(img,0,0);
+      return `<img src="${c.toDataURL('image/png')}" alt="Tally" style="height:${px}px;width:auto;display:block">`;
+    }catch(e){ /* SVG remoto sin CORS → cae al texto */ }
+  }
+  return `<span style="font-size:${Math.round(px*1.05)}px;font-weight:700;letter-spacing:-.045em;color:#6047ff;line-height:1">Tally</span>`;
+}
+function mdBlocks(txt){
+  const out=[]; let ul=null;
+  String(txt||'').split(/\r?\n/).forEach(line=>{
+    const t=line.trim();
+    if(t.startsWith('- ')){ if(!ul){ul=[];out.push({ul});} ul.push(t.slice(2)); return; }
+    ul=null;
+    if(t.startsWith('QUOTE:')){ out.push({q:t.slice(6).trim()}); return; }
+    if(t.startsWith('## ')){ out.push({h:t.slice(3)}); return; }
+    if(t) out.push({p:t});
+  });
+  return out;
+}
+/* [[término|explicación]] → término subrayado con tooltip accesible. */
+const GLOSARIO={};
+function gloss(s){
+  return esc(s).replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g,(m,term,def)=>{
+    GLOSARIO[term.trim()]=def.trim();
+    return `<span class="term" tabindex="0">${term.trim()}<span class="term-pop">${def.trim()}</span></span>`;
+  });
+}
+function blocksHTML(txt){
+  return mdBlocks(txt).map(b=>{
+    if(b.q) return '<blockquote class="pull">'+gloss(b.q)+'</blockquote>';
+    if(b.h) return '<h3 class="sh">'+gloss(b.h)+'</h3>';
+    if(b.ul) return '<ul>'+b.ul.map(li=>'<li>'+gloss(li)+'</li>').join('')+'</ul>';
+    return '<p>'+gloss(b.p)+'</p>';
+  }).join('\n');
+}
+
+/* ═══ FAQs para el cliente (fuente: Notion · FAQs Clientes Marketplaces) ═══ */
+const FAQS_ES=[
+  {cat:'📅 El cierre mensual: qué necesitamos de ti', qs:[
+    {q:'¿Qué necesita Tally de mí cada mes para cerrar mis libros?',
+     a:'Enviamos una solicitud entre el día 5 y el 10 de cada mes. Los documentos estándar son: el Business Report de Amazon Seller Central (ventas y tráfico del mes completo), el reporte de inventario FBA, el estado de cuenta de Payoneer México del mes que se cierra, y el costo unitario de cada SKU en inventario (lo que pagaste por producirlo o importarlo — no el precio de venta).\n\nSi vendes fuera de Amazon (Shopify, B2B) o tuviste gastos adicionales, compártelos también.\n\n⚠️ Sin estos documentos no podemos calcular con precisión tu IVA, tu ISR ni el valor de tu inventario. Entrega tarde = declaración tarde.'},
+    {q:'¿Qué es el "costo unitario" y dónde lo encuentro?',
+     a:'El costo unitario (COGS) es lo que pagaste por adquirir o producir cada producto, no lo que lo vendes. Es como tu costo base en una inversión: no el precio de mercado, sino lo que originalmente pagaste.\n\nPor qué importa: valúa tu inventario en el balance y determina tu utilidad real, que es sobre la que se calcula el ISR.\n\nDónde encontrarlo: en importaciones IOR, el pedimento muestra el valor declarado por unidad. En importaciones T1, tu factura del proveedor es tu costo base. Si ya no te queda inventario en México, avísanos y no hace falta.'},
+    {q:'¿Por qué Tally necesita acceso a mi Seller Central?',
+     a:'Para descargar tus reportes mensuales directamente, sin que tengas que exportarlos y enviarlos cada mes. Te ahorra tiempo y evita retrasos que podrían empujar tu declaración más allá de la fecha límite del SAT.\n\nSin acceso tendrías que exportar y compartir cuatro reportes cada mes. Es la causa número uno de declaraciones tardías.\n\n⚠️ El problema más común: nos agregaron pero la invitación nunca se aceptó. Revisa que nuestro usuario aparezca como "Active" y no "Pending invitation".'}
+  ]},
+  {cat:'🏦 Tus impuestos en México', qs:[
+    {q:'¿Qué impuestos paga mi empresa mexicana?',
+     a:'Tres, en capas:\n\n• IVA (16%): se aplica a las ventas. Amazon México cobra el IVA al comprador y lo entera al SAT por ti. Tú declaras mensualmente el IVA cobrado menos el IVA que pagaste en gastos. La diferencia es lo que debes o un saldo a tu favor.\n\n• ISR (30% sobre la utilidad neta): equivalente al impuesto corporativo federal en EE.UU. Haces pagos provisionales mensuales y ajustas en la declaración anual.\n\n• DIOT: no es un pago, es una declaración informativa mensual que le dice al SAT cuánto IVA le pagaste a tus proveedores. Tally la prepara y presenta.\n\nLos tres vencen el día 17 de cada mes, por el mes anterior.'},
+    {q:'¿Tengo que declarar aunque no haya vendido nada ese mes?',
+     a:'Sí. Una vez que tu RFC está activo, debes declarar mensualmente aunque no haya actividad. Se llama "declaración en ceros".\n\nEs como un servicio de nómina en EE.UU. que presenta tu 941 cada trimestre aunque no hayas tenido empleados: la obligación no se pausa porque no hubo actividad.\n\n⚠️ Omitir una declaración —incluso una en ceros— dispara multas automáticas del SAT desde el primer mes de retraso.'},
+    {q:'¿Cómo pago mis impuestos desde Payoneer México?',
+     a:'El flujo funciona como un pago ACH al IRS, pero vía Payoneer:\n\n1. Tally calcula tu IVA y tu pago provisional de ISR.\n2. Tally genera tu referencia de pago del SAT (la línea de captura).\n3. Autorizas una transferencia desde tu cuenta Payoneer México al SAT usando una CLABE.\n4. Tally sube el comprobante y lo archiva como soporte contable.\n\n⚠️ Asegúrate de tener saldo suficiente en Payoneer México antes del 17. Si tu depósito de Amazon aún no llegó, fondea la cuenta por adelantado. Te avisamos el monto al menos 3 días antes.'},
+    {q:'¿Amazon México ya cobra y entera el IVA por mí?',
+     a:'Sí. Desde 2020 Amazon México actúa como facilitador de IVA: cobra el 16% al comprador y lo entera directo al SAT por ti. Lo que llega a tu Payoneer es el neto, sin IVA.\n\nEsto NO significa que te saltes la declaración mensual. Tu declaración documenta que Amazon retuvo ese IVA y reporta el IVA que pagaste en gastos (tu saldo a favor).\n\n⚠️ Si vendes por otros canales —tu web, Mercado Libre, B2B directo— tú eres responsable de cobrar y enterar ese IVA.'}
+  ]},
+  {cat:'📦 Importaciones: T1 vs IOR', qs:[
+    {q:'¿Cuál es la diferencia entre importar con T1 e IOR, y cómo me pega en la contabilidad?',
+     a:'Son dos modelos completamente distintos:\n\nT1 (courier / exención): tope de USD $1,000 por embarque · arancel plano del 19% sin desglose · IVA NO deducible · costo de inventario NO deducible · no requiere RFC · no requiere agente aduanal · no escala con volumen.\n\nIOR (importador de registro): sin tope · arancel por categoría de producto (fracción arancelaria) · IVA deducible ✅ · costo de inventario deducible ✅ · requiere RFC activo · requiere agente aduanal · escala con volumen ✅.\n\n🚨 Cada embarque T1 cuenta como costo NO deducible. Pasando ~$100K MXN de venta mensual entras en zona de riesgo de sanciones del SAT.'},
+    {q:'¿Qué riesgo corro si sigo importando con T1?',
+     a:'Dos principales:\n\n• Costos no deducibles: cada embarque T1 se registra como gasto no deducible, o sea que estás pagando ISR sobre ingresos que no puedes compensar con el costo de tu inventario.\n\n• Riesgo de auditoría: pasando ~$100K MXN de venta mensual, el SAT marca la operación como de alto riesgo si sigues importando vía T1. Las multas pueden aplicarse retroactivamente.\n\n💰 Cambiar a IOR es una inversión inicial, pero se paga sola rápido con el ahorro fiscal en cualquier volumen de venta relevante.'}
+  ]},
+  {cat:'🧾 Facturación mexicana (CFDI)', qs:[
+    {q:'¿Qué es un CFDI y cómo funciona la facturación en México?',
+     a:'El CFDI es la factura electrónica oficial de México, emitida a través del SAT. Tiene dos partes:\n\n• Archivo PDF: la versión legible, para tus registros. Por sí solo no tiene valor legal.\n• Archivo XML: el documento fiscal oficial. Es la única versión que el SAT reconoce para deducir.\n\n⚠️ Si tu proveedor mexicano solo te manda el PDF, pide el XML. Sin XML el gasto no es deducible.'},
+    {q:'¿Mi factura debe ir en pesos o en dólares?',
+     a:'Puedes facturar en cualquier moneda, pero el SAT exige la conversión a pesos para efectos fiscales. Si la operación fue en dólares, la factura puede mostrar el monto en USD pero debe incluir el tipo de cambio oficial de Banxico de ese día y el equivalente en pesos.\n\n⚠️ Nunca uses un tipo de cambio propio. Las diferencias contra el tipo oficial del SAT generan inconsistencias en tus declaraciones.'}
+  ]},
+  {cat:'💳 Banco y Payoneer', qs:[
+    {q:'¿Por qué necesito una cuenta bancaria en México?',
+     a:'Amazon México deposita en pesos, y para cumplimiento fiscal esos fondos deben pasar por una cuenta bancaria registrada en México. Es como necesitar una cuenta local para operar en cualquier estado: no puedes correr nómina de Colorado desde una cuenta de Nueva York sin complicaciones.\n\nTu cuenta mexicana cumple tres funciones: recibe los depósitos de Amazon México en pesos, es tu cuenta de pago para los impuestos mensuales del SAT, y permite pagarle a tu agente aduanal en importaciones IOR.\n\n🚨 Si vinculas tu Payoneer de EE.UU. en lugar de la mexicana, Amazon puede rechazar o procesar mal tus pagos.'}
+  ]},
+  {cat:'📊 Anual y tus impuestos en EE.UU.', qs:[
+    {q:'¿Cuándo se presenta la declaración anual y qué necesito darles?',
+     a:'La declaración anual corporativa de México vence en marzo del año siguiente (la de 2025 vence en marzo de 2026), mismo calendario que las corporativas de EE.UU.\n\nTally la prepara con base en tus cierres mensuales y entrega: estado de resultados del ejercicio, balance general al 31 de diciembre, conciliación fiscal-contable y el acuse de presentación del SAT.\n\n✅ Si tus cierres mensuales están completos y al día, no necesitas aportar nada extra.'},
+    {q:'¿Los números de mi empresa mexicana afectan mis impuestos en EE.UU.?',
+     a:'Sí, sobre todo si tu empresa estadounidense es dueña de la mexicana. Las implicaciones más comunes:\n\n• CFC (Controlled Foreign Corporation): si accionistas de EE.UU. tienen más del 50%, debes reportar la entidad extranjera en el Formulario 5471 del IRS.\n• GILTI: el ingreso de la subsidiaria extranjera puede quedar sujeto a este impuesto mínimo.\n• PTEP / Subpart F: los dividendos y distribuciones desde México pueden requerir tratamiento especial.\n\nTally coordina con tu contador en EE.UU. y le entrega los estados financieros y CFDIs que necesite.\n\n⚠️ No asumas que el ISR que pagaste en México compensa automáticamente tu factura fiscal en EE.UU. Hay créditos por impuestos pagados en el extranjero, pero no son automáticos.'}
+  ]},
+  {cat:'🚪 Si dejas de vender en México', qs:[
+    {q:'¿Qué obligaciones siguen vivas si ya no estoy vendiendo?',
+     a:'Mientras tu RFC siga en estatus "activo" (no suspendido formalmente), debes seguir declarando cada mes: IVA en ceros (día 17), pago provisional de ISR en ceros, DIOT, y la declaración anual en marzo.\n\nPara detener estas obligaciones, Tally puede presentar un aviso de suspensión de actividades ante el SAT, que congela tus obligaciones hasta que retomes.\n\n⚠️ La suspensión no borra declaraciones pasadas sin presentar. Primero hay que estar al corriente, luego suspender.'}
+  ]}
+];
+/* FAQs del Notion, versión inglesa — mismo contenido, redactado para el CEO extranjero. */
+const FAQS_EN=[
+  {cat:'📅 The monthly close: what we need from you', qs:[
+    {q:'What does Tally need from me each month to close my books?',
+     a:'We send a request between the 5th and the 10th of each month. The standard documents are: your Amazon Seller Central Business Report (full-month sales and traffic), the FBA inventory report, your Payoneer Mexico statement for the month being closed, and the unit cost of each SKU in inventory (what you paid to produce or import it — not the selling price).\n\nIf you sell outside Amazon (Shopify, B2B) or had additional expenses, share those too.\n\n⚠️ Without these documents we cannot accurately calculate your VAT, your income tax or the value of your inventory. Late delivery = late filing.'},
+    {q:'What is "unit cost" and where do I find it?',
+     a:'Unit cost (COGS) is what you paid to acquire or produce each product, not what you sell it for. Think of it as your cost basis in an investment: not the market price, but what you originally paid.\n\nWhy it matters: it values your inventory on the balance sheet and determines your real profit, which is what income tax is calculated on.\n\nWhere to find it: on IOR imports, the pedimento shows the declared value per unit. On T1 imports, your supplier invoice is your cost basis. If you no longer hold inventory in Mexico, let us know and it is not needed.'},
+    {q:'Why does Tally need access to my Seller Central?',
+     a:'So we can download your monthly reports directly, without you having to export and send them every month. It saves you time and avoids delays that could push your filing past the SAT deadline.\n\nWithout access you would have to export and share four reports every month. It is the number one cause of late filings.\n\n⚠️ The most common problem: we were added but the invitation was never accepted. Check that our user shows as "Active" and not "Pending invitation".'}
+  ]},
+  {cat:'🏦 Your taxes in Mexico', qs:[
+    {q:'What taxes does my Mexican company pay?',
+     a:'Three, in layers:\n\n• VAT (16%): applies to sales. Amazon Mexico charges VAT to the buyer and remits it to the SAT on your behalf. You file monthly the VAT collected minus the VAT you paid on expenses. The difference is what you owe or a credit in your favor.\n\n• Income tax (30% on net profit): the equivalent of US federal corporate tax. You make monthly provisional payments and true up on the annual return.\n\n• DIOT: not a payment, an informative monthly filing that tells the SAT how much VAT you paid your suppliers. Tally prepares and files it.\n\nAll three are due on the 17th of each month, for the prior month.'},
+    {q:'Do I have to file even if I sold nothing that month?',
+     a:'Yes. Once your tax ID (RFC) is active, you must file monthly even with no activity. It is called a "zero filing".\n\nIt is like a US payroll service filing your 941 every quarter even if you had no employees: the obligation does not pause because there was no activity.\n\n⚠️ Missing a filing — even a zero one — triggers automatic SAT penalties from the first month late.'},
+    {q:'How do I pay my taxes from Payoneer Mexico?',
+     a:'The flow works like an ACH payment to the IRS, but through Payoneer:\n\n1. Tally calculates your VAT and your provisional income tax payment.\n2. Tally generates your SAT payment reference (the línea de captura).\n3. You authorize a transfer from your Payoneer Mexico account to the SAT using a CLABE.\n4. Tally uploads the receipt and files it as accounting support.\n\n⚠️ Make sure you have enough balance in Payoneer Mexico before the 17th. If your Amazon payout has not landed yet, fund the account in advance. We tell you the amount at least 3 days ahead.'},
+    {q:'Does Amazon Mexico already collect and remit VAT for me?',
+     a:'Yes. Since 2020 Amazon Mexico acts as a VAT facilitator: it charges 16% to the buyer and remits it directly to the SAT for you. What reaches your Payoneer is the net amount, with no VAT.\n\nThis does NOT mean you skip the monthly filing. Your filing documents that Amazon withheld that VAT and reports the VAT you paid on expenses (your credit balance).\n\n⚠️ If you sell through other channels — your own site, Mercado Libre, direct B2B — you are responsible for collecting and remitting that VAT.'}
+  ]},
+  {cat:'📦 Imports: T1 vs IOR', qs:[
+    {q:'What is the difference between importing under T1 and IOR, and how does it hit my accounting?',
+     a:'They are two completely different models:\n\nT1 (courier / exemption): USD $1,000 cap per shipment · flat 19% duty with no breakdown · VAT NOT deductible · inventory cost NOT deductible · no RFC required · no customs broker required · does not scale with volume.\n\nIOR (importer of record): no cap · duty by product category (tariff code) · VAT deductible ✅ · inventory cost deductible ✅ · requires an active RFC · requires a customs broker · scales with volume ✅.\n\n🚨 Every T1 shipment counts as a NON-deductible cost. Past roughly $100K MXN in monthly sales you enter SAT penalty risk territory.'},
+    {q:'What risk do I run if I keep importing under T1?',
+     a:'Two main ones:\n\n• Non-deductible costs: every T1 shipment is booked as a non-deductible expense, meaning you are paying income tax on revenue you cannot offset with your inventory cost.\n\n• Audit risk: past roughly $100K MXN in monthly sales, the SAT flags the operation as high risk if you keep importing via T1. Penalties can be applied retroactively.\n\n💰 Switching to IOR is an upfront investment, but it pays for itself quickly through tax savings at any meaningful sales volume.'}
+  ]},
+  {cat:'🧾 Mexican invoicing (CFDI)', qs:[
+    {q:'What is a CFDI and how does invoicing work in Mexico?',
+     a:'The CFDI is Mexico\'s official electronic invoice, issued through the SAT. It has two parts:\n\n• PDF file: the readable version, for your records. On its own it has no legal value.\n• XML file: the official tax document. It is the only version the SAT recognizes for deduction.\n\n⚠️ If your Mexican supplier only sends the PDF, ask for the XML. Without the XML the expense is not deductible.'},
+    {q:'Should my invoice be in pesos or dollars?',
+     a:'You can invoice in any currency, but the SAT requires conversion to pesos for tax purposes. If the transaction was in dollars, the invoice may show the USD amount but must include the official Banxico exchange rate for that day and the peso equivalent.\n\n⚠️ Never use your own exchange rate. Differences against the official SAT rate create inconsistencies in your filings.'}
+  ]},
+  {cat:'💳 Banking and Payoneer', qs:[
+    {q:'Why do I need a bank account in Mexico?',
+     a:'Amazon Mexico deposits in pesos, and for tax compliance those funds must pass through a bank account registered in Mexico. It is like needing a local account to operate in any state: you cannot run Colorado payroll from a New York account without complications.\n\nYour Mexican account serves three purposes: it receives Amazon Mexico deposits in pesos, it is your payment account for monthly SAT taxes, and it lets you pay your customs broker on IOR imports.\n\n🚨 If you link your US Payoneer instead of the Mexican one, Amazon may reject or mishandle your payouts.'}
+  ]},
+  {cat:'📊 Annual filing and your US taxes', qs:[
+    {q:'When is the annual return filed and what do I need to give you?',
+     a:'Mexico\'s corporate annual return is due in March of the following year (the 2025 return is due in March 2026), the same calendar as US corporate returns.\n\nTally prepares it from your monthly closes and delivers: full-year income statement, balance sheet as of December 31, book-to-tax reconciliation and the SAT filing receipt.\n\n✅ If your monthly closes are complete and current, you do not need to provide anything extra.'},
+    {q:'Do my Mexican company\'s numbers affect my US taxes?',
+     a:'Yes, especially if your US company owns the Mexican one. The most common implications:\n\n• CFC (Controlled Foreign Corporation): if US shareholders hold more than 50%, you must report the foreign entity on IRS Form 5471.\n• GILTI: income from the foreign subsidiary may be subject to this minimum tax.\n• PTEP / Subpart F: dividends and distributions from Mexico may require special treatment.\n\nTally coordinates with your US accountant and hands over the financial statements and CFDIs they need.\n\n⚠️ Do not assume the income tax you paid in Mexico automatically offsets your US tax bill. Foreign tax credits exist, but they are not automatic.'}
+  ]},
+  {cat:'🚪 If you stop selling in Mexico', qs:[
+    {q:'Which obligations stay alive if I am no longer selling?',
+     a:'As long as your RFC remains "active" (not formally suspended), you must keep filing every month: zero VAT (on the 17th), zero provisional income tax payment, DIOT, and the annual return in March.\n\nTo stop these obligations, Tally can file a notice of suspension of activities with the SAT, which freezes your obligations until you resume.\n\n⚠️ Suspension does not erase past unfiled returns. First you get current, then you suspend.'}
+  ]}
+];
+const RPT_I18N={
+  en:{doc:'Client Report',prep:'Prepared for',by:'Prepared by Tally',date:'Report date',rfc:'Tax ID (RFC)',
+      sC:'Monthly Close',
+      s1:'Executive Summary',s2:'Monthly Activity — Sales & Taxes',s3:'Outlook & Projection',s4:'Strategies from this Session',
+      a1:'Where you stand today',a1q:'The month in plain language, before any numbers.',
+      a2:'How your business moved',a2q:'What you sold, what you owed, and how it compares.',
+      a3:'How the month closed',a3q:'Your financial statements, read for you.',
+      a4:'Where this is heading',a4q:'What the numbers suggest for the months ahead.',
+      a5:'What we are doing about it',a5q:'The decisions we took together, written down.',
+      a6:'This session',a6q:'What we captured with you today.',
+      a7:'Questions clients ask us',a7q:'The answers to what usually comes up next.',
+      gloT:'Terms we used',gloQ:'Every technical word in this report, in one line each.',
+      kSales:'Sales — last month',kTax:'Taxes — last month',kFiling:'Latest filing',
+      chSales:'Monthly sales (MXN)',chTax:'Monthly taxes — VAT + income tax (MXN)',
+      legPos:'Above zero: tax to pay',legNeg:'Below zero: credit in your favor',
+      ctxT:'Context we captured from you',
+      ctxS:'What you told us about your business, your expectations in Mexico and the bottlenecks you see. This is saved to your file and shapes next month\'s report.',
+      ctxP:'What is really going on in the business, what you expect from Mexico, what is slowing you down…',
+      ctxB:'💾 Save to my file',ctxTitle:'Session context',
+      resT:'Session summary',
+      resS:'Paste here the summary of this session (from your AI meeting notes). It stays attached to this report and to your file.',
+      resP:'Paste the AI-generated summary of the meeting here…',
+      resB:'💾 Save summary',resB2:'🖨 Print with the summary',resTitle:'Session summary',
+      liveSaving:'Saving…',liveOk:'✅ Saved to the client file',liveErr:'❌ Could not save',liveEmpty:'Write something first',
+      cvEye:'Monthly session · Tally México',cvScroll:'Scroll — it takes 4 minutes',
+      fab:'Session notes',
+      nT:'Capture this session',
+      nS:'Anything worth remembering: what the client said, a strategy we agreed on, a decision, a risk. It is saved to the file and shapes next month\'s report.',
+      nKind:'Type of note',nkCtx:'Context from the client',nkStr:'Strategy / decision',nkRes:'AI meeting summary',
+      nPh:'Write or paste here…',nBtn:'💾 Save to the file',nCap:'Captured in this session',nEmpty:'Nothing captured yet.',
+      capT:'What we captured in this session',capQ:'Verbatim, as it was said today.',
+      exp:'⬇️ Export as PDF',expHint:'In the print dialog choose “Save as PDF”.',
+      disc:'Figures come from Tally\'s accounting records for your company in Mexico as of the report date. Projections are estimates based on stated assumptions — they are not a guarantee of results. Questions? Reply to juan@tally.legal.',
+      noSec:'This section will be completed during your session with Tally.'},
+  es:{doc:'Reporte de cliente',prep:'Preparado para',by:'Preparado por Tally',date:'Fecha del reporte',rfc:'RFC',
+      sC:'Cierre del mes',
+      s1:'Resumen ejecutivo',s2:'Actividad mensual — Ventas e impuestos',s3:'Perspectiva y proyección',s4:'Estrategias de esta sesión',
+      a1:'Dónde estás hoy',a1q:'El mes en lenguaje llano, antes de cualquier número.',
+      a2:'Cómo se movió tu negocio',a2q:'Qué vendiste, qué debiste y cómo se compara.',
+      a3:'Cómo cerró el mes',a3q:'Tus estados financieros, leídos por ti.',
+      a4:'Hacia dónde va esto',a4q:'Lo que los números sugieren para los próximos meses.',
+      a5:'Qué estamos haciendo al respecto',a5q:'Las decisiones que tomamos juntos, por escrito.',
+      a6:'Esta sesión',a6q:'Lo que levantamos contigo hoy.',
+      a7:'Preguntas que nos hacen los clientes',a7q:'Las respuestas a lo que suele venir después.',
+      gloT:'Los términos que usamos',gloQ:'Cada palabra técnica de este reporte, en una línea.',
+      kSales:'Ventas — último mes',kTax:'Impuestos — último mes',kFiling:'Última declaración',
+      chSales:'Ventas mensuales (MXN)',chTax:'Impuestos mensuales — IVA + ISR (MXN)',
+      legPos:'Arriba del cero: impuesto a pagar',legNeg:'Debajo del cero: saldo a tu favor',
+      ctxT:'El contexto que levantamos contigo',
+      ctxS:'Lo que nos contaste de tu negocio, tu expectativa en México y los cuellos de botella que ves. Se guarda en tu expediente y alimenta el reporte del mes siguiente.',
+      ctxP:'Qué está pasando de verdad en el negocio, qué esperas de México, qué te está frenando…',
+      ctxB:'💾 Guardar a mi expediente',ctxTitle:'Contexto de sesión',
+      resT:'Resumen de la sesión',
+      resS:'Pega aquí el resumen de esta sesión (desde tus notas de reunión con IA). Queda pegado a este reporte y a tu expediente.',
+      resP:'Pega aquí el resumen generado con IA de la reunión…',
+      resB:'💾 Guardar resumen',resB2:'🖨 Imprimir con el resumen',resTitle:'Resumen de sesión',
+      liveSaving:'Guardando…',liveOk:'✅ Guardado al expediente del cliente',liveErr:'❌ No se pudo guardar',liveEmpty:'Escribe algo primero',
+      cvEye:'Sesión mensual · Tally México',cvScroll:'Desliza — son 4 minutos de lectura',
+      fab:'Notas de la sesión',
+      nT:'Captura esta sesión',
+      nS:'Lo que valga la pena recordar: algo que dijo el cliente, una estrategia acordada, una decisión, un riesgo. Se guarda al expediente y alimenta el reporte del mes siguiente.',
+      nKind:'Tipo de nota',nkCtx:'Contexto del cliente',nkStr:'Estrategia / decisión',nkRes:'Resumen de reunión (IA)',
+      nPh:'Escribe o pega aquí…',nBtn:'💾 Guardar al expediente',nCap:'Capturado en esta sesión',nEmpty:'Todavía no hay nada capturado.',
+      capT:'Lo que capturamos en esta sesión',capQ:'Textual, tal como se dijo hoy.',
+      exp:'⬇️ Exportar a PDF',expHint:'En el diálogo de impresión elige “Guardar como PDF”.',
+      disc:'Las cifras provienen de los registros contables de Tally para tu empresa en México a la fecha del reporte. Las proyecciones son estimaciones basadas en los supuestos indicados — no garantizan resultados. ¿Dudas? Escribe a juan@tally.legal.',
+      noSec:'Esta sección se completará durante tu sesión con Tally.'}
+};
+function buildReportHTML(){
+  Object.keys(GLOSARIO).forEach(k=>delete GLOSARIO[k]);
+  const d=RPT.data, f=d.ficha, lang=RPT.lang, T=RPT_I18N[lang], S=rptSeries();
+  const secs=SECCIONES.filter(s=>s.company_id===RPT.cid && String(s.incluir||'si')!=='no'
+    && String(s.tipo||'').split(':')[0]!=='tecnica');   // 'tecnica' es papel de trabajo interno
+  /* El idioma manda: una sección redactada en español NO puede aparecer en un
+     reporte en inglés. Se filtra por `idioma`; si no hay ninguna en el idioma
+     elegido, la sección queda vacía y el equipo sabe que debe generarla. */
+  const byKind=k=>secs.filter(s=>String(s.tipo||'').split(':')[0]===k)
+    .filter(s=>{ const i=String(s.idioma||'').toLowerCase(); return !i || i===lang || i.slice(0,2)===lang; })
+    .sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)));
+  const res=byKind('resumen'), cier=byKind('cierre'), proy=byKind('proyeccion'), estr=byKind('estrategia');
+  const last=S[S.length-1];
+  const today=new Date().toLocaleDateString(lang==='es'?'es-MX':'en-US',{year:'numeric',month:'long',day:'numeric'});
+  const range=S.length?(MES_FULL[lang][S[0].m]+' '+S[0].y+' — '+MES_FULL[lang][last.m]+' '+last.y):'';
+  // El QUOTE de la primera sección sube al bloque oscuro de portada (no se repite abajo).
+  // Se extrae ANTES de construir la plantilla: los literales se evalúan en orden.
+  let heroQuote='';
+  const HERO_SRC = (res[0]||cier[0]);
+  const heroStripped = {};
+  if(HERO_SRC){
+    const m=String(HERO_SRC.contenido||'').match(/^[ \t]*QUOTE:[ \t]*(.+)$/m);
+    if(m){ heroQuote=gloss(m[1].trim()); heroStripped[HERO_SRC.seccion_id]=String(HERO_SRC.contenido).replace(m[0],''); }
+  }
+  const secHTML=list=>list.map(s=>{
+    const cont = heroStripped[s.seccion_id]!==undefined ? heroStripped[s.seccion_id] : s.contenido;
+    return '<div class="blk"><h3 class="bt">'+gloss(s.titulo)+'</h3>'+blocksHTML(cont)+'</div>';
+  }).join('');
+  // Hallazgo automático de la serie: el dato que un CEO querría oír primero.
+  let insight='';
+  if(S.length>=2){
+    const p=S[S.length-2], u=S[S.length-1];
+    const dv=p.ingresos? (u.ingresos-p.ingresos)/p.ingresos*100 : null;
+    const mejor=S.reduce((a,b)=>b.ingresos>a.ingresos?b:a,S[0]);
+    const favor=S.filter(r=>r.iva<0);
+    if(dv!==null && Math.abs(dv)>=15){
+      insight = lang==='es'
+        ? `Tus ventas ${dv>0?'subieron':'bajaron'} <b>${Math.abs(dv).toFixed(0)}%</b> contra el mes anterior — de ${fmtM(p.ingresos)} a ${fmtM(u.ingresos)}.`
+        : `Your sales ${dv>0?'rose':'fell'} <b>${Math.abs(dv).toFixed(0)}%</b> versus the prior month — from ${fmtM(p.ingresos)} to ${fmtM(u.ingresos)}.`;
+    } else if(favor.length){
+      const tot=favor.reduce((a,r)=>a+Math.abs(r.iva),0);
+      insight = lang==='es'
+        ? `Acumulas <b>${fmtM(tot,2)}</b> de IVA a favor en ${favor.length} ${favor.length===1?'mes':'meses'} — dinero que se descuenta de tus pagos siguientes.`
+        : `You have <b>${fmtM(tot,2)}</b> in VAT credit across ${favor.length} month${favor.length===1?'':'s'} — money that offsets your upcoming payments.`;
+    } else if(mejor){
+      insight = lang==='es'
+        ? `Tu mejor mes del período fue <b>${MES_FULL[lang][mejor.m]} ${mejor.y}</b> con ${fmtM(mejor.ingresos)} en ventas.`
+        : `Your strongest month in the period was <b>${MES_FULL[lang][mejor.m]} ${mejor.y}</b> at ${fmtM(mejor.ingresos)} in sales.`;
+    }
+  }
+  // Contexto ya levantado del cliente, precargado en el documento
+  /* Todo lo levantado con el cliente entra al reporte: contexto, estrategias y
+     resúmenes de sesión — no solo la última nota de tipo "contexto". */
+  const ctxPrev=CONTEXTOS
+    .filter(c=>c.company_id===RPT.cid && RPT.ctxSel[c.contexto_id]!==false)
+    .sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)))
+    .map(c=>({tipo:String(c.tipo||'contexto'),titulo:String(c.titulo||''),
+              fecha:String(c.fecha||'').slice(0,10),txt:String(c.contenido||'').trim()}))
+    .filter(c=>c.txt);
+  const ctxPrefill=ctxPrev.map(c=>c.txt).join('\n\n');
+
+  /* ═══ HALLAZGOS: los quotes que sostienen la narrativa ═══
+     Se derivan de la serie real. Cada uno es un dato que un CEO querría oír
+     dicho en voz alta, no una cifra que tenga que deducir de una tabla.      */
+  const FIND=[];
+  const ES=lang==='es';
+  const pushF=(big,quote,sub,tone)=>FIND.push({big,quote,sub,tone:tone||'ink'});
+  if(S.length){
+    const tot=S.reduce((a,r)=>a+r.ingresos,0);
+    const mejor=S.reduce((a,b)=>b.ingresos>a.ingresos?b:a,S[0]);
+    const prom=tot/S.length;
+    const u=S[S.length-1], pv=S.length>1?S[S.length-2]:null;
+    const favor=S.filter(r=>r.iva<0), totFavor=favor.reduce((a,r)=>a+Math.abs(r.iva),0);
+    const ret=S.reduce((a,r)=>a+r.retencion,0);
+    const decl=S.filter(r=>/declar|present/i.test(String(r.estado||''))).length;
+    // 1 · el movimiento del último mes
+    if(pv && pv.ingresos){
+      const dv=(u.ingresos-pv.ingresos)/pv.ingresos*100;
+      if(Math.abs(dv)>=10) pushF(
+        (dv>0?'+':'−')+Math.abs(dv).toFixed(0)+'%',
+        ES?`Tus ventas ${dv>0?'crecieron':'cayeron'} ${Math.abs(dv).toFixed(0)}% en un solo mes.`
+           :`Your sales ${dv>0?'grew':'fell'} ${Math.abs(dv).toFixed(0)}% in a single month.`,
+        ES?`De ${fmtM(pv.ingresos)} en ${MES_FULL.es[pv.m]} a ${fmtM(u.ingresos)} en ${MES_FULL.es[u.m]}. Es el movimiento más importante del período.`
+           :`From ${fmtM(pv.ingresos)} in ${MES_FULL.en[pv.m]} to ${fmtM(u.ingresos)} in ${MES_FULL.en[u.m]}. It is the biggest single move of the period.`,
+        dv>0?'green':'warm');
+    }
+    // 2 · el pico y su concentración
+    if(mejor && tot>0){
+      const share=mejor.ingresos/tot*100;
+      pushF(fmtM(mejor.ingresos),
+        ES?`${MES_FULL.es[mejor.m]} fue tu mejor mes del período.`:`${MES_FULL.en[mejor.m]} was your strongest month.`,
+        ES?`Concentró el ${share.toFixed(0)}% de todo lo que vendiste en estos ${S.length} meses. Saber por qué funcionó vale más que el número.`
+           :`It concentrated ${share.toFixed(0)}% of everything you sold across these ${S.length} months. Knowing why it worked is worth more than the number.`,
+        'violet');
+    }
+    // 3 · dinero que el fisco te debe
+    if(totFavor>0) pushF(fmtM(totFavor,0),
+      ES?'El SAT te debe dinero, no al revés.':'The tax office owes you money, not the other way around.',
+      ES?`Acumulas saldo a favor de IVA en ${favor.length} ${favor.length===1?'mes':'meses'}. No es un cheque: se descuenta automáticamente de tus próximos pagos.`
+         :`You have accumulated VAT credit across ${favor.length} month${favor.length===1?'':'s'}. It is not a check: it is automatically offset against your upcoming payments.`,
+      'green');
+    // 4 · lo que Amazon ya retuvo
+    if(ret>0) pushF(fmtM(ret,0),
+      ES?'Amazon ya retuvo y enteró este impuesto por ti.':'Amazon already withheld and remitted this tax for you.',
+      ES?'Nunca pasó por tu cuenta, pero cuenta como impuesto pagado. Por eso tu declaración mensual casi siempre sale menor de lo que esperas.'
+         :'It never touched your account, but it counts as tax paid. That is why your monthly filing usually comes out lower than you expect.',
+      'ink');
+    // 5 · cumplimiento
+    if(decl>0) pushF(decl+'/'+S.length,
+      ES?'Meses declarados en tiempo y forma.':'Months filed and on record.',
+      ES?'Cada declaración presentada es un mes que ya no puede generarte multas ni recargos. Es el activo silencioso de tu operación en México.'
+         :'Every filing on record is a month that can no longer generate penalties or surcharges. It is the quiet asset of your Mexico operation.',
+      'violet');
+    // 6 · el promedio como base de decisión
+    if(prom>0) pushF(fmtM(prom,0),
+      ES?'Es tu venta promedio mensual en México.':'This is your average monthly sales in Mexico.',
+      ES?'Úsalo como piso para decidir inventario: por debajo te sobra producto, por encima te quedas corto en temporada.'
+         :'Use it as the floor for inventory decisions: below it you overstock, above it you run short in season.',
+      'warm');
+    // 7 · volatilidad: la distancia entre tu mejor y tu peor mes
+    const peor=S.reduce((a,b)=>b.ingresos<a.ingresos?b:a,S[0]);
+    if(peor && peor.ingresos>0 && mejor.ingresos/peor.ingresos>=1.8){
+      const x=(mejor.ingresos/peor.ingresos).toFixed(1);
+      pushF(x+'×',
+        ES?'Tu mejor mes vendió esto respecto a tu peor mes.':'Your best month sold this much versus your worst.',
+        ES?`Entre ${MES_FULL.es[peor.m]} y ${MES_FULL.es[mejor.m]} hay ${x} veces de diferencia. Esa distancia es la que tiene que aguantar tu caja: el mes flojo se paga con el mes bueno, no con crédito.`
+           :`Between ${MES_FULL.en[peor.m]} and ${MES_FULL.en[mejor.m]} there is a ${x}× gap. That distance is what your cash has to absorb: the slow month is paid for by the strong one, not by credit.`,
+        'warm');
+    }
+    // 8 · carga fiscal efectiva sobre ventas
+    const tax=S.reduce((a,r)=>a+Math.max(0,r.iva)+Math.max(0,r.isr),0);
+    if(tot>0){
+      const pc=tax/tot*100;
+      pushF(pc.toFixed(1)+'%',
+        ES?'Es lo que realmente pagaste de impuestos sobre lo que vendiste.':'This is what you actually paid in tax on what you sold.',
+        ES?`${fmtM(tax,0)} de impuesto sobre ${fmtM(tot,0)} de venta en el período. No es la tasa nominal: es tu carga real después de retenciones y saldos a favor. Este es el número con el que se compara México contra cualquier otro mercado.`
+           :`${fmtM(tax,0)} of tax on ${fmtM(tot,0)} of sales for the period. This is not the headline rate: it is your real burden after withholdings and credits. This is the number to compare Mexico against any other market.`,
+        pc<10?'green':'ink');
+    }
+    // 9 · la tendencia del semestre partido a la mitad
+    if(S.length>=4){
+      const h=Math.floor(S.length/2);
+      const p1=S.slice(0,h).reduce((a,r)=>a+r.ingresos,0)/h;
+      const p2=S.slice(S.length-h).reduce((a,r)=>a+r.ingresos,0)/h;
+      if(p1>0){
+        const dv=(p2-p1)/p1*100;
+        if(Math.abs(dv)>=12) pushF((dv>0?'+':'−')+Math.abs(dv).toFixed(0)+'%',
+          ES?`La segunda mitad del período ${dv>0?'vendió más':'vendió menos'} que la primera.`
+             :`The second half of the period ${dv>0?'sold more':'sold less'} than the first.`,
+          ES?`Promedio de ${fmtM(p1,0)} al mes al inicio contra ${fmtM(p2,0)} al final. Un mes malo es ruido; ${S.length} meses con esta pendiente ya es una tendencia que hay que decidir si se corrige o se acompaña.`
+             :`An average of ${fmtM(p1,0)} per month at the start versus ${fmtM(p2,0)} at the end. One bad month is noise; ${S.length} months with this slope is a trend you either correct or ride.`,
+          dv>0?'green':'ink');
+      }
+    }
+    // 10 · el acumulado del período, como cierre de la historia
+    if(tot>0) pushF(fmtM(tot,0),
+      ES?'Es todo lo que tu empresa mexicana facturó en el período.':'This is everything your Mexican entity billed in the period.',
+      ES?`${S.length} meses de operación formal, con RFC propio, contabilidad al día y declaraciones presentadas. Esto ya no es una prueba de mercado: es una operación con historial fiscal en México, y ese historial es lo que te abre banco, crédito y proveedores locales.`
+         :`${S.length} months of formal operation, with your own tax ID, current books and filings on record. This is no longer a market test: it is an operation with a tax history in Mexico, and that history is what opens up banking, credit and local suppliers.`,
+      'violet');
+  }
+  const bandHTML=(f,i)=>`<section class="band b-${f.tone} reveal">
+      <div class="band-in">
+        <div class="band-n">${String(i+1).padStart(2,'0')}</div>
+        <div class="band-big" data-count="${esc(f.big)}">${esc(f.big)}</div>
+        <p class="band-q">${gloss(f.quote)}</p>
+        <p class="band-s">${gloss(f.sub)}</p>
+      </div></section>`;
+  // Las bandas se consumen en orden a lo largo del documento: cada acto
+  // entrega el siguiente hallazgo, así el cliente nunca lee dos tablas seguidas.
+  // Si no hay quote editorial, la portada toma el primer hallazgo — y ese ya no se repite abajo.
+  const coverQ = heroQuote || (FIND[0]?gloss(FIND[0].quote):'');
+  let _bi = (!heroQuote && FIND.length) ? 1 : 0;
+  const band=(n)=>{ let o=''; for(let k=0;k<(n||1)&&_bi<FIND.length;k++){ o+=bandHTML(FIND[_bi],_bi); _bi++; } return o; };
+  const bandRest=()=>band(FIND.length-_bi);
+  return `<!doctype html>
+<html lang="${lang}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(f.nombre)} — Tally ${T.doc}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
+<style>
+:root{--violet:#6047ff;--violet-500:#6047ff;--violet-soft:#dcdcff;--violet-100:#dcdcff;--orange-500:#ff8248;--orange-soft:#fcddd6;
+--green-500:#49d475;--cyan-500:#5ed7ff;--ink:#212121;--cream:#fefcf8;
+--bg:#f4f3f0;--card:#ffffff;--card-2:#faf9f7;--sep:rgba(0,0,0,.07);--sep-strong:rgba(0,0,0,.12);--fill:rgba(0,0,0,.04);
+--t1:#1c1c1e;--t2:#5f6067;--t3:#8e8e93;--ok:#17864a;--warn:#c9591f;
+--r-sm:10px;--r-md:16px;--r-lg:22px;--r-xl:28px;--r-pill:980px;
+--sh-1:0 1px 2px rgba(0,0,0,.04),0 1px 3px rgba(0,0,0,.03);--sh-2:0 4px 16px -2px rgba(0,0,0,.07),0 1px 3px rgba(0,0,0,.04);
+--sh-3:0 24px 56px -12px rgba(0,0,0,.20),0 2px 8px rgba(0,0,0,.06);--ease:cubic-bezier(.16,1,.3,1)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--t1);
+font-size:17px;line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+h1,h2,h3,h4{margin:0;text-wrap:balance;letter-spacing:-.02em}
+.tnum,.num,.kpi .kv{font-feature-settings:'tnum' 1;font-variant-numeric:tabular-nums}
+.page{max-width:880px;margin:0 auto;padding:64px 40px 96px}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:56px}
+.wordmark{display:flex;align-items:center}
+.doclabel{font-size:11.5px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--t3)}
+h1{font-size:clamp(38px,5.4vw,54px);font-weight:300;letter-spacing:-.035em;line-height:1.04;margin-bottom:16px}
+h1 b{font-weight:700}
+.meta{font-size:14.5px;color:var(--t2);margin-bottom:5px}
+.meta b{color:var(--t1);font-weight:500}
+.chiprow{margin:22px 0 0;display:flex;gap:8px;flex-wrap:wrap}
+.chip{font-size:12px;font-weight:500;padding:5px 13px;border-radius:var(--r-pill);background:var(--violet-soft);color:#4326c4}
+h2.sec{font-size:clamp(25px,3.1vw,33px);font-weight:700;letter-spacing:-.028em;margin:76px 0 0;line-height:1.12}
+.secrule{width:40px;height:3.5px;border-radius:2px;background:var(--violet);margin:16px 0 26px}
+.blk{margin-bottom:24px}
+.blk .bt{font-size:18px;font-weight:700;letter-spacing:-.02em;margin-bottom:10px}
+.blk h3.sh{font-size:15.5px;font-weight:700;margin:20px 0 8px;letter-spacing:-.015em}
+.blk p{margin-bottom:13px;max-width:68ch;font-size:16.5px;line-height:1.62;color:var(--t1)}
+.blk ul{margin:8px 0 15px 20px;max-width:66ch}
+.blk li{margin-bottom:8px;line-height:1.55}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:22px 0 30px}
+.kpi{background:var(--card);border:.5px solid rgba(0,0,0,.03);border-radius:var(--r-lg);padding:20px 21px 18px;box-shadow:var(--sh-1);min-height:130px;display:flex;flex-direction:column}
+.kpi .kl{font-size:12.5px;font-weight:500;color:var(--t2);line-height:1.35}
+.kpi .kv{font-size:36px;font-weight:700;letter-spacing:-.035em;line-height:1.06;margin-top:auto}
+.kpi .ks{font-size:12.5px;color:var(--t3);margin-top:7px;line-height:1.4}
+.chart{background:var(--card);border:.5px solid rgba(0,0,0,.03);border-radius:var(--r-lg);padding:24px 26px 16px;margin-bottom:16px;box-shadow:var(--sh-1)}
+.chart h4{font-size:16px;font-weight:700;letter-spacing:-.015em;margin-bottom:14px}
+.polar-leg{display:flex;flex-wrap:wrap;gap:5px 20px;margin:-6px 0 14px;font-size:12px;color:var(--t3)}
+.polar-leg span{display:inline-flex;align-items:center;gap:7px}
+.polar-leg i{width:10px;height:10px;border-radius:3px;flex:none}
+.chart svg{width:100%;height:auto;display:block}
+table{width:100%;border-collapse:collapse;background:var(--card);border-radius:var(--r-lg);overflow:hidden;font-size:13.5px;margin:10px 0 14px;box-shadow:var(--sh-1);border:.5px solid rgba(0,0,0,.03)}
+th{background:transparent;color:var(--t3);text-align:left;padding:12px 14px;font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.07em;border-bottom:.5px solid var(--sep-strong)}
+td{padding:11px 14px;border-bottom:.5px solid var(--sep)}
+tr:last-child td{border-bottom:0}
+.num{text-align:right;white-space:nowrap}
+.strat{background:var(--card);border:.5px solid rgba(0,0,0,.03);border-left:4px solid var(--orange-500);border-radius:var(--r-lg);padding:22px 24px;margin-bottom:14px;box-shadow:var(--sh-1)}
+.strat .bt{font-size:17px;font-weight:700;letter-spacing:-.02em;margin-bottom:10px}
+.muted{color:var(--t3);font-size:14.5px}
+.footer{margin-top:76px;padding-top:24px;border-top:.5px solid var(--sep-strong);font-size:12.5px;color:var(--t3);max-width:74ch;line-height:1.55}
+.footer b{color:var(--t2)}
+.exportbar{position:fixed;top:20px;right:20px;z-index:50;display:flex;gap:10px;align-items:center}
+.exportbar button{font-family:inherit;background:var(--violet);color:#fff;border:none;border-radius:var(--r-pill);padding:12px 24px;font-size:14px;font-weight:500;cursor:pointer;box-shadow:var(--sh-2);transition:background .18s ease}
+.exportbar button:hover{background:#4d38e0}
+.exportbar small{background:var(--ink);color:var(--cream);border-radius:var(--r-sm);padding:7px 11px;font-size:11.5px;opacity:.88}
+
+/* ═══ experiencia inmersiva (pantalla) ═══ */
+html,body{overflow-x:hidden}
+.prog{position:fixed;top:0;left:0;height:3px;background:var(--violet);width:0;z-index:70;transition:width .1s linear}
+.cover{min-height:calc(100vh - 210px);display:flex;flex-direction:column;justify-content:center;padding:0 0 40px}
+.cover .ceyebrow{font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.1em;color:var(--violet);margin-bottom:26px}
+.cover h1{font-size:clamp(40px,6.6vw,74px);font-weight:300;letter-spacing:-.04em;line-height:1.0;margin-bottom:22px}
+.cover h1 b{font-weight:700}
+.cover .cmeta{font-size:15px;color:var(--t2);margin-bottom:6px}
+.cover .cmeta b{color:var(--t1);font-weight:500}
+.cover-quote{margin-top:44px;font-size:clamp(23px,3.1vw,34px);line-height:1.28;font-weight:300;letter-spacing:-.028em;
+  max-width:24ch;color:var(--t1);border-left:3px solid var(--violet);padding-left:26px}
+.cover-quote b{font-weight:700}
+.scrollcue{margin-top:54px;font-size:13px;color:var(--t3);display:flex;align-items:center;gap:10px}
+.scrollcue i{width:22px;height:34px;border:1.5px solid var(--sep-strong);border-radius:12px;position:relative;display:block}
+.scrollcue i::after{content:'';position:absolute;top:7px;left:50%;transform:translateX(-50%);width:3px;height:6px;border-radius:2px;
+  background:var(--t3);animation:cue 1.7s var(--ease) infinite}
+@keyframes cue{0%{opacity:0;transform:translate(-50%,0)}30%{opacity:1}100%{opacity:0;transform:translate(-50%,12px)}}
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .7s var(--ease),transform .7s var(--ease)}
+.reveal.in{opacity:1;transform:none}
+/* bandas de hallazgo a sangre completa */
+.band{margin:88px calc(50% - 50vw);width:100vw;padding:96px 0;position:relative;overflow:hidden}
+.band+.band{margin-top:0}
+.band-in{max-width:880px;margin:0 auto;padding:0 40px}
+.band-n{font-size:12px;font-weight:700;letter-spacing:.14em;opacity:.5;margin-bottom:20px}
+.band-big{font-size:clamp(52px,9vw,104px);font-weight:700;letter-spacing:-.045em;line-height:.94;margin-bottom:22px;
+  font-feature-settings:'tnum' 1;font-variant-numeric:tabular-nums}
+.band-q{font-size:clamp(21px,2.6vw,30px);line-height:1.26;font-weight:300;letter-spacing:-.026em;max-width:22ch;margin-bottom:18px}
+.band-q b{font-weight:700}
+.band-s{font-size:16px;line-height:1.6;max-width:56ch;opacity:.78}
+.b-ink{background:var(--ink);color:var(--cream)}
+.b-ink .band-q,.b-ink .band-big{color:var(--cream)}
+.b-ink .term{border-bottom-color:rgba(255,255,255,.45)}
+.b-violet{background:linear-gradient(158deg,#efecff,#fbfaff);color:var(--t1)}
+.b-violet .band-big{color:var(--violet)}
+.b-green{background:linear-gradient(158deg,#eaf8f0,#fbfefc)}
+.b-green .band-big{color:var(--ok)}
+.b-warm{background:linear-gradient(158deg,#fff2ec,#fffdfc)}
+.b-warm .band-big{color:var(--warn)}
+/* botón flotante de notas */
+.fab{position:fixed;right:26px;bottom:26px;z-index:80;background:var(--violet);color:#fff;border:0;border-radius:var(--r-pill);
+  padding:15px 24px;font-family:inherit;font-size:15px;font-weight:500;cursor:pointer;box-shadow:0 10px 30px -6px rgba(96,71,255,.5);
+  display:flex;align-items:center;gap:10px;transition:transform .22s var(--ease),box-shadow .22s var(--ease)}
+.fab:hover{transform:translateY(-2px);box-shadow:0 16px 38px -8px rgba(96,71,255,.6)}
+.fab .fab-b{background:rgba(255,255,255,.24);border-radius:999px;padding:1px 8px;font-size:12px;font-weight:700}
+.nveil{position:fixed;inset:0;background:rgba(28,28,30,.34);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
+  z-index:85;opacity:0;pointer-events:none;transition:opacity .3s var(--ease)}
+.nveil.open{opacity:1;pointer-events:auto}
+.nsheet{position:fixed;right:0;top:0;height:100vh;width:460px;max-width:96vw;background:var(--card);z-index:90;
+  box-shadow:-24px 0 56px -12px rgba(0,0,0,.22);transform:translateX(100%);transition:transform .36s var(--ease);
+  display:flex;flex-direction:column}
+.nsheet.open{transform:none}
+.nsheet .nh{padding:24px 28px 18px;border-bottom:.5px solid var(--sep);display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.nsheet .nh h3{font-size:19px;font-weight:700;letter-spacing:-.022em}
+.nsheet .nh p{font-size:13px;color:var(--t2);margin-top:5px;line-height:1.45}
+.nsheet .nb{padding:22px 28px 32px;overflow-y:auto;flex:1}
+.nsheet label{display:block;font-size:11.5px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:var(--t2);margin:16px 0 7px}
+.nsheet label:first-child{margin-top:0}
+.nsheet select,.nsheet input,.nsheet textarea{width:100%;border:.5px solid var(--sep-strong);border-radius:var(--r-md);
+  padding:11px 13px;font-family:inherit;font-size:14.5px;color:var(--t1);background:var(--card-2)}
+.nsheet textarea{min-height:150px;line-height:1.55;resize:vertical}
+.nsheet select:focus,.nsheet input:focus,.nsheet textarea:focus{outline:2px solid var(--violet);outline-offset:-1px;background:var(--card)}
+.nsheet .nbtn{width:100%;margin-top:16px;background:var(--violet);color:#fff;border:0;border-radius:var(--r-sm);padding:13px;
+  font-family:inherit;font-size:15px;font-weight:500;cursor:pointer}
+.nsheet .nbtn:hover{background:#4d38e0}
+.nsheet .nbtn:disabled{opacity:.5;cursor:not-allowed}
+.ncap{border:.5px solid var(--sep);background:var(--card-2);border-radius:var(--r-md);padding:12px 14px;margin-bottom:9px;font-size:13.5px}
+.ncap .nct{display:flex;gap:8px;align-items:center;margin-bottom:5px}
+.ncap .ntag{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:3px 8px;border-radius:5px;
+  background:var(--violet-soft);color:#4326c4}
+.ncap .nctx{color:var(--t2);white-space:pre-wrap;line-height:1.5}
+.nclose{background:var(--fill);width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:var(--t2);
+  font-size:16px;border:0;cursor:pointer;flex:none}
+/* resumen impreso de lo capturado */
+.captured{margin-top:10px}
+
+/* ═══ storytelling ═══ */
+.act{padding-top:82px}
+.act-h{display:flex;align-items:flex-end;gap:18px;padding-bottom:26px;border-bottom:.5px solid var(--sep-strong);margin-bottom:34px}
+.act-n{font-size:13px;font-weight:700;color:var(--violet);background:var(--violet-soft);width:34px;height:34px;border-radius:50%;
+  display:grid;place-items:center;flex-shrink:0;margin-bottom:4px}
+.act-h h2{font-size:clamp(26px,3.2vw,35px);font-weight:700;letter-spacing:-.028em;line-height:1.1}
+.act-h .q{font-size:14.5px;color:var(--t3);margin-top:6px;font-weight:400;letter-spacing:0}
+blockquote.pull{margin:26px 0 30px;padding:0 0 0 24px;border-left:3px solid var(--violet);
+  font-size:clamp(21px,2.5vw,27px);line-height:1.34;font-weight:300;letter-spacing:-.022em;color:var(--t1);max-width:26ch}
+blockquote.pull b{font-weight:700}
+.hero-quote{margin:40px 0 0;background:var(--ink);color:var(--cream);border-radius:var(--r-xl);padding:36px 40px}
+.hero-quote .k{font-size:11.5px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:#9CA3AF;margin-bottom:14px}
+.hero-quote p{font-size:clamp(22px,2.7vw,27px);line-height:1.36;font-weight:300;letter-spacing:-.022em;max-width:52ch;color:var(--cream)}
+.hero-quote p b{font-weight:700}
+.hero-quote .term{border-bottom-color:rgba(255,255,255,.4);color:var(--cream)}
+.term{border-bottom:1.5px dotted var(--violet);cursor:help;position:relative;font-weight:500}
+.term:hover .term-pop,.term:focus .term-pop{opacity:1;visibility:visible;transform:translateX(-50%) translateY(0)}
+.term-pop{visibility:hidden;opacity:0;position:absolute;bottom:150%;left:50%;transform:translateX(-50%) translateY(4px);
+  background:var(--ink);color:var(--cream);padding:12px 15px;border-radius:var(--r-md);font-size:13.5px;line-height:1.5;
+  width:290px;z-index:40;transition:all .2s var(--ease);text-align:left;font-weight:400;letter-spacing:0;box-shadow:var(--sh-3);pointer-events:none}
+.term-pop::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:6px solid transparent;border-top-color:var(--ink)}
+/* FAQs */
+.faq-cat{margin-bottom:26px}
+.faq-cat h3{font-size:15.5px;font-weight:700;letter-spacing:-.015em;margin-bottom:12px;color:var(--t1)}
+details.faq{background:var(--card);border:.5px solid rgba(0,0,0,.03);border-radius:var(--r-md);box-shadow:var(--sh-1);margin-bottom:9px;overflow:hidden}
+details.faq summary{padding:15px 20px;cursor:pointer;font-size:15px;font-weight:500;letter-spacing:-.012em;list-style:none;
+  display:flex;justify-content:space-between;gap:14px;align-items:flex-start;transition:background .16s ease}
+details.faq summary:hover{background:var(--card-2)}
+details.faq summary::-webkit-details-marker{display:none}
+details.faq summary::after{content:'+';font-size:19px;font-weight:400;color:var(--t3);line-height:1;flex:none;transition:transform .22s var(--ease)}
+details.faq[open] summary::after{transform:rotate(45deg)}
+details.faq .fa{padding:2px 20px 19px;font-size:14.5px;line-height:1.6;color:var(--t2);white-space:pre-wrap;max-width:66ch}
+/* Contexto de la sesión y resumen (editables en la vista previa) */
+.live{background:var(--card);border:.5px solid rgba(0,0,0,.03);border-radius:var(--r-lg);box-shadow:var(--sh-1);padding:24px 26px;margin-bottom:16px}
+.live h4{font-size:16px;font-weight:700;letter-spacing:-.018em;margin-bottom:5px}
+.live .lsub{font-size:13.5px;color:var(--t2);margin-bottom:14px;line-height:1.45}
+.live textarea{width:100%;border:.5px solid var(--sep-strong);border-radius:var(--r-md);padding:13px 15px;font-family:inherit;
+  font-size:15px;line-height:1.6;color:var(--t1);background:var(--card-2);resize:vertical;min-height:120px}
+.live textarea:focus{outline:2px solid var(--violet);outline-offset:-1px;border-color:transparent;background:var(--card)}
+.live .lrow{display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap}
+.live button{font-family:inherit;border:0;border-radius:var(--r-sm);padding:10px 18px;font-size:14px;font-weight:500;cursor:pointer;transition:background .18s ease}
+.live .lp{background:var(--violet);color:#fff}.live .lp:hover{background:#4d38e0}
+.live .lg{background:var(--fill);color:var(--t1)}.live .lg:hover{background:rgba(0,0,0,.07)}
+.live .lstatus{font-size:13px;color:var(--t3)}
+.live-out{white-space:pre-wrap;font-size:15px;line-height:1.62;color:var(--t1);margin-top:6px}
+@media (prefers-reduced-motion:reduce){
+  .reveal{opacity:1!important;transform:none!important;transition:none!important}
+  .scrollcue i::after{animation:none}
+}
+/* ═══ PDF: el documento vuelve a ser documento — texto + quotes ═══ */
+@media print{
+  .exportbar,.prog,.fab,.nveil,.nsheet,.scrollcue{display:none!important}
+  .live textarea,.live .lrow{display:none!important}
+  .live .live-out{display:block!important}
+  body{background:#fff}.page{padding:0;max-width:none}
+  .reveal{opacity:1!important;transform:none!important}
+  h2.sec,.act-h{break-after:avoid}
+  .act{padding-top:36px}
+  .cover{min-height:0;padding:0 0 8px;display:block}
+  .cover h1{font-size:34px;font-weight:700;margin-bottom:10px}
+  .cover .ceyebrow{margin-bottom:12px}
+  .cover-quote{margin-top:22px;font-size:19px;max-width:44ch;padding-left:16px}
+  /* las bandas se aplanan a citas sobrias, sin fondos de color */
+  .band{margin:22px 0;padding:0 0 0 18px;width:auto;border-left:3px solid #6047ff;
+    background:none!important;color:#1c1c1e!important;break-inside:avoid}
+  .band-in{max-width:none;margin:0;padding:0}
+  .band-n{display:none}
+  .band-big{font-size:26px;margin-bottom:6px;color:#6047ff!important;display:inline-block;margin-right:10px}
+  .band-q{font-size:17px;font-weight:600;max-width:none;margin-bottom:6px;display:inline;color:#1c1c1e!important}
+  .band-s{font-size:13px;opacity:1;color:#5f6067;max-width:none;margin-top:6px}
+  .chart,.kpi,.strat,table,.blk,details.faq,.hero-quote,.live,.ncap{break-inside:avoid;box-shadow:none}
+  .ncap{border:.5px solid #ddd;background:#fff}
+  /* FAQs SIEMPRE desplegadas en el PDF. Hacen falta las tres cosas:
+     el JS abre cada <details> al imprimir, y estas reglas cubren los dos
+     mecanismos con los que el navegador oculta el contenido cerrado
+     (el display del hijo y el content-visibility de ::details-content). */
+  details.faq{border:.5px solid #ddd;background:#fff;margin-bottom:6px}
+  details.faq .fa{display:block!important;padding-top:4px;color:#3a3a3c;max-width:none}
+  details.faq::details-content{content-visibility:visible!important;block-size:auto!important;opacity:1!important}
+  details.faq summary{cursor:default;padding-bottom:6px;font-weight:600}
+  details.faq summary::after{display:none!important}   /* fuera el "+" */
+  .faq-cat{break-inside:auto}
+  .faq-cat h3{break-after:avoid}
+  .term-pop{display:none}
+  .term{border-bottom:none;font-weight:600}
+}
+@page{size:letter;margin:14mm}
+</style>
+</head>
+<body>
+<div class="prog" id="prog"></div>
+<div class="exportbar no-print"><small>${T.expHint}</small><button onclick="if(window.__prepararImpresion)window.__prepararImpresion();setTimeout(()=>window.print(),60)">${T.exp}</button></div>
+<div class="page">
+  <div class="topbar"><div class="wordmark">${brandMarkHTML(26)}</div><div class="doclabel">${T.doc}</div></div>
+
+  <!-- PORTADA · el cliente entra por una frase, no por una tabla -->
+  <section class="cover">
+    <div class="ceyebrow">${T.cvEye}</div>
+    <h1>${esc(f.nombre)}</h1>
+    <div class="cmeta">${T.rfc}: <b>${esc(f.rfc||'N/D')}</b> · ID: ${esc(RPT.cid)} · ${T.date}: ${today}</div>
+    ${range?`<div class="cmeta">${lang==='es'?'Período cubierto':'Period covered'}: <b>${range}</b></div>`:''}
+    <div class="chiprow"><span class="chip">${lang==='es'?'Contabilidad e impuestos en México':'Accounting & tax in Mexico'}</span>${f.canal_ml&&String(f.canal_ml).trim()?'<span class="chip">Mercado Libre</span>':''}</div>
+    ${coverQ?`<div class="cover-quote">${coverQ}</div>`:''}
+    <div class="scrollcue no-print"><i></i><span>${T.cvScroll}</span></div>
+  </section>
+
+  <!-- ACTO 1 · Dónde estás parado -->
+  <section class="act reveal">
+    <div class="act-h"><div class="act-n">1</div><div><h2>${T.a1}</h2><div class="q">${T.a1q}</div></div></div>
+    ${res.length?secHTML(res):'<p class="muted">'+T.noSec+'</p>'}
+  </section>
+
+  ${band(2)}
+
+  <!-- ACTO 2 · Cómo se movió tu negocio -->
+  <section class="act reveal">
+    <div class="act-h"><div class="act-n">2</div><div><h2>${T.a2}</h2><div class="q">${T.a2q}</div></div></div>
+    <div class="kpis">
+      <div class="kpi"><div class="kl">${T.kSales}</div><div class="kv">${last?fmtM(last.ingresos):'—'}</div><div class="ks">${last?MES_FULL[lang][last.m]+' '+last.y:''}</div></div>
+      <div class="kpi"><div class="kl">${T.kTax}</div><div class="kv">${last?fmtM(last.iva+last.isr,2):'—'}</div><div class="ks">${last?'IVA '+fmtM(last.iva,2)+' · ISR '+fmtM(last.isr,2):''}</div></div>
+      <div class="kpi"><div class="kl">${T.kFiling}</div><div class="kv" style="font-size:17px">${last?esc(last.estado||'N/D'):'—'}</div><div class="ks">${last&&last.fecha?esc(String(last.fecha)):''}</div></div>
+    </div>
+    ${insight?`<blockquote class="pull">${insight}</blockquote>`:''}
+    <div class="chart"><h4>${T.chSales}</h4>${barChartSVG(S,r=>r.ingresos,'#6047ff',lang)}</div>
+    <div class="chart"><h4>${T.chTax}</h4><div class="polar-leg"><span><i style="background:#c9591f"></i>${T.legPos}</span><span><i style="background:#17864a"></i>${T.legNeg}</span></div>${barChartSVG(S,r=>r.iva+r.isr,TAX_POLAR,lang)}</div>
+  </section>
+
+  ${band(2)}
+
+  ${cier.length?`
+  <!-- ACTO 3 · Cómo cerró el mes -->
+  <section class="act reveal">
+    <div class="act-h"><div class="act-n">3</div><div><h2>${T.a3}</h2><div class="q">${T.a3q}</div></div></div>
+    ${secHTML(cier)}
+  </section>`:''}
+
+  ${band(1)}
+
+  <!-- ACTO · Hacia dónde va -->
+  <section class="act reveal">
+    <div class="act-h"><div class="act-n">${cier.length?4:3}</div><div><h2>${T.a4}</h2><div class="q">${T.a4q}</div></div></div>
+    ${proy.length?secHTML(proy):'<p class="muted">'+T.noSec+'</p>'}
+  </section>
+
+  ${band(2)}
+
+  <!-- ACTO · Qué hacemos al respecto -->
+  <section class="act reveal">
+    <div class="act-h"><div class="act-n">${cier.length?5:4}</div><div><h2>${T.a5}</h2><div class="q">${T.a5q}</div></div></div>
+    ${estr.length?estr.map(s=>'<div class="strat"><div class="bt">'+esc(s.titulo)+'</div>'+blocksHTML(s.contenido)+'</div>').join(''):'<p class="muted">'+T.noSec+'</p>'}
+  </section>
+
+  ${band(1)}
+
+  <!-- ACTO · La sesión: lo que se capturó desde el botón flotante -->
+  <section class="act reveal" id="capSec">
+    <div class="act-h"><div class="act-n">${cier.length?6:5}</div><div><h2>${T.a6}</h2><div class="q">${T.a6q}</div></div></div>
+    ${ctxPrev.map(c=>{
+      const et = c.tipo==='estrategia'?T.nkStr : (c.tipo==='sesion'?T.nkRes : T.nkCtx);
+      return `<div class="ncap"><div class="nct"><span class="ntag">${esc(et)}</span>`
+        + (c.titulo?`<span style="font-size:11.5px;color:var(--t3)">${esc(c.titulo)}</span>`:'')
+        + (c.fecha?`<span style="font-size:11.5px;color:var(--t3)">${esc(c.fecha)}</span>`:'')
+        + `</div><div class="nctx">${esc(c.txt)}</div></div>`;
+    }).join('')}
+    <div class="captured" id="capList"></div>
+    <p class="muted no-print" id="capEmpty"${ctxPrefill?' style="display:none"':''}>${T.nEmpty}</p>
+  </section>
+
+  ${bandRest()}
+
+  <!-- ACTO · Preguntas frecuentes -->
+  <section class="act reveal">
+    <div class="act-h"><div class="act-n">?</div><div><h2>${T.a7}</h2><div class="q">${T.a7q}</div></div></div>
+    ${(lang==='en'?FAQS_EN:FAQS_ES).map(c=>`<div class="faq-cat"><h3>${esc(c.cat)}</h3>${c.qs.map(x=>`
+      <details class="faq"><summary>${esc(x.q)}</summary><div class="fa">${esc(x.a)}</div></details>`).join('')}</div>`).join('')}
+  </section>
+
+  ${Object.keys(GLOSARIO).length?`
+  <section class="act reveal">
+    <div class="act-h"><div class="act-n">§</div><div><h2>${T.gloT}</h2><div class="q">${T.gloQ}</div></div></div>
+    <table><thead><tr><th style="width:26%">${lang==='es'?'Término':'Term'}</th><th>${lang==='es'?'Qué significa para tu negocio':'What it means for your business'}</th></tr></thead>
+    <tbody>${Object.keys(GLOSARIO).map(k=>`<tr><td><b>${esc(k)}</b></td><td>${esc(GLOSARIO[k])}</td></tr>`).join('')}</tbody></table>
+  </section>`:''}
+
+  <div class="footer"><b>${T.by}</b> — juan@tally.legal · tally.legal<br><br>${T.disc}</div>
+</div>
+
+<!-- ═══ botón flotante: capturar en cualquier momento ═══ -->
+<button class="fab no-print" id="fab" onclick="nOpen()" aria-label="${T.fab}">
+  <span>✍️</span><span>${T.fab}</span><span class="fab-b" id="fabN" style="display:none">0</span>
+</button>
+<div class="nveil no-print" id="nveil" onclick="nClose()"></div>
+<aside class="nsheet no-print" id="nsheet" role="dialog" aria-modal="true" aria-labelledby="nTitle">
+  <div class="nh">
+    <div><h3 id="nTitle">${T.nT}</h3><p>${T.nS}</p></div>
+    <button class="nclose" onclick="nClose()" aria-label="cerrar">✕</button>
+  </div>
+  <div class="nb">
+    <label for="nKind">${T.nKind}</label>
+    <select id="nKind">
+      <option value="contexto">${T.nkCtx}</option>
+      <option value="estrategia">${T.nkStr}</option>
+      <option value="sesion">${T.nkRes}</option>
+    </select>
+    <label for="nTxt">${lang==='es'?'Nota':'Note'}</label>
+    <textarea id="nTxt" placeholder="${T.nPh}"></textarea>
+    <button class="nbtn" id="nBtn" onclick="nSave()">${T.nBtn}</button>
+    <div class="lstatus" id="nStatus" style="margin-top:10px;min-height:18px"></div>
+    <label style="margin-top:26px">${T.nCap}</label>
+    <div id="nList"><p class="muted" style="font-size:13.5px">${T.nEmpty}</p></div>
+  </div>
+</aside>
+<script>
+/* Guarda contexto y resumen de la sesión desde el propio documento.
+   Si el documento se abrió desde la interfaz (misma sesión), escribe al Sheet;
+   si se abrió suelto, deja el texto fijado en el documento para imprimirlo. */
+const ENDPOINT=${JSON.stringify(APPS_SCRIPT_URL)}, TOKEN=${JSON.stringify(API_TOKEN)},
+      CID=${JSON.stringify(RPT.cid)}, CLI=${JSON.stringify(f.nombre||'')}, USR=${JSON.stringify((AUTH&&AUTH.email)||'reporte')};
+function jsonp(action,payload){
+  return new Promise(res=>{
+    const cb='__cb'+Math.floor(Math.random()*1e9);
+    const t=setTimeout(()=>{cleanup();res({ok:false,error:'timeout'});},30000);
+    function cleanup(){clearTimeout(t);delete window[cb];s.remove();}
+    window[cb]=d=>{cleanup();res(d);};
+    const s=document.createElement('script');
+    s.src=ENDPOINT+'?action='+encodeURIComponent(action)+'&token='+encodeURIComponent(TOKEN)
+      +'&payload='+encodeURIComponent(JSON.stringify(payload||{}))+'&callback='+cb;
+    s.onerror=()=>{cleanup();res({ok:false,error:'sin conexión con el servidor'});};
+    document.body.appendChild(s);
+  });
+}
+/* ═══ botón flotante de captura ═══ */
+const LBL={contexto:'${T.nkCtx}',estrategia:'${T.nkStr}',sesion:'${T.nkRes}'};
+const CAPS=[];
+function nOpen(){document.getElementById('nsheet').classList.add('open');document.getElementById('nveil').classList.add('open');setTimeout(()=>document.getElementById('nTxt').focus(),320);}
+function nClose(){document.getElementById('nsheet').classList.remove('open');document.getElementById('nveil').classList.remove('open');}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')nClose();});
+function esc2(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function capCard(c){return '<div class="ncap"><div class="nct"><span class="ntag">'+esc2(LBL[c.tipo]||c.tipo)+'</span><span style="font-size:11.5px;color:#8e8e93">'+esc2(c.hora)+'</span></div><div class="nctx">'+esc2(c.txt)+'</div></div>';}
+function nRender(){
+  const l=document.getElementById('nList'), d=document.getElementById('capList'), e=document.getElementById('capEmpty'), b=document.getElementById('fabN');
+  if(!CAPS.length){ l.innerHTML='<p class="muted" style="font-size:13.5px">${T.nEmpty}</p>'; return; }
+  const html=CAPS.map(capCard).join('');
+  l.innerHTML=html; d.innerHTML=html;
+  if(e) e.style.display='none';
+  b.style.display='inline-block'; b.textContent=CAPS.length;
+}
+async function nSave(){
+  const box=document.getElementById('nTxt'), st=document.getElementById('nStatus'), btn=document.getElementById('nBtn');
+  const tipo=document.getElementById('nKind').value, txt=box.value.trim();
+  if(!txt){ st.textContent='${T.liveEmpty}'; return; }
+  const hora=new Date().toLocaleTimeString(${JSON.stringify(lang==='es'?'es-MX':'en-US')},{hour:'2-digit',minute:'2-digit'});
+  CAPS.push({tipo,txt,hora}); nRender(); box.value='';
+  btn.disabled=true; st.textContent='${T.liveSaving}';
+  const CH=1100; let id='', r=null;
+  const tit=(LBL[tipo]||tipo)+' — '+new Date().toISOString().slice(0,10);
+  for(let i=0,seq=0;i<txt.length||seq===0;i+=CH,seq++){
+    r=await jsonp('ctx_save',{tabla:'ctx',id:seq===0?'':id,seq,chunk:txt.slice(i,i+CH),last:(i+CH>=txt.length),
+      company_id:CID,cliente:CLI,tipo,titulo:tit,autor:USR});
+    if(!r.ok) break;
+    id=r.id;
+  }
+  btn.disabled=false;
+  st.textContent = (r&&r.ok) ? '${T.liveOk}' : '${T.liveErr}'+(r&&r.error?' ('+r.error+')':'');
+}
+
+/* ═══ experiencia: progreso, revelados y conteo ═══ */
+(function(){
+  const RM=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const prog=document.getElementById('prog');
+  addEventListener('scroll',()=>{
+    const h=document.documentElement.scrollHeight-innerHeight;
+    prog.style.width=(h>0?Math.min(100,scrollY/h*100):0)+'%';
+  },{passive:true});
+  const els=[].slice.call(document.querySelectorAll('.reveal'));
+  if(RM||!('IntersectionObserver' in window)){ els.forEach(e=>e.classList.add('in')); return; }
+  const countUp=el=>{
+    const raw=el.getAttribute('data-count')||'';
+    const m=raw.match(/-?[\\d,.]+/); if(!m) return;
+    const target=parseFloat(m[0].replace(/,/g,'')); if(!isFinite(target)) return;
+    const pre=raw.slice(0,m.index), post=raw.slice(m.index+m[0].length);
+    const dec=(m[0].split('.')[1]||'').length, t0=performance.now(), D=1000;
+    const step=t=>{
+      const p=Math.min(1,(t-t0)/D), v=target*(1-Math.pow(1-p,3));
+      el.textContent=pre+v.toLocaleString(undefined,{minimumFractionDigits:dec,maximumFractionDigits:dec})+post;
+      if(p<1) requestAnimationFrame(step); else el.textContent=raw;
+    };
+    requestAnimationFrame(step);
+  };
+  const io=new IntersectionObserver(es=>{
+    es.forEach(e=>{
+      if(!e.isIntersecting) return;
+      e.target.classList.add('in');
+      const big=e.target.querySelector('.band-big');
+      if(big&&!big.dataset.done){ big.dataset.done='1'; countUp(big); }
+      io.unobserve(e.target);
+    });
+  },{rootMargin:'0px 0px -8% 0px',threshold:0});
+  /* threshold 0, no 0.14: una sección MÁS ALTA que el viewport nunca alcanza un
+     ratio de 0.14 (el máximo posible es viewport/altura), así que se quedaba
+     invisible para siempre — ocupando su espacio. Ese era el hueco en blanco. */
+  els.forEach(e=>io.observe(e));
+  // Red de seguridad: nada puede quedarse invisible por un fallo del observer.
+  const revelarTodo=()=>els.forEach(e=>e.classList.add('in'));
+  setTimeout(()=>els.forEach(e=>{
+    const r=e.getBoundingClientRect();
+    if(r.top<innerHeight*1.2) e.classList.add('in');           // lo que ya está a la vista
+  }),80);
+  setTimeout(revelarTodo,6000);                                 // último recurso
+  /* Al exportar a PDF: revelar todo y ABRIR todas las FAQs. El CSS por sí solo
+     no basta —el navegador oculta el contenido de un <details> cerrado por una
+     vía que la propiedad display no siempre alcanza—, así que se abren de verdad y se
+     restauran después para no alterar la vista en pantalla. */
+  let _faqCerradas=[];
+  const abrirFaqs=()=>{
+    _faqCerradas=[].slice.call(document.querySelectorAll('details.faq:not([open])'));
+    _faqCerradas.forEach(d=>d.open=true);
+  };
+  const restaurarFaqs=()=>{ _faqCerradas.forEach(d=>d.open=false); _faqCerradas=[]; };
+  addEventListener('beforeprint',()=>{ revelarTodo(); abrirFaqs(); });
+  addEventListener('afterprint',restaurarFaqs);
+  // Safari/iOS no siempre dispara beforeprint: el botón lo hace explícito.
+  window.__prepararImpresion=()=>{ revelarTodo(); abrirFaqs(); };
+})();
+<\/script>
+</body>
+</html>`;
+}
+function rptPreview(){
+  if(!RPT.data){ toast('Carga un cliente primero'); return; }
+  const blob=new Blob([buildReportHTML()],{type:'text/html'});
+  window.open(URL.createObjectURL(blob),'_blank');
+}
+function rptDownload(){
+  if(!RPT.data){ toast('Carga un cliente primero'); return; }
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([buildReportHTML()],{type:'text/html'}));
+  a.download='tally-report-'+RPT.cid+'-'+new Date().toISOString().slice(0,10)+'-'+RPT.lang+'.html';
+  document.body.appendChild(a); a.click(); a.remove();
+  toast('⬇️ Reporte descargado — ábrelo y usa "Exportar a PDF"');
+}
+
+
 /* ═══════════════ LOGIN / SESIÓN ═══════════════ */
 let AUTH = null;
 try{ AUTH = JSON.parse(sessionStorage.getItem('tallyAuth')||'null'); }catch(e){}
@@ -3346,7 +5143,7 @@ async function capiPost(action, payload){
 </script>
 <script>
 /* ══════════════ estado del asistente ══════════════ */
-const CX = { cliente: null, mes: null, anio: null, meses: [], idioma: 'es', docs: [], syntage: null, calc: null, calc_id: null, archivos: null, contexto: '', sistema: [] };
+const CX = { cliente: null, mes: null, anio: null, meses: [], idioma: 'es', docs: [], syntage: null, contalink: null, calc: null, calc_id: null, archivos: null, contexto: '', sistema: [] };
 const CX_MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const cxFmt = n => (n == null || isNaN(n)) ? '—' : new Intl.NumberFormat('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
@@ -3530,6 +5327,24 @@ async function cxConsultarSyntage() {
     <tr><td>Certificados de retención en el SAT</td><td>${(r.retenciones || []).filter(x => x.periodo === k).length ? 'coincide con el mes' : 'no aparece el del mes'}</td></tr>
     <tr><td>Declaraciones mensuales ${CX.anio} registradas</td><td>${dec.length ? dec.map(d => d.periodo + ' (' + d.presentada + ')').join(', ') : '<span class="cx-tag warn">ninguna</span>'}</td></tr></table>`;
 }
+function cxCtkForm(){
+  const per=cxPeriodos();
+  if(!per.length){ document.getElementById('cxCtkMsg').textContent='Primero selecciona los períodos en el paso 1.'; return; }
+  document.getElementById('cxCtkForm').innerHTML = per.map(pp=>{const k=pp.anio+'-'+String(pp.mes).padStart(2,'0');
+    return `<div class="cx-row"><label style="min-width:230px;margin:0;text-transform:none;letter-spacing:0">IVA acreditable pagado · ${CX_MESES[pp.mes-1]} ${pp.anio}</label><input class="cx-input" style="max-width:180px" type="number" step="0.01" id="ctk_${k}" placeholder="0.00"></div>`;}).join('')
+    + `<div class="cx-row"><label style="min-width:230px;margin:0;text-transform:none;letter-spacing:0">Fuente del dato</label><input class="cx-input" id="ctkFuente" value="Contalink · auxiliar de IVA acreditable pagado" style="max-width:440px"></div>
+       <div class="cx-nav"><button class="btn" onclick="cxCtkGuardar()">📥 Usar estos datos de Contalink</button></div>`;
+  document.getElementById('cxCtkBtn').style.display='none';
+}
+function cxCtkGuardar(){
+  const per=cxPeriodos(); const porMes={};
+  per.forEach(pp=>{const k=pp.anio+'-'+String(pp.mes).padStart(2,'0'); const el=document.getElementById('ctk_'+k);
+    const v=el?parseFloat(el.value):NaN; if(!isNaN(v)) porMes[k]={iva_acreditable:Math.round(v*100)/100};});
+  if(!Object.keys(porMes).length){ document.getElementById('cxCtkMsg').textContent='Captura al menos un mes para continuar.'; return; }
+  CX.contalink={porMes,fuente:(document.getElementById('ctkFuente').value||'Contalink').trim()};
+  document.getElementById('cxCtkMsg').innerHTML='✅ IVA acreditable cargado desde Contalink para '+Object.keys(porMes).length+' mes(es). El documento citará la fuente y llevará la alerta correspondiente.';
+  document.getElementById('cxSyntage').innerHTML='<span class="cx-tag info">Sin Syntage · IVA acreditable cargado desde Contalink</span> <span class="cx-hint">'+esc(CX.contalink.fuente)+'</span> <button class="btn secondary" onclick="CX.contalink=null;CX.syntage=null;document.getElementById(\'cxCtkBtn\').style.display=\'\';document.getElementById(\'cxCtkForm\').innerHTML=\'\';cxConsultarSyntage()">Quitar y reconsultar</button>';
+}
 async function cxSolicitarSyntage() {
   const M = document.getElementById('cxSynMsg'); M.textContent = 'Enviando solicitud a Juan…';
   const r = await capi('calc_solicitar_syntage', { rfc: CX.cliente.rfc, nombre: CX.cliente.nombre, ciec: document.getElementById('cxCiec').value });
@@ -3551,9 +5366,10 @@ function cxResumenInsumos() {
   document.getElementById('cxResumenMk').innerHTML = `<table class="cx-table"><thead><tr><th>Mes</th><th>Base sin IVA</th><th>Órdenes · 16%</th><th>IVA trasladado</th><th>IVA retenido</th><th>ISR retenido</th><th>Comisiones</th><th>Transferencias</th></tr></thead><tbody>${filas || '<tr><td>Sin períodos seleccionados</td></tr>'}</tbody></table>`;
   const fSat = per.map(pp => {
     const k = `${pp.anio}-${String(pp.mes).padStart(2, '0')}`;
-    const m = CX.syntage && CX.syntage.conectado ? (CX.syntage.cfdi_por_mes[k] || {}) : null;
+    const ctk = (!CX.syntage || !CX.syntage.conectado) && CX.contalink && CX.contalink.porMes[k];
+    const m = CX.syntage && CX.syntage.conectado ? (CX.syntage.cfdi_por_mes[k] || {}) : (ctk ? { iva_acreditable_pue: ctk.iva_acreditable, emitidos: [], recibidos: [] } : null);
     const b = cxDocDe('estado_cuenta', pp);
-    return `<tr><td><b>${CX_MESES[pp.mes - 1]}</b></td><td>${m ? cxFmt(m.iva_acreditable_pue) : '<span class="cx-tag warn">sin Syntage</span>'}</td><td>${m ? cxFmt((m.emitidos || []).reduce((a, x) => a + x.iva, 0)) : '—'}</td><td>${m ? (m.recibidos || []).length : '—'}</td><td>${b ? cxFmt(b.abonos) + ' · ' + (b.cuenta || '') : '<span class="cx-tag warn">sin estado de cuenta</span>'}</td></tr>`;
+    return `<tr><td><b>${CX_MESES[pp.mes - 1]}</b></td><td>${m ? cxFmt(m.iva_acreditable_pue)+(ctk?' <span class="cx-tag info">Contalink</span>':'') : '<span class="cx-tag warn">sin Syntage</span>'}</td><td>${m ? cxFmt((m.emitidos || []).reduce((a, x) => a + x.iva, 0)) : '—'}</td><td>${m ? (m.recibidos || []).length : '—'}</td><td>${b ? cxFmt(b.abonos) + ' · ' + (b.cuenta || '') : '<span class="cx-tag warn">sin estado de cuenta</span>'}</td></tr>`;
   }).join('');
   document.getElementById('cxResumenSat').innerHTML = `<table class="cx-table"><thead><tr><th>Mes</th><th>IVA acreditable (PUE)</th><th>IVA en CFDI emitidos</th><th>CFDI recibidos</th><th>Abonos en banco</th></tr></thead><tbody>${fSat || ''}</tbody></table>`;
 }
@@ -3581,7 +5397,7 @@ async function cxGenerar() {
   const fuentes = [
     { es: 'Resumen mensual del marketplace', en: 'Marketplace monthly summary', zh: '平台月度汇总', que_es: 'Ventas, tarifas, depósitos y retenciones liquidadas', que_en: 'Sales, fees, payouts and settled withholdings', que_zh: '销售、费用、付款与已结算代扣', estado: CX.docs.some(d => d.tipo === 'resumen_marketplace') ? 'ok' : 'missing' },
     { es: 'Certificado de retenciones', en: 'Withholding certificate', zh: '代扣证明', que_es: 'Base por orden, IVA cobrado, ISR e IVA retenidos', que_en: 'Per-order base, VAT collected, taxes withheld', que_zh: '逐单基础、收取增值税、代扣税款', estado: CX.docs.some(d => d.tipo === 'certificado_retenciones') ? 'ok' : 'missing' },
-    { es: 'SAT vía Syntage', en: 'SAT via Syntage', zh: 'SAT（Syntage）', que_es: 'CFDI emitidos y recibidos, declaraciones', que_en: 'CFDI issued/received, returns', que_zh: '发票与申报', estado: CX.syntage && CX.syntage.conectado ? 'ok' : 'missing' },
+    { es: 'SAT vía Syntage', en: 'SAT via Syntage', zh: 'SAT（Syntage）', que_es: 'CFDI emitidos y recibidos, declaraciones', que_en: 'CFDI issued/received, returns', que_zh: '发票与申报', estado: (CX.syntage && CX.syntage.conectado) || CX.contalink ? 'ok' : 'missing' },
     { es: 'Estado de cuenta bancario', en: 'Bank statement', zh: '银行对账单', que_es: 'Depósitos recibidos del marketplace', que_en: 'Payouts received', que_zh: '收到的平台付款', estado: CX.docs.some(d => d.tipo === 'estado_cuenta') ? 'ok' : 'missing' },
     { es: 'Declaración anual anterior (coeficiente de utilidad)', en: 'Prior annual return (profit coefficient)', zh: '上年度申报（利润系数）', que_es: 'Determina el ISR provisional', que_en: 'Determines provisional income tax', que_zh: '决定所得税预缴', estado: isNaN(cu) ? 'missing' : 'ok' },
     { es: 'Historial capturado por el contador', en: 'History captured by the accountant', zh: '会计师录入的历史数据', que_es: 'Saldo a favor, retenciones pendientes y pagos provisionales previos', que_en: 'Credit balance, pending withholdings and prior provisional payments', que_zh: '留抵、未抵扣代扣与已缴预缴', estado: (saldoFavor || retPend || pagosPrev) ? 'ok' : 'missing' }
@@ -3635,7 +5451,8 @@ function cxElegirGenerado(i) {
 function cxMesInput(pp, lectura) {
   const c = cxDocDe('certificado_retenciones', pp) || {}, l = cxDocDe('resumen_marketplace', pp) || {}, b = cxDocDe('estado_cuenta', pp);
   const k = `${pp.anio}-${String(pp.mes).padStart(2, '0')}`;
-  const syn = (CX.syntage && CX.syntage.conectado) ? (CX.syntage.cfdi_por_mes[k] || {}) : {};
+  const ctk = (!CX.syntage || !CX.syntage.conectado) && CX.contalink && CX.contalink.porMes[k];
+  const syn = (CX.syntage && CX.syntage.conectado) ? (CX.syntage.cfdi_por_mes[k] || {}) : (ctk ? { emitidos: [], recibidos: [], iva_acreditable_pue: ctk.iva_acreditable, iva_ppd_pendiente: 0 } : {});
   let cert;
   if (lectura === 'C') {
     /* Flujo de efectivo: la base es lo cobrado y el IVA sale de esa base. El resto del
@@ -3657,6 +5474,10 @@ function cxDocDe(tipo, pp) {
 }
 function cxAlertas(per, lectura, cu, retPend) {
   const A = [];
+  if ((!CX.syntage || !CX.syntage.conectado) && CX.contalink) {
+    const meses = Object.keys(CX.contalink.porMes).map(k => CX_MESES[Number(k.slice(5)) - 1]).join(', ');
+    A.push(`Sin conexión al SAT (Syntage): el IVA acreditable de ${meses} se cargó directamente desde Contalink (${CX.contalink.fuente}). No se validó contra CFDI del SAT.`);
+  }
   if (CX.syntage && CX.syntage.conectado && !CX.syntage.cfdi_recibidos_anio)
     A.push(`El SAT no reporta facturas recibidas a nombre de este RFC en ${CX.anio}. El IVA acreditable queda en cero hasta que el cliente registre sus gastos con factura a su RFC.`);
   if (cu === 0)
