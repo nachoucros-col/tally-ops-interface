@@ -187,6 +187,23 @@ function handle(body) {
     case 'no_revisado':
       return setEmailFields(ss, body.email_id, { estado: 'Nuevo' }, now);
 
+    /* ── Auditoría (7-sep-2026): estados de acceso a Seller Central para la vista 🚦 Auditoría.
+       Lee la hoja Accesos_SellerCentral del data model (Company_id, EstadoAcceso, Acceso_Payoneer). */
+    case 'accesos_sc': {
+      if (!body._via && !checkUser(body.auth).ok) return { ok: false, error: 'no autenticado' };
+      const shA = SpreadsheetApp.openById(DATAMODEL_ID).getSheetByName('Accesos_SellerCentral');
+      if (!shA) return { ok: false, error: 'sin pestaña Accesos_SellerCentral' };
+      const vA = shA.getDataRange().getValues();
+      const HA = vA[0].map(String), jId = HA.indexOf('Company_id'), jEst = HA.indexOf('EstadoAcceso'), jPay = HA.indexOf('Acceso_Payoneer');
+      if (jId < 0) return { ok: false, error: 'sin columna Company_id en Accesos_SellerCentral' };
+      const accOut = {};
+      for (var ai = 1; ai < vA.length; ai++) {
+        var ak = String(vA[ai][jId] || '').trim();
+        if (ak) accOut[ak] = { estado: jEst >= 0 ? String(vA[ai][jEst] || '') : '', pay: jPay >= 0 ? String(vA[ai][jPay] || '') : '' };
+      }
+      return { ok: true, accesos: accOut };
+    }
+
     /* ── Mantenimiento: compactar Clientes_por_periodo (elimina filas 100% vacías) ──
        Las filas fantasma infladas por getLastRow() ralentizan el proxy del dashboard. */
     case 'cxp_compactar': {

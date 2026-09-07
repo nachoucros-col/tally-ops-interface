@@ -102,6 +102,27 @@ h1{font-size:28px;font-weight:700;letter-spacing:-0.015em;margin-bottom:4px}
 .tag.st-Revisado{background:#e6f4ee;color:#0c6b4b;border:1px solid #bfe3d3}
 .rev-btn{margin-left:auto;font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid var(--gray-200,#e5e5e5);background:#fff;color:#0c6b4b;cursor:pointer;white-space:nowrap}
 .rev-btn:hover{background:#e6f4ee;border-color:#bfe3d3}
+/* 🚦 Auditoría */
+.aud-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;border-radius:999px;padding:4px 12px;white-space:nowrap}
+.aud-verde{background:#e6f4ee;color:#0c6b4b}.aud-amarillo{background:#fff6dd;color:#946a00}.aud-rojo{background:#fde3e3;color:#c62828}.aud-blanco{background:var(--gray-100,#f0f0f0);color:var(--gray-500,#777)}
+.aud-tabla{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--border-light,#e8e8e8);border-radius:var(--radius-md,12px);overflow:hidden;font-size:13.5px;margin:10px 0 16px}
+.aud-tabla th{text-align:left;padding:11px 14px;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500,#777);border-bottom:1px solid var(--border-light,#e8e8e8)}
+.aud-tabla td{padding:11px 14px;border-bottom:1px solid #f2f1ee;vertical-align:middle}
+.aud-tabla tr:last-child td{border-bottom:none}
+.aud-tabla tr.clic{cursor:pointer}.aud-tabla tr.clic:hover td{background:#f7f5ff}
+.aud-miga{font-size:13px;margin:2px 0 14px;color:var(--gray-500,#777)}
+.aud-miga a{color:var(--brand-primary,#6047ff);font-weight:700;cursor:pointer;text-decoration:none}
+.aud-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:0 0 14px}
+.aud-kpi{background:#fff;border:1px solid var(--border-light,#e8e8e8);border-radius:12px;padding:13px 16px}
+.aud-kpi .l{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500,#777)}
+.aud-kpi .v{font-size:21px;font-weight:800;margin-top:2px}
+.aud-kpi .s{font-size:11.5px;color:var(--gray-500,#777);margin-top:2px}
+.aud-el{background:#fffdf6;border:1px solid #f0e6c8;border-radius:10px;padding:9px 13px;margin:7px 0;font-size:13.5px;display:flex;gap:9px;align-items:flex-start}
+.aud-el.rj{background:#fff5f5;border-color:#f3cdcd}
+.aud-el .w{color:var(--gray-500,#777);font-size:12px;margin-top:1px}
+.aud-panel{background:#fff;border:1px solid var(--border-light,#e8e8e8);border-radius:12px;padding:16px 18px;margin:8px 0 16px}
+.aud-h2{font-size:16.5px;font-weight:800;margin:22px 0 4px}
+.aud-q{font-size:12.5px;color:var(--gray-500,#777);margin-bottom:8px}
 .tag.acct{background:transparent;border:1px solid var(--gray-300);color:var(--gray-500)}
 /* Drawer flotante (detalle de correo / redacción) */
 #drawerBack{position:fixed;inset:0;background:rgba(33,33,33,.42);z-index:140;opacity:0;pointer-events:none;transition:opacity .22s}
@@ -290,6 +311,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <a href="#dashboard" data-view="dashboard">📊 Dashboard</a>
     <a href="#bandeja" class="active" data-view="bandeja">📥 Bandeja</a>
     <a href="#calculo" data-view="calculo">🧮 Cálculo de impuestos</a>
+    <a href="#auditoria" data-view="auditoria">🚦 Auditoría</a>
     <a href="#sc" data-view="sc" style="display:none">📦 Documentación</a><!-- oculto por orden de Juan 29-jul-2026, hasta nueva orden -->
     <a href="#tareas" data-view="tareas">✅ Tareas</a>
     <a href="#log" data-view="log" style="display:none">🕐 Actividad</a>
@@ -297,7 +319,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
     <div class="push"></div>
     <div class="status" id="userBox" style="border-top:none"></div>
-    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 7-sep v18 · filtro Revisado en la Bandeja</span></div>
+    <div class="status">Última sync: <b id="lastSync">—</b><br>Corridas del agente: <b>cada hora</b><br><span style="opacity:.55;font-size:10px">build 7-sep v19 · filtro Revisado + módulo de Auditoría</span></div>
   </nav>
 
   <main class="main">
@@ -327,6 +349,18 @@ tr:hover td{background:rgba(96,71,255,.04)}
       <div class="dash-cards" id="dashCards"><div class="dash-empty" style="grid-column:1/-1">Cargando la foto del almacén…</div></div>
       <div id="dashOwners"></div>
       <div id="dashCapa2"></div>
+    </section>
+
+    <!-- ══ AUDITORÍA (integración del POC · 7-sep-2026) ══ -->
+    <section class="view" id="view-auditoria">
+      <div class="page-head">
+        <div>
+          <h1>Auditoría</h1>
+          <p class="lead">El semáforo de auditoría de cada cliente, con los datos reales del almacén y del SAT. Tres niveles: owners → clic en un owner para ver sus clientes con el detalle de cada uno → clic en un cliente para el desglose por período y la gestión de su acceso a Seller Central. Aquí vive lo que antes llegaba por Slack. Los hallazgos son internos: el cliente recibe su reporte «as is».</p>
+        </div>
+        <div class="head-actions"><button class="chip" onclick="audCargar(true)" title="Vuelve a leer la foto del almacén y los accesos">🔄 Actualizar</button></div>
+      </div>
+      <div id="audRoot"><div class="dash-empty">Cargando…</div></div>
     </section>
 
     <!-- ══ BANDEJA ══ -->
@@ -2266,6 +2300,158 @@ function renderLog(){
   <tbody>${rows.map(r=>`<tr><td>${esc(r.timestamp)}</td><td>${esc(r.corrida)}</td><td>${esc(r.correos_revisados)}</td><td>${esc(r.correos_filtrados_fuera)}</td><td>${esc(r.nuevos_triaged)}</td><td>${esc(r.drafts_generados)}</td><td>${esc(r.enviados)}</td><td>${esc(r.sc_actualizados)}</td><td>${esc(r.errores)}</td><td>${esc(r.notas)}</td></tr>`).join('')}</tbody></table>`;
 }
 
+/* ═══════════════ 🚦 AUDITORÍA — integración del POC (7-sep-2026) ═══════════════
+   Fuente: el mismo almacén del Dashboard (metricas_tabla) + hoja Accesos_SellerCentral.
+   Reglas del semáforo: subconjunto computable hoy del catálogo v0.1 (semaforo-auditoria-tally.md).
+   Regla dura: lenguaje humano, nunca códigos. Hallazgos internos — el cliente recibe su reporte «as is». */
+let AUD={cargado:false,rows:[],periodo:'',corte:'',periodos:{},cache:{},accesos:null,nivel:'own',owner:null,cliente:null};
+const AUD_EMOJI={verde:'🟢',amarillo:'🟡',rojo:'🔴',blanco:'⚪'};
+function audSemaforo(c){
+  const rojos=[],amar=[];
+  if(!dashConectado(c)||String(c.en_universo)!=='sí') return {color:'blanco',rojos:[],amar:[],label:'Sin calificar'};
+  const op=String(c.opinion||''),doc=String(c.documentacion||''),cal=String(c.calculo||''),aud=String(c.auditoria||''),rep=String(c.reporte||'');
+  if(op==='negativa') rojos.push(['El SAT califica al cliente con opinión de cumplimiento negativa','La revisión mensual es de Contabilidad; se escala a Legal solo lo que requiere trámite']);
+  if(aud==='sin declarar') rojos.push(['El período está sin declarar','Riesgo activo hasta presentar — recargos de menores a mayores']);
+  if(doc&&doc!=='completa'){const m=doc.match(/^(\d)\/4$/);amar.push([m?('Documentación del período incompleta — '+m[1]+' de 4 documentos entregados'):'Documentación del período incompleta','Insumos de responsabilidad del cliente (promesa 2)']);}
+  if(cal==='calculado') amar.push(['El cálculo de impuestos está presentado, falta la aprobación del cliente','Promesa 3: no basta declarar bien — el cliente debe entender y aprobar']);
+  if(cal==='pendiente') amar.push(['El cálculo de impuestos del período no se ha presentado','Promesa 3 en cero para este período']);
+  if(aud==='requiere corrección') amar.push(['La auditoría del período requiere corrección','Convertir cada hallazgo en plan con dueño y fecha — con plan vigente no escala a rojo']);
+  if(aud==='en revisión') amar.push(['La auditoría del período está en revisión','El estado del mes aún no se firma']);
+  if(aud==='sin auditar') amar.push(['Período declarado, sin auditar','La firma del mes — con el due diligence legal y fiscal como base — está pendiente']);
+  if(rep==='pendiente') amar.push(['El reporte del mes anterior no se ha entregado al cliente','El mes termina cuando el cliente VE sus números (promesa 5)']);
+  if(!op) amar.push(['Opinión de cumplimiento sin lectura este mes','Refrescarla desde Syntage — la señal llega sola']);
+  const color=rojos.length?'rojo':(amar.length?'amarillo':'verde');
+  return {color,rojos,amar,label:color==='verde'?'Verde — auditoría positiva':color==='amarillo'?'En corrección':'Riesgo activo'};
+}
+function audScEstado(id){
+  if(AUD.accesos===null) return {c:'blanco',t:'Accesos sin conectar (backend anterior)'};
+  const a=AUD.accesos[String(id||'').trim()];
+  if(!a||!String(a.estado||'').trim()) return {c:'rojo',t:'Sin acceso registrado'};
+  const v=a.estado.toLowerCase();
+  if(/complet|total|activo|otorgad|listo|verificad|ok|s[ií]$/.test(v)) return {c:'verde',t:a.estado};
+  if(/parcial|pendiente|proceso|solicitad|enviado|espera|por /.test(v)) return {c:'amarillo',t:a.estado};
+  return {c:'rojo',t:a.estado};
+}
+function audPill(color,txt){return `<span class="aud-pill aud-${color}">${AUD_EMOJI[color]||''} ${esc(txt)}</span>`;}
+async function audCargar(force){
+  const root=document.getElementById('audRoot'); if(!root) return;
+  if(AUD.cargado&&!force){ audRender(); return; }
+  root.innerHTML='<div class="dash-empty">Cargando la foto del almacén…</div>';
+  const r=await dashTabla('');
+  if(!r||!r.ok){ root.innerHTML='<div class="dash-empty">'+esc((r&&r.error)||'sin respuesta del almacén')+'</div>'; return; }
+  AUD.rows=r.clientes||[]; AUD.periodo=r.periodo||''; AUD.corte=r.fecha_corte||''; AUD.periodos=r.periodos||{}; AUD.cache={}; AUD.cache[AUD.periodo]=AUD.rows;
+  try{ const ac=await api('accesos_sc',{auth:dashAuth()},60000); AUD.accesos=(ac&&ac.ok)?(ac.accesos||{}):null; }catch(e){ AUD.accesos=null; }
+  AUD.cargado=true; if(force){AUD.nivel='own';AUD.owner=null;AUD.cliente=null;}
+  audRender();
+}
+function audIrOwners(){AUD.nivel='own';AUD.owner=null;AUD.cliente=null;audRender();}
+function audIrOwner(o){AUD.nivel='owner';AUD.owner=o;AUD.cliente=null;audRender();}
+function audIrCliente(id){AUD.nivel='cliente';AUD.cliente=id;audRender();}
+function audMiga(){
+  let m=`<a onclick="audIrOwners()">🚦 Tablero</a>`;
+  if(AUD.nivel!=='own') m+=' › '+(AUD.nivel==='owner'?`<b>${esc(AUD.owner)}</b>`:`<a onclick="audIrOwner('${esc(AUD.owner)}')">${esc(AUD.owner)}</a>`);
+  if(AUD.nivel==='cliente'){const c=AUD.rows.find(x=>x.company_id===AUD.cliente);m+=` › <b>${esc((c&&c.cliente)||AUD.cliente)}</b>`;}
+  return `<div class="aud-miga">${m} <span style="margin-left:12px">Período <b>${esc(AUD.periodo)}</b> · corte ${esc(AUD.corte)}</span></div>`;
+}
+function audOwnersAgg(){
+  const m={};
+  AUD.rows.forEach(c=>{
+    const o=c.owner||'(sin owner)';
+    const x=(m[o]=m[o]||{owner:o,tot:0,g:0,y:0,r:0,b:0,sg:0,sy:0,sr:0});
+    x.tot++;
+    const s=audSemaforo(c); if(s.color==='verde')x.g++;else if(s.color==='amarillo')x.y++;else if(s.color==='rojo')x.r++;else x.b++;
+    const sc=audScEstado(c.company_id); if(sc.c==='verde')x.sg++;else if(sc.c==='amarillo')x.sy++;else if(sc.c==='rojo')x.sr++;
+  });
+  return Object.values(m).sort((a,b)=>b.tot-a.tot);
+}
+function audRender(){
+  const root=document.getElementById('audRoot'); if(!root) return;
+  if(AUD.nivel==='own') root.innerHTML=audVistaOwners();
+  else if(AUD.nivel==='owner') root.innerHTML=audVistaOwner();
+  else { root.innerHTML=audVistaCliente(); audLlenarPeriodos(); }
+}
+function audVistaOwners(){
+  const os=audOwnersAgg();
+  let G=0,Y=0,R=0,B=0; os.forEach(o=>{G+=o.g;Y+=o.y;R+=o.r;B+=o.b;});
+  const calif=G+Y+R, m4=calif?Math.round(100*G/calif):0;
+  const filas=os.map(o=>{
+    const calO=o.g+o.y+o.r;
+    return `<tr class="clic" onclick="audIrOwner('${esc(o.owner)}')">
+      <td><b>${esc(o.owner)}</b></td><td style="text-align:right">${o.tot}</td>
+      <td>🟢 <b>${o.g}</b> &nbsp;🟡 <b>${o.y}</b> &nbsp;🔴 <b>${o.r}</b> &nbsp;⚪ <b>${o.b}</b></td>
+      <td>🟢 <b>${o.sg}</b> &nbsp;🟡 <b>${o.sy}</b> &nbsp;🔴 <b>${o.sr}</b></td>
+      <td style="text-align:right"><b>${calO?Math.round(100*o.g/calO):0}%</b></td>
+      <td><span class="chip" style="pointer-events:none">Ver clientes →</span></td></tr>`;}).join('');
+  return `${audMiga()}
+  <div class="aud-kpis">
+    <div class="aud-kpi"><div class="l">Clientes en el corte</div><div class="v">${AUD.rows.length}</div><div class="s">${calif} califican (universo SAT) · ${B} sin calificar</div></div>
+    <div class="aud-kpi"><div class="l">Semáforo</div><div class="v">🟢 ${G} · 🟡 ${Y} · 🔴 ${R}</div><div class="s">del período ${esc(AUD.periodo)}</div></div>
+    <div class="aud-kpi"><div class="l">Métrica #4 · % en verde</div><div class="v" style="color:#0c6b4b">${m4}%</div><div class="s">auditorías positivas / clientes calificables</div></div>
+    <div class="aud-kpi"><div class="l">Accesos Seller Central</div><div class="v">${AUD.accesos===null?'—':'🟢 '+os.reduce((s,o)=>s+o.sg,0)+' · 🟡 '+os.reduce((s,o)=>s+o.sy,0)+' · 🔴 '+os.reduce((s,o)=>s+o.sr,0)}</div><div class="s">${AUD.accesos===null?'requiere el deploy del backend':'gestionables desde CX, en el detalle del cliente'}</div></div>
+  </div>
+  <table class="aud-tabla"><thead><tr><th>Owner</th><th style="text-align:right">Clientes</th><th>Semáforo de auditoría</th><th>Acceso Seller Central</th><th style="text-align:right">% verde</th><th></th></tr></thead><tbody>${filas}</tbody></table>
+  <p style="font-size:12px;color:var(--gray-500,#777)">🟢 exige: opinión SAT positiva, documentación completa, cálculo aprobado, auditoría firmada y reporte entregado. 🔴 = opinión negativa o período sin declarar. Lo demás en curso = 🟡. ⚪ = fuera del universo SAT del mes.</p>`;
+}
+function audVistaOwner(){
+  const cls=AUD.rows.filter(c=>(c.owner||'(sin owner)')===AUD.owner)
+    .map(c=>({c,s:audSemaforo(c),sc:audScEstado(c.company_id)}))
+    .sort((a,b)=>({rojo:0,amarillo:1,verde:2,blanco:3}[a.s.color]-{rojo:0,amarillo:1,verde:2,blanco:3}[b.s.color]));
+  const filas=cls.map(({c,s,sc})=>`<tr class="clic" onclick="audIrCliente('${esc(c.company_id)}')">
+    <td><b>${esc(c.cliente||c.company_id)}</b><div style="font-size:11px;color:var(--gray-500,#777)">${esc(c.company_id)}</div></td>
+    <td>${audPill(s.color,s.label)}</td>
+    <td style="text-align:right"><b>${s.rojos.length+s.amar.length}</b></td>
+    <td>${audPill(sc.c,sc.t)}</td>
+    <td>${dashTags(c)}</td>
+    <td><span class="chip" style="pointer-events:none">Detalle por período →</span></td></tr>`).join('');
+  return `${audMiga()}
+  <table class="aud-tabla"><thead><tr><th>Cliente</th><th>Auditoría</th><th style="text-align:right">Elementos abiertos</th><th>Acceso Seller Central</th><th>Conexión</th><th></th></tr></thead><tbody>${filas||'<tr><td colspan="6">Sin clientes de este owner en el corte.</td></tr>'}</tbody></table>`;
+}
+function audVistaCliente(){
+  const c=AUD.rows.find(x=>x.company_id===AUD.cliente);
+  if(!c) return audMiga()+'<div class="dash-empty">Cliente fuera del corte actual.</div>';
+  const s=audSemaforo(c), sc=audScEstado(c.company_id);
+  const els=[...s.rojos.map(x=>['rj','🔴',x]),...s.amar.map(x=>['am','🟡',x])]
+    .map(([k,e,x])=>`<div class="aud-el ${k}"><div>${e}</div><div><b>${esc(x[0])}</b><div class="w">${esc(x[1]||'')}</div></div></div>`).join('');
+  const cliNombre=String(c.cliente||'').replace(/['"]/g,'');
+  const acc=`<div class="aud-panel"><b>${audPill(sc.c,sc.t)}</b>${AUD.accesos&&AUD.accesos[c.company_id]&&AUD.accesos[c.company_id].pay?`<span style="margin-left:10px;font-size:12.5px;color:var(--gray-500,#777)">Payoneer: ${esc(AUD.accesos[c.company_id].pay)}</span>`:''}
+    <div style="margin-top:10px">
+      <button class="btn btn-primary" onclick="abrirTareas('Auditoría · Acceso SC','${esc(c.company_id)}','${esc(cliNombre)}')">📋 Crear tarea de acceso (CX)</button>
+      <button class="btn btn-ghost" onclick="abrirTareas('Auditoría','${esc(c.company_id)}','${esc(cliNombre)}')">📋 Crear tarea de auditoría</button>
+    </div>
+    <div style="font-size:12px;color:var(--gray-500,#777);margin-top:8px">El estado viene de la tabla de accesos del sistema. Las tareas caen al tablero ✅ Tareas con el cliente ya vinculado — sin pasar por Slack.</div></div>`;
+  return `${audMiga()}
+  <div class="aud-kpis">
+    <div class="aud-kpi"><div class="l">Semáforo de auditoría</div><div class="v" style="font-size:16px">${audPill(s.color,s.label)}</div><div class="s">período ${esc(AUD.periodo)}</div></div>
+    <div class="aud-kpi"><div class="l">Elementos abiertos</div><div class="v">${s.rojos.length+s.amar.length}</div><div class="s">${s.rojos.length} rojos · ${s.amar.length} amarillos</div></div>
+    <div class="aud-kpi"><div class="l">Owner</div><div class="v" style="font-size:17px">${esc(c.owner||'(sin owner)')}</div><div class="s">${dashTags(c)}</div></div>
+  </div>
+  <div class="aud-h2">Elementos de auditoría abiertos</div>
+  <div class="aud-q">En lenguaje humano, con su lectura — internos, nunca viajan al cliente («as is»).</div>
+  ${els||'<div class="aud-panel">Sin elementos abiertos en este período. ✅</div>'}
+  <div class="aud-h2">Desglose por período</div>
+  <div class="aud-q">La historia del cliente, mes a mes — cada fila con los elementos de ese cierre.</div>
+  <div id="audPeriodos"><div class="dash-empty">Cargando períodos…</div></div>
+  <div class="aud-h2">Acceso · Amazon Seller Central</div>
+  <div class="aud-q">Gestión desde CX, aquí mismo.</div>
+  ${acc}`;
+}
+async function audLlenarPeriodos(){
+  const el=document.getElementById('audPeriodos'); if(!el) return;
+  const pers=Object.keys(AUD.periodos||{}).sort().reverse().slice(0,6);
+  const filas=[];
+  for(const per of pers){
+    if(!AUD.cache[per]){ const r=await dashTabla(per); AUD.cache[per]=(r&&r.ok)?(r.clientes||[]):[]; }
+    const row=AUD.cache[per].find(x=>x.company_id===AUD.cliente);
+    if(!row){ filas.push(`<tr><td><b>${esc(per)}</b></td><td>${audPill('blanco','Sin datos en este corte')}</td><td>—</td></tr>`); }
+    else { const s=audSemaforo(row);
+      const det=[...s.rojos,...s.amar].map(x=>x[0]).join(' · ')||'Cierre limpio';
+      filas.push(`<tr><td><b>${esc(per)}</b></td><td>${audPill(s.color,s.label)}</td><td style="font-size:12.5px">${esc(det)}</td></tr>`); }
+    if(document.getElementById('audPeriodos')!==el) return; // el usuario navegó
+    el.innerHTML=`<table class="aud-tabla"><thead><tr><th style="width:110px">Período</th><th style="width:210px">Estado</th><th>Elementos del cierre</th></tr></thead><tbody>${filas.join('')}</tbody></table>`;
+  }
+  if(!pers.length) el.innerHTML='<div class="dash-empty">Sin períodos en el almacén.</div>';
+}
+
 /* ═══════════════ UTILIDADES / NAV ═══════════════ */
 function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3500); }
@@ -2276,6 +2462,7 @@ document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',ev=>{
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-'+a.dataset.view).classList.add('active');
   if(a.dataset.view==='calculo' && typeof cxCargarPadron==='function') cxCargarPadron().catch(()=>{});
+  if(a.dataset.view==='auditoria' && typeof audCargar==='function') audCargar().catch(()=>{});
 }));
 document.getElementById('catChips').addEventListener('click',ev=>{
   const ch=ev.target.closest('.chip');
