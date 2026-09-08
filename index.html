@@ -491,6 +491,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
             <button class="btn btn-ghost" onclick="openKbar()">🔄 Cambiar cliente</button>
             <button class="btn btn-ghost" onclick="rptPreview()">👁 Vista previa</button>
             <button class="btn btn-primary" onclick="rptDownload()">⬇️ Descargar reporte HTML</button>
+            <button class="btn btn-ghost" onclick="rptDeck()" title="Abre el reporte en formato presentación 16:9, listo para guardar como PDF">🖥 PDF presentación</button>
             <button class="btn btn-ghost" onclick="openOps()" title="Vista interna del equipo — nada de esto sale en el reporte del cliente">⚙️ Ops</button>
           </div>
         </div>
@@ -512,6 +513,11 @@ tr:hover td{background:rgba(96,71,255,.04)}
               <h4>Detalle mes a mes</h4>
               <div class="csub">Declaraciones, impuestos y ventas consolidados</div>
               <div id="rptTable" style="overflow-x:auto"></div>
+            </div>
+            <div class="chart-card" id="plCard">
+              <h4>Estado de resultados del período (P&amp;L)</h4>
+              <div class="csub" id="plSub">Ventas, comisiones del marketplace y gastos facturados del período.</div>
+              <div id="plBox"><span style="color:var(--t3);font-size:13px">⏳ …</span></div>
             </div>
             <div class="chart-card" id="cierreCard">
               <h4>Cierre del mes — documentos del período</h4>
@@ -2847,7 +2853,7 @@ async function cliQuitar(cid,email){
   else toast('❌ '+(r.error||'error'));
 }
 /* ═══════════════ 📊 REPORTES DE CLIENTE ═══════════════ */
-const RPT={cid:null,data:null,docs:null,lang:'en',ctxSel:{},loading:false,periodo:'',periodoK:0,forceDocs:false,tecnica:null};
+const RPT={cid:null,data:null,docs:null,lang:'en',ctxSel:{},loading:false,periodo:'',periodoK:0,forceDocs:false,tecnica:null,pl:null,plStatus:'',plError:''};
 
 /* — modales — */
 function openModal(id){ document.getElementById(id).classList.add('open'); document.body.style.overflow='hidden'; }
@@ -3006,6 +3012,7 @@ function setRptPeriodo(pid){
   RPT.periodoK = hit ? hit.k : 0;
   renderRpt();
   loadDocs(true);                       // los documentos del cierre siguen al período
+  rptLoadPL(false);                     // el estado de resultados también sigue al período
   toast(RPT.periodo ? '📅 Período de análisis: '+(hit?hit.label:RPT.periodo) : '📅 Período: último con datos');
 }
 /** Etiqueta del período efectivo (el elegido, o el último de la serie). */
@@ -3117,12 +3124,12 @@ document.getElementById('kbarInput').addEventListener('input',e=>{ kbarIdx=0; re
 
 /* — carga de cliente — */
 async function loadClientReport(cid){
-  RPT.cid=cid; RPT.data=null; RPT.docs=null; RPT.ctxSel={}; RPT.periodo=''; RPT.periodoK=0;
+  RPT.cid=cid; RPT.data=null; RPT.docs=null; RPT.ctxSel={}; RPT.periodo=''; RPT.periodoK=0; RPT.pl=null; RPT.plStatus=''; RPT.plError='';
   document.getElementById('rptEmpty').style.display='none';
   document.getElementById('rptBody').style.display='block';
   document.getElementById('rptName').innerHTML='Cargando…';
   document.getElementById('rptMeta').textContent=cid;
-  ['rptKpis','chartVentas','chartImpuestos','rptTable','docsList','ctxList','secList'].forEach(id=>{const e=document.getElementById(id); if(e) e.innerHTML='<span style="color:var(--t3);font-size:13px">⏳ …</span>';});
+  ['rptKpis','chartVentas','chartImpuestos','rptTable','plBox','docsList','ctxList','secList'].forEach(id=>{const e=document.getElementById(id); if(e) e.innerHTML='<span style="color:var(--t3);font-size:13px">⏳ …</span>';});
   loadDocs(true);
   const r=await api('report_client_data',{company_id:cid});
   if(!r.ok){
@@ -3141,6 +3148,7 @@ async function loadClientReport(cid){
   RPT.lang = idio.startsWith('es')||idio.includes('espa') ? 'es' : 'en';
   (CONTEXTOS.filter(c=>c.company_id===cid)).forEach(c=>{ RPT.ctxSel[c.contexto_id]=true; });
   renderRpt();
+  rptLoadPL(false);
 }
 function setRptLang(l){ RPT.lang=l; renderRpt(); }
 
@@ -3162,7 +3170,7 @@ function renderRpt(){
   document.getElementById('chartVentas').innerHTML=barChartSVG(S,r=>r.ingresos,'#6047ff',lang);
   document.getElementById('chartImpuestos').innerHTML=barChartSVG(S,r=>r.iva+r.isr,TAX_POLAR,lang);
   document.getElementById('rptTable').innerHTML=rptTableHTML(S,'es');
-  renderCtxList(); renderSecList();
+  renderCtxList(); renderSecList(); renderPL();
 }
 function rptTableHTML(S,lang){
   const L=lang==='es'?['Período','Ventas','Gastos','Retención Amazon','IVA','ISR','Declaración']:['Period','Sales','Expenses','Amazon withholding','VAT (IVA)','Income tax (ISR)','Filing'];
@@ -3682,6 +3690,215 @@ const RPT_I18N={
       disc:'Las cifras provienen de los registros contables de Tally para tu empresa en México a la fecha del reporte. Las proyecciones son estimaciones basadas en los supuestos indicados — no garantizan resultados. ¿Dudas? Escribe a juan@tally.legal.',
       noSec:'Esta sección se completará durante tu sesión con Tally.'}
 };
+
+/* ═══════════════ 📑 P&L DEL CLIENTE — estado de resultados operativo ═══════════════
+   Fuente única y verificable: el cálculo de impuestos ya generado para el período.
+   De ahí salen las ventas (certificado de retenciones del marketplace), las
+   comisiones (liquidación mensual del marketplace) y los gastos facturados
+   (CFDI recibidos y pagados en el mes). Aquí no se estima nada: si el período
+   todavía no tiene cálculo generado, el bloque lo dice con todas sus letras.
+
+   El costo de la mercancía vendida NO vive en el sistema contable — sale del
+   pedimento de importación o de la factura del proveedor. Por eso la última
+   línea es «utilidad operativa antes de costo de inventario» y nunca «utilidad
+   neta»: presentar una utilidad sin el costo del producto sería un número falso. */
+const PL_T={
+  es:{eye:'Estado de resultados',
+      t:'Lo que entró, lo que costó y con qué te quedaste',
+      q:'Tu P&amp;L del período, línea por línea y con la fuente de cada número.',
+      col1:'Concepto', col2:'Importe (MXN)',
+      r1:'Ventas del período (base sin IVA)',
+      r2:'(−) Comisiones y tarifas del marketplace',
+      r3:'(−) Gastos facturados con CFDI (subtotal)',
+      r4:'(=) Total de costos y gastos documentados',
+      r5:'Utilidad operativa antes de costo de inventario',
+      r6:'Margen operativo sobre ventas',
+      memoT:'Fuera del resultado — tu posición fiscal del mes',
+      memoQ:'Los impuestos no son parte del resultado operativo, pero sí de tu caja.',
+      m1:'IVA a pagar del mes', m2:'Saldo de IVA a favor que se arrastra',
+      m3:'IVA retenido por el marketplace', m4:'ISR retenido por el marketplace',
+      m5:'ISR a pagar del mes', m6:'Órdenes del mes', m7:'Ticket promedio por orden',
+      m8:'Ingreso neto de la liquidación', m9:'Transferido a tu cuenta bancaria',
+      compT:'De qué se compone el costo del marketplace',
+      compQ:'Cada concepto que el marketplace descontó de tus ventas este mes.',
+      compEmpty:'La liquidación del mes no trae desglose de conceptos: sólo el total de tarifas netas.',
+      cfdiN:'CFDI recibidos y pagados en el mes',
+      ctrlOk:'✓ El desglose de comisiones cuadra contra las tarifas netas de la liquidación.',
+      ctrlBad:'⚠️ El desglose de comisiones no cuadra contra las tarifas netas de la liquidación. El contador lo está revisando.',
+      cogsT:'Lo que este estado de resultados todavía no incluye',
+      cogs:'No incluye el costo de la mercancía vendida. Ese dato no vive en el sistema contable: sale del pedimento de importación o de la factura de tu proveedor. Por eso la última línea es utilidad operativa antes de costo de inventario y no utilidad neta — tu utilidad real es menor, y es sobre ella que se determina el ISR del ejercicio.',
+      srcT:'De dónde sale cada número',
+      src1:'Ventas: certificado de retenciones que emite el marketplace — es el documento que ve el SAT.',
+      src2:'Comisiones y tarifas: liquidación mensual del marketplace.',
+      src3:'Gastos: CFDI recibidos y efectivamente pagados dentro del mes, a nombre de tu empresa.',
+      draft:'Estas cifras vienen de un cálculo en borrador: el contador todavía no las cierra.',
+      corr:'Estas cifras vienen de un cálculo en corrección: hay observaciones abiertas.',
+      noneT:'Estado de resultados del período',
+      none:'Todavía no hay un cálculo de impuestos generado para este período, y el estado de resultados se construye únicamente con esas cifras — no se estima ninguna. En cuanto el cálculo del período esté generado, este bloque se llena solo.',
+      loading:'Buscando el cálculo del período…',
+      err:'No se pudo leer el cálculo del período'},
+  en:{eye:'Income statement',
+      t:'What came in, what it cost, and what you kept',
+      q:'Your P&amp;L for the period, line by line, with the source of every number.',
+      col1:'Line', col2:'Amount (MXN)',
+      r1:'Sales for the period (net of VAT)',
+      r2:'(−) Marketplace commissions and fees',
+      r3:'(−) Invoiced expenses with CFDI (subtotal)',
+      r4:'(=) Total documented costs and expenses',
+      r5:'Operating profit before cost of goods',
+      r6:'Operating margin on sales',
+      memoT:'Below the line — your tax position for the month',
+      memoQ:'Taxes are not part of the operating result, but they are part of your cash.',
+      m1:'VAT payable for the month', m2:'VAT credit carried forward',
+      m3:'VAT withheld by the marketplace', m4:'Income tax withheld by the marketplace',
+      m5:'Income tax payable for the month', m6:'Orders in the month', m7:'Average ticket per order',
+      m8:'Net proceeds on the settlement', m9:'Transferred to your bank account',
+      compT:'What the marketplace cost is made of',
+      compQ:'Every line the marketplace deducted from your sales this month.',
+      compEmpty:'The monthly settlement carries no line detail: only the net fee total.',
+      cfdiN:'CFDI received and paid within the month',
+      ctrlOk:'✓ The fee detail reconciles against the net fees on the settlement.',
+      ctrlBad:'⚠️ The fee detail does not reconcile against the net fees on the settlement. Your accountant is reviewing it.',
+      cogsT:'What this income statement does not include yet',
+      cogs:'It does not include the cost of goods sold. That figure does not live in the accounting system: it comes from the import declaration or your supplier invoice. That is why the last line is operating profit before cost of goods and not net profit — your real profit is lower, and it is the one the annual income tax is determined on.',
+      srcT:'Where each number comes from',
+      src1:'Sales: the withholding certificate issued by the marketplace — the document the tax office sees.',
+      src2:'Commissions and fees: the monthly marketplace settlement.',
+      src3:'Expenses: CFDI received and actually paid within the month, issued to your company.',
+      draft:'These figures come from a draft calculation: your accountant has not closed it yet.',
+      corr:'These figures come from a calculation under correction: there are open observations.',
+      noneT:'Income statement for the period',
+      none:'There is no tax calculation generated for this period yet, and the income statement is built only from those figures — nothing is estimated. As soon as the calculation for the period exists, this block fills itself in.',
+      loading:'Looking for the calculation of the period…',
+      err:'The calculation for the period could not be read'}
+};
+
+let CALC_INDEX=null;
+
+/* El período efectivo del reporte: el elegido en el selector o el último con datos. */
+function rptPeriodoActual(){
+  const lista=rptPeriodosDisponibles();
+  return lista.find(p=>p.pid===RPT.periodo) || lista[0] || null;
+}
+
+/* Trae el cálculo del período del cliente. Prefiere el declarado sobre el
+   aprobado, y el aprobado sobre el borrador: gana la versión más firme. */
+async function rptLoadPL(force){
+  RPT.pl=null; RPT.plError=''; RPT.plStatus='cargando'; renderPL();
+  if(!RPT.cid){ RPT.plStatus='sin_cliente'; renderPL(); return; }
+  const per=rptPeriodoActual();
+  if(!per){ RPT.plStatus='sin_periodo'; renderPL(); return; }
+  try{
+    if(CALC_INDEX===null||force){
+      const l=await capi('calc_listar',{});
+      CALC_INDEX=(l&&l.ok&&l.calculos)?l.calculos:[];
+    }
+    const ORD={filed:0,approved:1,correccion:2,draft:3};
+    const cand=CALC_INDEX
+      .filter(c=>String(c.company_id||'')===String(RPT.cid)
+        && Number(c.anio)===per.y && Number(c.mes)===per.m)
+      .sort((a,b)=>(ORD[a.estado]==null?9:ORD[a.estado])-(ORD[b.estado]==null?9:ORD[b.estado]));
+    if(!cand.length){ RPT.plStatus='sin_calculo'; renderPL(); return; }
+    const g=await capi('calc_get',{calc_id:cand[0].calc_id});
+    if(!g||!g.ok){ RPT.plStatus='error'; RPT.plError=(g&&g.error)||'sin respuesta'; renderPL(); return; }
+    RPT.pl={fila:g.fila,calc:g.calculo,periodo:per};
+    RPT.plStatus='ok';
+  }catch(e){ RPT.plStatus='error'; RPT.plError=String(e&&e.message||e); }
+  renderPL();
+}
+
+/* Modelo normalizado del P&L. null = no hay cálculo del período. */
+function rptPLModel(){
+  if(RPT.plStatus!=='ok'||!RPT.pl) return null;
+  const c=RPT.pl.calc||{}, co=c.costos||{}, rs=c.resumen||{}, iv=c.iva||{}, is=c.isr||{};
+  const ventas=Number(rs.ventas_base)||0;
+  const mk=Math.abs(Number(co.marketplace_total)||0);
+  const cfdi=Number(co.cfdi_subtotal)||0;
+  const total=Number(co.total)||0;
+  const util=Number(co.utilidad_estimada)||0;
+  const ord=(rs.ordenes==null||rs.ordenes==='')?null:Number(rs.ordenes);
+  return {
+    per:RPT.pl.periodo, estado:String((RPT.pl.fila&&RPT.pl.fila.estado)||''),
+    ventas, mk, cfdi, total, util,
+    margen: ventas ? util/ventas*100 : null,
+    ordenes:ord, ticket:(ord? ventas/ord : null),
+    ivaPagar:Number(iv.a_pagar)||0, ivaFavor:Number(iv.saldo_favor_arrastre)||0,
+    ivaRet:Number(iv.retenido)||0, isrRet:Number(rs.isr_retenido_mes)||0,
+    isrPagar:(is.a_pagar==null?null:Number(is.a_pagar)),
+    detalle:(co.marketplace_detalle||[]).filter(x=>Number(x.importe)!==0),
+    cfdiN:Number(co.cfdi_n)||0, control:co.marketplace_control,
+    liquidacion:(rs.ingreso_liquidacion==null?null:Number(rs.ingreso_liquidacion)),
+    transferencias:(rs.transferencias==null?null:Number(rs.transferencias))
+  };
+}
+
+function plAviso(P,lang){
+  const t=PL_T[lang];
+  if(P.estado==='draft') return t.draft;
+  if(P.estado==='correccion') return t.corr;
+  return '';
+}
+function plPct(n){ return (n==null?'—':(n<0?'−':'')+Math.abs(n).toFixed(1)+'%'); }
+
+/* La tabla del P&L. `cls` deja usarla con el estilo del reporte o el de la interfaz. */
+function plTablaHTML(P,lang,cls){
+  const t=PL_T[lang];
+  const row=(l,v,strong)=>'<tr'+(strong?' style="font-weight:700"':'')+'><td>'+l+'</td><td class="num">'+v+'</td></tr>';
+  return '<table class="'+(cls||'')+'"><thead><tr><th>'+t.col1+'</th><th class="num">'+t.col2+'</th></tr></thead><tbody>'
+    + row(t.r1, fmtM(P.ventas,2))
+    + row(t.r2, '−'+fmtM(P.mk,2))
+    + row(t.r3, '−'+fmtM(P.cfdi,2))
+    + row(t.r4, '−'+fmtM(P.total,2))
+    + row(t.r5, fmtM(P.util,2), true)
+    + row(t.r6, plPct(P.margen), true)
+    + '</tbody></table>';
+}
+function plMemoHTML(P,lang,cls){
+  const t=PL_T[lang], r=[];
+  const add=(l,v)=>r.push('<tr><td>'+l+'</td><td class="num">'+v+'</td></tr>');
+  add(t.m1,fmtM(P.ivaPagar,2));
+  if(P.ivaFavor>0) add(t.m2,fmtM(P.ivaFavor,2));
+  add(t.m3,fmtM(P.ivaRet,2));
+  add(t.m4,fmtM(P.isrRet,2));
+  add(t.m5,P.isrPagar==null?(lang==='es'?'pendiente del coeficiente de utilidad':'pending the profit coefficient'):fmtM(P.isrPagar,2));
+  if(P.ordenes!=null) add(t.m6,String(P.ordenes));
+  if(P.ticket!=null) add(t.m7,fmtM(P.ticket,2));
+  if(P.liquidacion!=null) add(t.m8,fmtM(P.liquidacion,2));
+  if(P.transferencias!=null) add(t.m9,fmtM(P.transferencias,2));
+  return '<table class="'+(cls||'')+'"><thead><tr><th>'+t.memoT+'</th><th class="num">MXN</th></tr></thead><tbody>'+r.join('')+'</tbody></table>';
+}
+function plCompHTML(P,lang,cls){
+  const t=PL_T[lang];
+  if(!P.detalle.length) return '<p class="muted">'+t.compEmpty+'</p>';
+  return '<table class="'+(cls||'')+'"><thead><tr><th>'+t.col1+'</th><th class="num">'+t.col2+'</th></tr></thead><tbody>'
+    + P.detalle.map(x=>'<tr><td>'+esc(x.concepto||x.tipo||x.nombre||'—')+'</td><td class="num">'+fmtM(Math.abs(Number(x.importe)||0),2)+'</td></tr>').join('')
+    + '<tr style="font-weight:700"><td>'+t.r2.replace('(−) ','')+'</td><td class="num">'+fmtM(P.mk,2)+'</td></tr>'
+    + '</tbody></table>'
+    + (P.control===true?'<p class="muted">'+t.ctrlOk+'</p>':(P.control===false?'<p class="muted">'+t.ctrlBad+'</p>':''));
+}
+
+/* Tarjeta del P&L dentro de la interfaz: el equipo ve antes de la vista previa
+   exactamente lo que el cliente va a leer, y por qué falta si falta. */
+function renderPL(){
+  const box=document.getElementById('plBox'), sub=document.getElementById('plSub');
+  if(!box) return;
+  const lang='es', t=PL_T[lang];
+  const per=RPT.data?rptPeriodoActual():null;
+  if(sub) sub.innerHTML=per?('Período <b>'+esc(per.label)+'</b> · fuente: el cálculo de impuestos generado para ese mes'):'Selecciona un cliente';
+  if(RPT.plStatus==='cargando'){ box.innerHTML='<span style="color:var(--t3);font-size:13px">⏳ '+t.loading+'</span>'; return; }
+  if(RPT.plStatus==='sin_calculo'){
+    box.innerHTML='<div class="notice warn">📄 '+t.none+'<div class="btn-row"><button class="btn btn-ghost" onclick="switchView(\'calculo\')">🧮 Ir a generar el cálculo</button><button class="btn btn-ghost" onclick="rptLoadPL(true)">🔄 Volver a buscar</button></div></div>'; return; }
+  if(RPT.plStatus==='error'){ box.innerHTML='<div class="notice warn">❌ '+t.err+': '+esc(RPT.plError||'')+'</div>'; return; }
+  const P=rptPLModel();
+  if(!P){ box.innerHTML='<p style="color:var(--t2);font-size:13.5px">—</p>'; return; }
+  const av=plAviso(P,lang);
+  box.innerHTML=(av?'<div class="notice warn">⚠️ '+av+'</div>':'<div class="notice ok">✅ Cálculo '+(P.estado==='filed'?'declarado':'aprobado')+' — estas son las cifras que verá el cliente.</div>')
+    + plTablaHTML(P,lang,'mini-table')
+    + '<div class="notice info">🧱 '+t.cogs+'</div>'
+    + '<details style="margin-top:10px"><summary style="cursor:pointer;font-size:13px;color:var(--t2)">Ver posición fiscal del mes y composición del costo</summary>'
+    + plMemoHTML(P,lang,'mini-table') + plCompHTML(P,lang,'mini-table') + '</details>';
+}
+
 function buildReportHTML(){
   Object.keys(GLOSARIO).forEach(k=>delete GLOSARIO[k]);
   const d=RPT.data, f=d.ficha, lang=RPT.lang, T=RPT_I18N[lang], S=rptSeries();
@@ -3853,10 +4070,87 @@ function buildReportHTML(){
   // Las bandas se consumen en orden a lo largo del documento: cada acto
   // entrega el siguiente hallazgo, así el cliente nunca lee dos tablas seguidas.
   // Si no hay quote editorial, la portada toma el primer hallazgo — y ese ya no se repite abajo.
+  /* Numeración de actos: el estado de resultados entra como acto 3 y recorre los demás. */
+  let _actN=2; const AN=()=>String(++_actN);
   const coverQ = heroQuote || (FIND[0]?gloss(FIND[0].quote):'');
   let _bi = (!heroQuote && FIND.length) ? 1 : 0;
   const band=(n)=>{ let o=''; for(let k=0;k<(n||1)&&_bi<FIND.length;k++){ o+=bandHTML(FIND[_bi],_bi); _bi++; } return o; };
   const bandRest=()=>band(FIND.length-_bi);
+  /* ═══ ESTADO DE RESULTADOS DEL PERÍODO (P&L) ═══
+     Un solo modelo alimenta el documento y la presentación. Si el período no
+     tiene cálculo generado, el acto no se imprime en el reporte del cliente:
+     la interfaz sí lo señala, para que el equipo lo genere antes de la sesión. */
+  const PL=rptPLModel(), PLT=PL_T[lang];
+  const plAv=PL?plAviso(PL,lang):'';
+  const plAct = PL ? `
+  <section class="act reveal">
+    <div class="act-h"><div class="act-n">${AN()}</div><div><h2>${PLT.t}</h2><div class="q">${PLT.q}</div></div></div>
+    ${plAv?`<p class="muted" style="border-left:3px solid var(--warn);padding-left:14px">${plAv}</p>`:''}
+    ${plTablaHTML(PL,lang,'')}
+    <div class="blk"><h3 class="bt">${PLT.cogsT}</h3><p>${PLT.cogs}</p></div>
+    <div class="blk"><h3 class="bt">${PLT.compT}</h3><p>${PLT.compQ}</p>${plCompHTML(PL,lang,'')}</div>
+    <div class="blk"><h3 class="bt">${PLT.memoT}</h3><p>${PLT.memoQ}</p>${plMemoHTML(PL,lang,'')}</div>
+    <div class="blk"><h3 class="bt">${PLT.srcT}</h3><ul><li>${PLT.src1}</li><li>${PLT.src2}</li><li>${PLT.src3}</li></ul></div>
+  </section>` : '';
+
+  /* ═══ PRESENTACIÓN — los mismos hechos, un slide por concepto ═══
+     Se construye con las mismas variables del documento: si algo cambia en el
+     reporte, cambia en el deck. El paginador del cliente parte lo que no cabe. */
+  const BM=brandMarkHTML(20), bmDiv=`<div class="brand-mark">${BM}</div>`;
+  const dkHead=(eye,title,sub)=>`<div class="eyebrow">${eye}</div><h2 class="title">${title}</h2>${sub?`<p class="sub">${sub}</p>`:''}`;
+  const dkSlide=(cls,head,body)=>`<section class="slide${cls?' '+cls:''}">${bmDiv}<div class="shead">${head}</div><div class="sbody">${body||''}</div><div class="slide-num"></div></section>`;
+  const DK=[];
+  DK.push(`<section class="slide cover-s">${bmDiv}<div class="shead">
+      <div class="eyebrow">${T.cvEye}</div>
+      <h1>${esc(f.nombre)}</h1>
+      <p class="sub">${T.rfc}: <b>${esc(f.rfc||'N/D')}</b> · ID: ${esc(RPT.cid)} · ${T.date}: ${today}${range?` · ${ES?'Período cubierto':'Period covered'}: <b>${range}</b>`:''}</p>
+      ${coverQ?`<div class="cover-quote">${coverQ}</div>`:''}
+    </div><div class="sbody"></div><div class="slide-num"></div></section>`);
+  const ag=[T.a1,T.a2];
+  if(PL) ag.push(PLT.t);
+  if(cier.length) ag.push(T.a3);
+  ag.push(T.a4,T.a5,T.a6,T.a7);
+  DK.push(dkSlide('',dkHead(ES?'Contenido':'Contents',ES?'Lo que vamos a ver':'What we will cover',''),
+    '<ul>'+ag.map(x=>'<li>'+x+'</li>').join('')+'</ul>'));
+  if(res.length) res.forEach(s=>DK.push(dkSlide('',dkHead(T.a1,gloss(s.titulo),T.a1q),
+      blocksHTML(heroStripped[s.seccion_id]!==undefined?heroStripped[s.seccion_id]:s.contenido))));
+  else DK.push(dkSlide('',dkHead(T.a1,T.a1,T.a1q),'<p class="muted">'+T.noSec+'</p>'));
+  DK.push(dkSlide('',dkHead(T.a2,T.a2,T.a2q),
+    `<div class="kpis">
+      <div class="kpi"><div class="kl">${T.kSales}</div><div class="kv">${last?fmtM(last.ingresos):'—'}</div><div class="ks">${last?MES_FULL[lang][last.m]+' '+last.y:''}</div></div>
+      <div class="kpi"><div class="kl">${T.kTax}</div><div class="kv">${last?fmtM(last.iva+last.isr,2):'—'}</div><div class="ks">${last?'IVA '+fmtM(last.iva,2)+' · ISR '+fmtM(last.isr,2):''}</div></div>
+      <div class="kpi"><div class="kl">${T.kFiling}</div><div class="kv" style="font-size:17px">${last?esc(last.estado||'N/D'):'—'}</div><div class="ks">${last&&last.fecha?esc(String(last.fecha)):''}</div></div>
+    </div>${insight?`<blockquote class="pull">${insight}</blockquote>`:''}`));
+  if(S.length){
+    DK.push(dkSlide('',dkHead(T.a2,T.chSales,''),`<div class="chart">${barChartSVG(S,r=>r.ingresos,'#6047ff',lang)}</div>`));
+    DK.push(dkSlide('',dkHead(T.a2,T.chTax,''),`<div class="polar-leg"><span><i style="background:#c9591f"></i>${T.legPos}</span><span><i style="background:#17864a"></i>${T.legNeg}</span></div><div class="chart">${barChartSVG(S,r=>r.iva+r.isr,TAX_POLAR,lang)}</div>`));
+    DK.push(dkSlide('',dkHead(T.a2,ES?'Detalle mes a mes':'Month by month',ES?'Declaraciones, impuestos y ventas consolidados.':'Filings, taxes and sales consolidated.'),rptTableHTML(S,lang)));
+  }
+  if(PL){
+    DK.push(dkSlide('',dkHead(PLT.eye,PLT.t,PLT.q),
+      (plAv?`<p class="muted" style="border-left:3px solid var(--warn);padding-left:14px">${plAv}</p>`:'')+plTablaHTML(PL,lang,'')));
+    DK.push(dkSlide('',dkHead(PLT.eye,PLT.compT,PLT.compQ),plCompHTML(PL,lang,'')));
+    DK.push(dkSlide('',dkHead(PLT.eye,PLT.memoT,PLT.memoQ),plMemoHTML(PL,lang,'')));
+    DK.push(dkSlide('dark',dkHead(PLT.eye,PLT.cogsT,''),
+      `<p>${PLT.cogs}</p><h3 class="sh">${PLT.srcT}</h3><ul><li>${PLT.src1}</li><li>${PLT.src2}</li><li>${PLT.src3}</li></ul>`));
+  }
+  FIND.forEach((x,i)=>DK.push(`<section class="slide stat-s${x.tone==='ink'?' dark':''}">${bmDiv}<div class="shead"><div class="eyebrow">${ES?'Hallazgo':'Finding'} ${String(i+1).padStart(2,'0')}</div></div><div class="sbody"><p class="stat-num">${esc(x.big)}</p><p class="stat-label">${gloss(x.quote)}</p><p class="stat-context">${gloss(x.sub)}</p></div><div class="slide-num"></div></section>`));
+  if(cier.length) cier.forEach(s=>DK.push(dkSlide('',dkHead(T.a3,gloss(s.titulo),T.a3q),blocksHTML(s.contenido))));
+  if(proy.length) proy.forEach(s=>DK.push(dkSlide('',dkHead(T.a4,gloss(s.titulo),T.a4q),blocksHTML(s.contenido))));
+  else DK.push(dkSlide('',dkHead(T.a4,T.a4,T.a4q),'<p class="muted">'+T.noSec+'</p>'));
+  if(estr.length) estr.forEach(s=>DK.push(dkSlide('',dkHead(T.a5,esc(s.titulo),T.a5q),blocksHTML(s.contenido))));
+  else DK.push(dkSlide('',dkHead(T.a5,T.a5,T.a5q),'<p class="muted">'+T.noSec+'</p>'));
+  if(ctxPrev.length) DK.push(dkSlide('',dkHead(T.a6,T.a6,T.a6q),ctxPrev.map(c=>{
+      const et = c.tipo==='estrategia'?T.nkStr : (c.tipo==='sesion'?T.nkRes : T.nkCtx);
+      return `<div class="ncap"><div class="nct"><span class="ntag">${esc(et)}</span>${c.titulo?`<span style="font-size:11.5px;color:var(--t3)">${esc(c.titulo)}</span>`:''}${c.fecha?`<span style="font-size:11.5px;color:var(--t3)">${esc(c.fecha)}</span>`:''}</div><div class="nctx">${esc(c.txt)}</div></div>`;
+    }).join('')));
+  (lang==='en'?FAQS_EN:FAQS_ES).forEach(c=>DK.push(dkSlide('',dkHead(T.a7,esc(c.cat),T.a7q),
+    c.qs.map(x=>`<details class="faq" open><summary>${esc(x.q)}</summary><div class="fa">${esc(x.a)}</div></details>`).join(''))));
+  if(Object.keys(GLOSARIO).length) DK.push(dkSlide('',dkHead(ES?'Glosario':'Glossary',T.gloT,T.gloQ),
+    `<table><thead><tr><th style="width:26%">${ES?'Término':'Term'}</th><th>${ES?'Qué significa para tu negocio':'What it means for your business'}</th></tr></thead><tbody>${Object.keys(GLOSARIO).map(k=>`<tr><td><b>${esc(k)}</b></td><td>${esc(GLOSARIO[k])}</td></tr>`).join('')}</tbody></table>`));
+  DK.push(`<section class="slide end-s dark">${bmDiv}<div class="shead"><div class="eyebrow">${T.by}</div><h2 class="title">${ES?'Lo que sigue':'What comes next'}</h2></div><div class="sbody"><p class="sub">${T.disc}</p><div class="contact"><span><b>juan@tally.legal</b></span><span><b>tally.legal</b></span></div></div><div class="slide-num"></div></section>`);
+  const deckHTML=`<div class="deck-stage" id="deckStage">${DK.join('\n')}</div>`;
+
   return `<!doctype html>
 <html lang="${lang}">
 <head>
@@ -4083,12 +4377,91 @@ details.faq .fa{padding:2px 20px 19px;font-size:14.5px;line-height:1.6;color:var
   .term-pop{display:none}
   .term{border-bottom:none;font-weight:600}
 }
+/* ═══ MODO PRESENTACIÓN — los mismos tokens del sistema, en formato 16:9 ═══
+   El documento y el deck son el mismo archivo: mismos colores, misma tipografía,
+   mismos componentes. Sólo cambia el contenedor. Nada se recorta: el paginador
+   parte el contenido que no cabe en un slide de continuación. */
+.deck{display:none}
+body[data-mode="deck"]{background:#e9e7e2}
+body[data-mode="deck"] .page{display:none}
+body[data-mode="deck"] .deck{display:block;padding:78px 0 40px}
+body[data-mode="deck"] .fab,body[data-mode="deck"] .prog{display:none}
+.deck-stage{width:1280px;margin:0 auto}
+.slide{width:1280px;height:720px;background:var(--cream);color:var(--t1);position:relative;
+  display:flex;flex-direction:column;padding:62px 88px 70px;margin:0 auto 26px;overflow:hidden;
+  box-shadow:0 18px 44px -16px rgba(0,0,0,.28)}
+.slide.dark{background:var(--ink);color:var(--cream)}
+.slide.dark .muted,.slide.dark .sub,.slide.dark .stat-context{color:#9CA3AF}
+.slide .brand-mark{position:absolute;top:34px;right:52px;opacity:.9}
+.slide .slide-num{position:absolute;bottom:28px;right:52px;font-size:13px;color:var(--t3);font-variant-numeric:tabular-nums}
+.slide.dark .slide-num{color:#9CA3AF}
+.slide .eyebrow{font-size:13px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:var(--violet);margin-bottom:13px}
+.slide.dark .eyebrow{color:var(--cyan-500)}
+.slide h2.title{font-size:40px;line-height:1.06;letter-spacing:-.024em;font-weight:700;max-width:26ch;margin:0 0 10px}
+.slide .sub{font-size:17.5px;line-height:1.5;color:var(--t2);max-width:80ch;margin:0 0 16px}
+.shead{flex:0 0 auto;padding-right:120px}
+.sbody{flex:1 1 auto;min-height:0;overflow:hidden}
+.sbody>*:first-child{margin-top:0}
+.sbody p{font-size:17px;line-height:1.55;margin:0 0 12px;max-width:82ch}
+.sbody ul{margin:6px 0 14px 22px;max-width:80ch}
+.sbody li{font-size:17px;line-height:1.5;margin-bottom:7px}
+.sbody h3.sh{font-size:19px;font-weight:700;margin:16px 0 8px;letter-spacing:-.015em}
+.sbody .blk{margin-bottom:14px}
+.sbody .blk .bt{font-size:20px;font-weight:700;margin-bottom:8px}
+.sbody table{margin:0 0 12px;font-size:15px;box-shadow:none;border:.5px solid var(--sep-strong)}
+.sbody th{font-size:11px;padding:10px 14px}
+.sbody td{padding:9px 14px}
+.sbody blockquote.pull{margin:8px 0 16px;font-size:25px;max-width:36ch}
+.sbody .chart{box-shadow:none;border:.5px solid var(--sep);padding:16px 20px 4px;margin:0 auto;max-width:1000px}
+.sbody .kpis{margin:0 0 14px}
+.sbody .kpi{min-height:120px}
+.sbody details.faq{box-shadow:none;border:.5px solid var(--sep);margin-bottom:8px}
+.sbody details.faq .fa{display:block;padding:0 20px 14px;max-width:none}
+.sbody details.faq summary::after{display:none}
+.sbody details.faq summary{padding-bottom:4px;font-weight:600;cursor:default}
+.sbody .strat{box-shadow:none;margin-bottom:12px}
+.sbody .ncap{background:var(--card-2)}
+.sbody .muted{font-size:15px}
+.sbody .polar-leg{margin:0 0 10px}
+.slide .term{border-bottom:none;font-weight:600}
+.slide .term-pop{display:none}
+/* portada · hallazgo · cierre */
+.slide.cover-s,.slide.stat-s,.slide.end-s{justify-content:center}
+.slide.cover-s h1{font-size:66px;font-weight:300;letter-spacing:-.038em;line-height:1.02;margin:0 0 18px}
+.slide.cover-s h1 b{font-weight:700}
+.slide.cover-s .cover-quote{margin:26px 0 0;font-size:28px;max-width:34ch;padding-left:22px}
+.stat-num{font-size:130px;line-height:1;font-weight:700;letter-spacing:-.045em;color:var(--violet);
+  font-variant-numeric:tabular-nums;margin:0 0 18px}
+.slide.dark .stat-num{color:var(--cyan-500)}
+.stat-label{font-size:31px;line-height:1.2;font-weight:500;max-width:30ch;margin:0 0 14px}
+.stat-context{font-size:18px;line-height:1.5;color:var(--t2);max-width:66ch;margin:0}
+.slide.end-s .contact{margin-top:34px;font-size:16px;color:#9CA3AF;display:flex;gap:32px;flex-wrap:wrap}
+.slide.end-s .contact b{color:var(--cream)}
+.deckbar{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:60;display:none;gap:8px;align-items:center;
+  background:rgba(28,28,30,.92);color:var(--cream);border-radius:var(--r-pill);padding:8px 10px 8px 20px;font-size:13px}
+body[data-mode="deck"] .deckbar{display:flex}
+body[data-mode="deck"] .exportbar{display:none}
+.deckbar button{font-family:inherit;border:0;border-radius:var(--r-pill);padding:9px 18px;font-size:13.5px;font-weight:500;
+  cursor:pointer;background:var(--violet);color:#fff}
+.deckbar button.g{background:rgba(255,255,255,.16);color:var(--cream)}
+@media print{
+  body[data-mode="deck"]{background:#fff}
+  body[data-mode="deck"] .deck{display:block;padding:0;background:#fff}
+  body[data-mode="deck"] .deck-stage{zoom:1!important;width:1280px}
+  body[data-mode="deck"] .slide{margin:0;box-shadow:none;break-after:page;page-break-after:always;break-inside:avoid}
+  body[data-mode="deck"] .slide:last-child{break-after:auto;page-break-after:auto}
+  body[data-mode="deck"] .deckbar,body[data-mode="deck"] .exportbar{display:none!important}
+  body[data-mode="deck"] .sbody details.faq .fa{display:block!important}
+}
+.slide.stat-s .sbody,.slide.cover-s .sbody{display:flex;flex-direction:column;justify-content:center}
+.slide.end-s .sbody{display:flex;flex-direction:column;justify-content:flex-start}
+
 @page{size:letter;margin:14mm}
 </style>
 </head>
 <body>
 <div class="prog" id="prog"></div>
-<div class="exportbar no-print"><small>${T.expHint}</small><button onclick="if(window.__prepararImpresion)window.__prepararImpresion();setTimeout(()=>window.print(),60)">${T.exp}</button></div>
+<div class="exportbar no-print"><small>${T.expHint}</small><button onclick="if(window.__prepararImpresion)window.__prepararImpresion();setTimeout(()=>window.print(),60)">${ES?'⬇️ PDF documento':'⬇️ PDF document'}</button><button style="background:var(--ink)" onclick="window.__deckOn()">${ES?'🖥 PDF presentación':'🖥 PDF slides'}</button></div>
 <div class="page">
   <div class="topbar"><div class="wordmark">${brandMarkHTML(26)}</div><div class="doclabel">${T.doc}</div></div>
 
@@ -4126,10 +4499,13 @@ details.faq .fa{padding:2px 20px 19px;font-size:14.5px;line-height:1.6;color:var
 
   ${band(2)}
 
+  <!-- ACTO · El estado de resultados del período -->
+  ${plAct}
+
   ${cier.length?`
-  <!-- ACTO 3 · Cómo cerró el mes -->
+  <!-- ACTO · Cómo cerró el mes -->
   <section class="act reveal">
-    <div class="act-h"><div class="act-n">3</div><div><h2>${T.a3}</h2><div class="q">${T.a3q}</div></div></div>
+    <div class="act-h"><div class="act-n">${AN()}</div><div><h2>${T.a3}</h2><div class="q">${T.a3q}</div></div></div>
     ${secHTML(cier)}
   </section>`:''}
 
@@ -4137,7 +4513,7 @@ details.faq .fa{padding:2px 20px 19px;font-size:14.5px;line-height:1.6;color:var
 
   <!-- ACTO · Hacia dónde va -->
   <section class="act reveal">
-    <div class="act-h"><div class="act-n">${cier.length?4:3}</div><div><h2>${T.a4}</h2><div class="q">${T.a4q}</div></div></div>
+    <div class="act-h"><div class="act-n">${AN()}</div><div><h2>${T.a4}</h2><div class="q">${T.a4q}</div></div></div>
     ${proy.length?secHTML(proy):'<p class="muted">'+T.noSec+'</p>'}
   </section>
 
@@ -4145,7 +4521,7 @@ details.faq .fa{padding:2px 20px 19px;font-size:14.5px;line-height:1.6;color:var
 
   <!-- ACTO · Qué hacemos al respecto -->
   <section class="act reveal">
-    <div class="act-h"><div class="act-n">${cier.length?5:4}</div><div><h2>${T.a5}</h2><div class="q">${T.a5q}</div></div></div>
+    <div class="act-h"><div class="act-n">${AN()}</div><div><h2>${T.a5}</h2><div class="q">${T.a5q}</div></div></div>
     ${estr.length?estr.map(s=>'<div class="strat"><div class="bt">'+esc(s.titulo)+'</div>'+blocksHTML(s.contenido)+'</div>').join(''):'<p class="muted">'+T.noSec+'</p>'}
   </section>
 
@@ -4153,7 +4529,7 @@ details.faq .fa{padding:2px 20px 19px;font-size:14.5px;line-height:1.6;color:var
 
   <!-- ACTO · La sesión: lo que se capturó desde el botón flotante -->
   <section class="act reveal" id="capSec">
-    <div class="act-h"><div class="act-n">${cier.length?6:5}</div><div><h2>${T.a6}</h2><div class="q">${T.a6q}</div></div></div>
+    <div class="act-h"><div class="act-n">${AN()}</div><div><h2>${T.a6}</h2><div class="q">${T.a6q}</div></div></div>
     ${ctxPrev.map(c=>{
       const et = c.tipo==='estrategia'?T.nkStr : (c.tipo==='sesion'?T.nkRes : T.nkCtx);
       return `<div class="ncap"><div class="nct"><span class="ntag">${esc(et)}</span>`
@@ -4183,6 +4559,9 @@ details.faq .fa{padding:2px 20px 19px;font-size:14.5px;line-height:1.6;color:var
 
   <div class="footer"><b>${T.by}</b> — juan@tally.legal · tally.legal<br><br>${T.disc}</div>
 </div>
+
+<!-- ═══ el mismo reporte, en formato presentación 16:9 ═══ -->
+<div class="deck" id="deck">${deckHTML}</div>
 
 <!-- ═══ botón flotante: capturar en cualquier momento ═══ -->
 <button class="fab no-print" id="fab" onclick="nOpen()" aria-label="${T.fab}">
@@ -4322,6 +4701,139 @@ async function nSave(){
   window.__prepararImpresion=()=>{ revelarTodo(); abrirFaqs(); };
 })();
 <\/script>
+<div class="deckbar no-print">
+  <span>Modo presentación · 16:9</span>
+  <button onclick="window.__printDeck()">⬇️ Guardar como PDF</button>
+  <button class="g" onclick="window.__deckOff()">Volver al documento</button>
+</div>
+<script>
+/* ═══ Paginador del deck ═══
+   Regla dura: nada se recorta. Si el contenido de un slide no cabe, se abre un
+   slide de continuación con el mismo encabezado y se le pasa lo que sobra —
+   primero bloques completos, luego renglones de tabla, elementos de lista o
+   hijos del bloque que quedó solo. Sólo si algo es de verdad indivisible (un
+   párrafo enorme) se reduce su escala, y siempre entra completo. */
+(function(){
+  var deck=document.getElementById('deck'), stage=document.getElementById('deckStage');
+  if(!deck||!stage) return;
+  function over(sb){ return sb.scrollHeight > sb.clientHeight + 2; }
+  function mkCont(s){
+    var c=document.createElement('section');
+    c.className=s.className;
+    c.innerHTML=s.innerHTML;
+    var b=c.querySelector('.sbody'); if(b){ b.innerHTML=''; b.style.zoom=''; }
+    var t=c.querySelector('.shead .title');
+    if(t && !t.querySelector('.contmark')){
+      var m=document.createElement('span');
+      m.className='contmark'; m.style.fontWeight='400'; m.style.opacity='.45';
+      m.textContent=' (cont.)';
+      t.appendChild(m);
+    }
+    return c;
+  }
+  /* Dónde viven los pedazos movibles de un elemento: los renglones en una
+     tabla, los hijos en cualquier otro contenedor. */
+  function host(el){ return el.tagName==='TABLE' ? el.querySelector('tbody') : el; }
+  function cascaron(el){
+    var c=el.cloneNode(true);
+    if(el.tagName==='TABLE'){ var tb=c.querySelector('tbody'); if(tb) tb.innerHTML=''; }
+    else c.innerHTML='';
+    return c;
+  }
+  /* Parte `el` (el último bloque que quedó en el slide) hacia el slide de
+     continuación. Baja un nivel si el bloque sólo envuelve a otro. */
+  function partir(el, cb, sigueSinCaber){
+    var h=host(el); if(!h) return false;
+    if(h.children.length<=1){
+      if(h.children.length===1 && h.children[0].children && host(h.children[0]) && host(h.children[0]).children.length>1){
+        var envoltura=cascaron(el);
+        cb.insertBefore(envoltura, cb.firstChild);
+        var dentro=h.children[0], clon=cascaron(dentro);
+        host(envoltura).appendChild(clon);
+        var hd=host(dentro), hc=host(clon);
+        while(hd.children.length>1 && sigueSinCaber()) hc.insertBefore(hd.children[hd.children.length-1], hc.firstChild);
+        if(!hc.children.length){ envoltura.parentNode.removeChild(envoltura); return false; }
+        return true;
+      }
+      return false;
+    }
+    var casc=cascaron(el);
+    cb.insertBefore(casc, cb.firstChild);
+    var hc2=host(casc);
+    while(h.children.length>1 && sigueSinCaber()) hc2.insertBefore(h.children[h.children.length-1], hc2.firstChild);
+    if(!hc2.children.length){ casc.parentNode.removeChild(casc); return false; }
+    return true;
+  }
+  function reducir(sb){
+    var z=1;
+    while(over(sb) && z>0.34){ z=Math.round((z-0.05)*100)/100; sb.style.zoom=z; }
+  }
+  function paginar(){
+    var slides=[].slice.call(deck.querySelectorAll('.slide')), guard=0;
+    slides.forEach(function(inicial){
+      var s=inicial, sb=s.querySelector('.sbody');
+      while(sb && over(sb) && guard++ < 900){
+        var cont=mkCont(s);
+        s.parentNode.insertBefore(cont, s.nextSibling);
+        var cb=cont.querySelector('.sbody');
+        while(sb.children.length>1 && over(sb)) cb.insertBefore(sb.lastElementChild, cb.firstChild);
+        if(over(sb) && sb.children.length===1) partir(sb.firstElementChild, cb, function(){ return over(sb); });
+        if(over(sb)) reducir(sb);
+        if(!cb.children.length){ cont.parentNode.removeChild(cont); break; }
+        s=cont; sb=cb;
+      }
+    });
+    var n=0;
+    [].slice.call(deck.querySelectorAll('.slide')).forEach(function(x){
+      n++; var e=x.querySelector('.slide-num');
+      if(e) e.textContent=(n<10?'0':'')+n;
+    });
+  }
+  function setPage(size,margin){
+    var st=document.getElementById('pagerule');
+    if(!st){ st=document.createElement('style'); st.id='pagerule'; document.head.appendChild(st); }
+    st.textContent='@page{size:'+size+';margin:'+margin+'}';
+  }
+  function fit(){
+    if(document.body.getAttribute('data-mode')!=='deck'){ stage.style.zoom=''; return; }
+    var w=(window.innerWidth-56)/1280;
+    stage.style.zoom = (w<1? w : 1);
+  }
+  var listo=false;
+  window.__deckOn=function(){
+    document.body.setAttribute('data-mode','deck');
+    setPage('1280px 720px','0');
+    if(!listo){
+      listo=true;
+      stage.style.zoom='';
+      var run=function(){ paginar(); fit(); };
+      if(document.fonts && document.fonts.ready) document.fonts.ready.then(run); else setTimeout(run,150);
+    } else fit();
+    scrollTo(0,0);
+  };
+  window.__deckOff=function(){
+    document.body.removeAttribute('data-mode');
+    stage.style.zoom='';
+    setPage('letter','14mm');
+    scrollTo(0,0);
+  };
+  window.__printDeck=function(){
+    var yaEstaba=(document.body.getAttribute('data-mode')==='deck');
+    window.__deckOn();
+    setTimeout(function(){
+      var z=stage.style.zoom; stage.style.zoom='';
+      window.print();
+      setTimeout(function(){ stage.style.zoom=z; fit(); }, 200);
+    }, yaEstaba?150:900);
+  };
+  addEventListener('resize',fit);
+  if(location.hash==='#presentacion'||location.hash==='#deck'){
+    if(document.readyState==='complete') window.__deckOn();
+    else addEventListener('load',function(){ window.__deckOn(); });
+  }
+})();
+<\/script>
+
 </body>
 </html>`;
 }
@@ -4329,6 +4841,14 @@ function rptPreview(){
   if(!RPT.data){ toast('Carga un cliente primero'); return; }
   const blob=new Blob([buildReportHTML()],{type:'text/html'});
   window.open(URL.createObjectURL(blob),'_blank');
+}
+/* Mismo archivo, abierto directamente en formato presentación 16:9.
+   Desde ahí se guarda como PDF con un slide por concepto. */
+function rptDeck(){
+  if(!RPT.data){ toast('Carga un cliente primero'); return; }
+  const blob=new Blob([buildReportHTML()],{type:'text/html'});
+  window.open(URL.createObjectURL(blob)+'#presentacion','_blank');
+  toast('🖥 Presentación abierta — usa «Guardar como PDF» arriba');
 }
 function rptDownload(){
   if(!RPT.data){ toast('Carga un cliente primero'); return; }
