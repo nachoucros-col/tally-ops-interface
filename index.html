@@ -4454,6 +4454,10 @@ body[data-mode="deck"] .exportbar{display:none}
   body[data-mode="deck"] .sbody details.faq .fa{display:block!important}
 }
 .slide.stat-s .sbody,.slide.cover-s .sbody{display:flex;flex-direction:column;justify-content:center}
+.slide.cover-s .sbody{flex:0 0 auto}
+/* En superficie oscura el wordmark va en crema: el violeta sobre tinta no lee. */
+.slide.dark .brand-mark span{color:var(--cream)!important}
+.slide.dark .brand-mark img{filter:brightness(0) invert(1)}
 .slide.end-s .sbody{display:flex;flex-direction:column;justify-content:flex-start}
 
 @page{size:letter;margin:14mm}
@@ -4740,8 +4744,8 @@ async function nSave(){
     else c.innerHTML='';
     return c;
   }
-  /* Parte `el` (el último bloque que quedó en el slide) hacia el slide de
-     continuación. Baja un nivel si el bloque sólo envuelve a otro. */
+  /* Parte el último bloque que quedó en el slide hacia el slide de
+     continuación. Baja un nivel si ese bloque sólo envuelve a otro. */
   function partir(el, cb, sigueSinCaber){
     var h=host(el); if(!h) return false;
     if(h.children.length<=1){
