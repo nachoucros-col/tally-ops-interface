@@ -361,7 +361,7 @@ function handle(body) {
         '· Si un número es llamativo (una caída, un salto, un saldo a favor), dilo explícitamente y explica la causa probable con los datos que tienes. No lo dejes que el lector lo deduzca.';
 
       const user = mission +
-        '\n\n═══ DATOS DEL CLIENTE (fuente: ' + data.fuente + ') ═══\n' + digestForPrompt(data, body.periodo_id || '') +
+        '\n\n═══ DATOS DEL CLIENTE (fuente: ' + data.fuente + ') ═══\n' + digestForPrompt(data, body.periodo_id || '', true) +
         (ctxTxt ? '\n\n═══ CONTEXTOS CARGADOS (notas de reuniones / proyección) ═══\n' + ctxTxt : '') +
         (body.instruccion ? '\n\n═══ INSTRUCCIÓN ADICIONAL DE JUAN PARA ESTA SECCIÓN ═══\n' + body.instruccion : '');
 
@@ -611,7 +611,7 @@ function handle(body) {
 
       const user = 'CLIENTE: ' + data.ficha.nombre + ' (' + data.ficha.company_id + ') · RFC ' + (data.ficha.rfc || 'N/D') +
         '\nPERÍODO DE CIERRE: ' + docs.periodo_label +
-        '\n\n═══ DATOS DEL SISTEMA PARA ESTE PERÍODO ═══\n' + docs.resumen_periodo +
+        '\n\n═══ DATOS DEL PERÍODO ═══\n' + (docs.resumen_periodo_cliente || docs.resumen_periodo) +
         '\n\n═══ CONTENIDO DE LOS DOCUMENTOS CONTABLES DEL PERÍODO ═══\n' +
         (extractos.length
           ? extractos.map(function(e) { return '--- [' + (e.label || e.tipo) + '] ' + e.nombre + ' ---\n' + e.contenido; }).join('\n\n')
@@ -3151,20 +3151,87 @@ function almDetalle_(metrica, periodo, owner) {
         const gmk = gLista.length ? r2(gSuma) : (l.gastos_netos != null ? r2(l.gastos_netos) : null);
         const gcf = (f.recibidos || []).reduce(function (a, x) { return { sub: a.sub + (Number(x.subtotal) || 0), iva: a.iva + (Number(x.iva) || 0), tot: a.tot + (Number(x.total) || 0) }; }, { sub: 0, iva: 0, tot: 0 });
         const costoTotal = r2(Math.abs(gmk || 0) + gcf.sub);
+
+        /* ═══ CONTROL: LO COBRADO CONTRA LO DEPOSITADO ═══
+           El motor toma la base del certificado de retenciones — el CFDI que
+           ve el SAT — y no el depósito bancario. Cuando el criterio de quien
+           declara es "sobre lo depositado", la diferencia entre las dos
+           cifras no es un error de nadie: es exactamente lo que el
+           marketplace se quedó de la liquidación (comisiones, tarifas de
+           logística, publicidad) más lo que retuvo de impuestos.
+
+           Eso también está cobrado. Se extinguió por compensación, y por lo
+           tanto es base gravada del período aunque nunca haya tocado la
+           cuenta bancaria.
+
+           Este control no cambia el criterio de nadie ni corrige la fórmula:
+           pone la diferencia enfrente, cliente por cliente y mes por mes,
+           para que una exposición que hoy es invisible aparezca sola.     */
+        const cobrado = r2((c.base || 0) + trasladado);
+        const depBanco = (m.banco && m.banco.abonos != null) ? r2(m.banco.abonos) : null;
+        const depositado = depBanco != null ? depBanco : (l.transferencias != null ? r2(l.transferencias) : null);
+        const cobComis = r2(Math.abs(gmk || 0));
+        const cobRetIva = r2(retenido);
+        const cobRetIsr = r2(c.isr_retenido || 0);
+        const cobExplicado = r2(cobComis + cobRetIva + cobRetIsr);
+        const cobDif = depositado != null ? r2(cobrado - depositado) : null;
+
         out = {
+          cobro: {
+            cobrado: cobrado,
+            depositado: depositado,
+            diferencia: cobDif,
+            coincide: cobDif != null ? (Math.abs(cobDif) < 0.01) : null,
+            /* Composición de la diferencia, cada parte con su documento. */
+            comisiones: cobComis,
+            comisiones_detalle: gLista.filter(function (x) { return Number(x.importe) !== 0; }),
+            iva_retenido: cobRetIva,
+            isr_retenido: cobRetIsr,
+            explicado: cobExplicado,
+            sin_explicar: cobDif != null ? r2(cobDif - cobExplicado) : null,
+            src_cobrado: 'Certificado de retenciones: base del período más IVA trasladado',
+            src_depositado: depBanco != null ? 'Estado de cuenta bancario del período'
+                          : (l.transferencias != null ? 'Transferencias reportadas en la liquidación del marketplace' : null),
+            src_comisiones: gLista.length ? 'Desglose de conceptos de la liquidación del marketplace'
+                                          : (l.gastos_netos != null ? 'Tarifas netas de la liquidación del marketplace' : null),
+            leyenda: 'La diferencia entre lo cobrado y lo depositado son las comisiones, tarifas de logística y publicidad que el marketplace descontó de la liquidación, más el IVA y el ISR que retuvo. Esos importes también están cobrados: se extinguieron por compensación conforme al artículo 1-B de la Ley del IVA, así que forman parte de la base gravada del período aunque nunca hayan entrado a la cuenta bancaria.'
+          },
           costos: { marketplace_detalle: gLista.filter(function (x) { return Number(x.importe) !== 0; }), marketplace_total: gmk,
                     marketplace_declarado: l.gastos_netos != null ? r2(l.gastos_netos) : null,
                     marketplace_control: (l.gastos_netos != null && gLista.length) ? (Math.abs(r2(gSuma - l.gastos_netos)) < 0.05) : null,
                     cfdi_n: (f.recibidos || []).length, cfdi_subtotal: r2(gcf.sub), cfdi_iva: r2(gcf.iva), cfdi_total: r2(gcf.tot),
-                    total: costoTotal, utilidad_estimada: r2((c.base || 0) - costoTotal) },
+                    total: costoTotal, utilidad_estimada: r2((c.base || 0) - costoTotal),
+                    /* Cada renglón del costo carga su fuente y con qué fecha se
+                       clasificó. El sesgo por fechas vive del lado del costo —no
+                       del de las ventas, que solo toman el reporte del
+                       marketplace— y es justo el lado que se rotulaba como si
+                       estuviera completo. Para efectos de IVA la fecha que manda
+                       es la de cobro o pago: PUE toma la de emisión y PPD la del
+                       complemento de pago. La fecha de timbrado no se usa nunca
+                       como fecha de flujo.                                     */
+                    src_marketplace: gLista.length ? 'Desglose de conceptos de la liquidación del marketplace'
+                                                   : (l.gastos_netos != null ? 'Tarifas netas de la liquidación del marketplace' : null),
+                    src_cfdi: 'CFDI recibidos a nombre del cliente (SAT / Syntage)',
+                    fecha_base_marketplace: 'Período de la liquidación del marketplace',
+                    fecha_base_cfdi: 'Fecha de emisión del CFDI (PUE). Para PPD la fecha de flujo es la del complemento de pago y no está disponible en la fuente.' },
           cliente: in_.cliente, periodo: target, idioma: in_.idioma || 'es', estado: in_.estado || 'draft', emitido: in_.emitido || new Date().toISOString().slice(0, 10),
           logo_svg: in_.logo_svg || null, lectura: in_.lectura || null, fuentes: in_.fuentes || [], alertas: (in_.alertas || []).concat(difRet != null ? ['El IVA retenido del certificado (' + retenido.toFixed(2) + ') no coincide con el de la liquidación del marketplace (' + retenidoLiq.toFixed(2) + '): diferencia de ' + difRet.toFixed(2) + '. El cálculo usa el certificado.'] : []), notas: in_.notas || [],
           resumen: { ventas_base: c.base, ordenes: c.ordenes, ordenes_16: c.ordenes_16, ordenes_0: (c.ordenes != null && c.ordenes_16 != null) ? c.ordenes - c.ordenes_16 : null,
-                     isr_retenido_mes: c.isr_retenido, iva_retenido_mes: retenido, ingreso_liquidacion: l.ingreso_neto, transferencias: l.transferencias },
+                     isr_retenido_mes: c.isr_retenido, iva_retenido_mes: retenido, ingreso_liquidacion: l.ingreso_neto, transferencias: l.transferencias,
+                     /* Proporción de la base a 16% contra tasa 0%, recalculada
+                        desde los renglones. Nunca se toma un porcentaje de la
+                        fila de totales de un archivo externo: esa celda suele
+                        ser el promedio de los porcentajes de cada renglón y no
+                        la proporción real, y quien la automatiza se equivoca de
+                        forma sistemática y sin ruido.                        */
+                     proporcion_16: (Number(c.base) > 0) ? r2(base16 / Number(c.base) * 100) : null,
+                     proporcion_0: (Number(c.base) > 0) ? r2(base0 / Number(c.base) * 100) : null,
+                     src_ventas: c.src_base || 'Certificado de retenciones' + (c.folio ? ' ' + c.folio : ''),
+                     src_liquidacion: 'Liquidación mensual del marketplace' },
           iva: { base_16: base16, base_0: base0, trasladado, retenido, retenido_anterior: retAnterior, acreditable, saldo_favor_anterior: saldoFavor, resultado, a_pagar: aPagar, saldo_favor_arrastre: arrastre,
                  src_retenido_anterior: 'Historial capturado por el contador' + (in_.retenciones_pendientes_detalle ? ' · ' + in_.retenciones_pendientes_detalle : ''),
                  ppd_pendiente: f.iva_ppd_pendiente || 0,
-                 src_16: c.src_base || ('Certificado de retenciones ' + (c.folio || '')), src_0: c.src_base || 'Certificado de retenciones', src_trasladado: c.src_base || 'Certificado de retenciones', src_retenido: 'Certificado de retenciones' + (retenidoLiq != null ? ' · liquidación: ' + retenidoLiq.toFixed(2) : ''), src_acreditable: 'CFDI recibidos y pagados (SAT / Syntage)' + (f.iva_99 ? ' · se excluyó ' + Number(f.iva_99).toFixed(2) + ' de facturas con método de pago 99 (no pagadas en el mes)' : ''), iva_no_pagado_99: f.iva_99 || 0 },
+                 src_16: c.src_base || ('Certificado de retenciones ' + (c.folio || '')), src_0: c.src_base || 'Certificado de retenciones', src_trasladado: c.src_base || 'Certificado de retenciones', src_retenido: 'Certificado de retenciones' + (retenidoLiq != null ? ' · liquidación: ' + retenidoLiq.toFixed(2) : ''), src_acreditable: 'CFDI recibidos y pagados (SAT / Syntage) · clasificados por FECHA DE EMISIÓN del CFDI; para los PPD la fecha de flujo es la del complemento de pago y esa fecha no viene en la fuente' + (f.iva_99 ? ' · se excluyó ' + Number(f.iva_99).toFixed(2) + ' de facturas con método de pago 99 (no pagadas en el mes)' : ''), iva_no_pagado_99: f.iva_99 || 0 },
           isr: { ingresos_mes: c.base, ingresos_acum: ingresosAcum, cu, utilidad, perdidas: cu !== null ? Math.min(utilidad, perdidas) : null, base: baseISR, isr_acum: isrAcum, retenido_acum: retAcum, pagos_previos: pagosAcum, a_pagar: isrPagar },
           cfdi_emitidos: f.emitidos || [], cfdi_recibidos: f.recibidos || [],
           detalle_meses: detalle.slice(), banco: banco.slice(), serie: serie.slice(),
@@ -3226,6 +3293,20 @@ function almDetalle_(metrica, periodo, owner) {
       isr_title: 'ISR — impuesto sobre la renta', isr_lead: 'Pago provisional del mes, calculado sobre el acumulado del año.',
       col_concept: 'Concepto', col_amount: 'Importe (MXN)', col_source: 'De dónde sale',
       iva_r1: 'Ventas con IVA 16% (base)', iva_r2: 'Ventas sin IVA (tasa 0% / transfronterizas)', iva_r3: 'IVA que cobraste (16%)', iva_r4: 'IVA retenido por el marketplace', iva_r5: 'IVA acreditable (tus gastos con CFDI)', iva_r6: 'Saldo a favor del mes anterior', iva_r7: 'Resultado del mes', iva_r8: 'IVA a pagar', iva_r9: 'Saldo a favor que se arrastra',
+      cd_title: 'Lo cobrado contra lo depositado',
+      cd_lead: 'La base del período sale del certificado de retenciones — el CFDI que ve el SAT — y no del depósito bancario. Aquí está la diferencia entre las dos cifras, y de qué se compone.',
+      cd_cobrado: 'Cobrado en el período (base + IVA trasladado)',
+      cd_depositado: 'Depositado en la cuenta bancaria',
+      cd_dif: 'Diferencia',
+      cd_comp: 'De qué se compone la diferencia',
+      cd_comis: 'Comisiones, tarifas de logística y publicidad del marketplace',
+      cd_ret_iva: 'IVA retenido por el marketplace',
+      cd_ret_isr: 'ISR retenido por el marketplace',
+      cd_explicado: 'Total explicado',
+      cd_sin: 'Sin explicar',
+      cd_ok: 'Lo cobrado y lo depositado coinciden en el período: no hay diferencia que explicar.',
+      cd_nodep: 'No hay estado de cuenta bancario ni transferencias de la liquidación cargadas para el período, así que la comparación contra lo depositado no se pudo hacer.',
+      cd_legend: 'Estos importes también están cobrados: se extinguieron por compensación conforme al artículo 1-B de la Ley del IVA, así que forman parte de la base gravada del período aunque nunca hayan entrado a la cuenta bancaria. Declarar únicamente sobre lo depositado deja fuera esta diferencia.',
       isr_r1: 'Ingresos del mes (base sin IVA)', isr_r2: 'Ingresos acumulados del año', isr_r3: 'Coeficiente de utilidad', isr_r4: 'Utilidad fiscal estimada', isr_r5: 'Pérdidas fiscales aplicadas', isr_r6: 'Base gravable', isr_r7: 'ISR acumulado (30%)', isr_r8: 'ISR retenido por el marketplace (acumulado)', isr_r9: 'Pagos provisionales anteriores', isr_r10: 'ISR a pagar',
       isr_no_cu: 'Pendiente: coeficiente de utilidad de la declaración anual. Sin él no se determina pago provisional.',
       detail_title: 'Detalle de ventas y retenciones', detail_lead: 'Lo que reporta el marketplace, mes a mes.',
@@ -3259,6 +3340,20 @@ function almDetalle_(metrica, periodo, owner) {
       iva_title: 'VAT — value added tax', iva_lead: 'Definitive monthly payment.', isr_title: 'Income tax (ISR)', isr_lead: 'Provisional monthly payment, computed on year-to-date figures.',
       col_concept: 'Item', col_amount: 'Amount (MXN)', col_source: 'Source',
       iva_r1: 'Sales with 16% VAT (base)', iva_r2: 'Sales without VAT (0% / cross-border)', iva_r3: 'VAT you collected (16%)', iva_r4: 'VAT withheld by the marketplace', iva_r5: 'Creditable VAT (your CFDI expenses)', iva_r6: 'Credit balance from prior month', iva_r7: 'Result for the month', iva_r8: 'VAT payable', iva_r9: 'Credit carried forward',
+      cd_title: 'Collected versus deposited',
+      cd_lead: 'The taxable base for the period comes from the withholding certificate — the document the tax office sees — not from the bank deposit. Here is the gap between the two figures and what it is made of.',
+      cd_cobrado: 'Collected in the period (base + VAT charged)',
+      cd_depositado: 'Deposited into the bank account',
+      cd_dif: 'Difference',
+      cd_comp: 'What the difference is made of',
+      cd_comis: 'Marketplace commissions, logistics fees and advertising',
+      cd_ret_iva: 'VAT withheld by the marketplace',
+      cd_ret_isr: 'Income tax withheld by the marketplace',
+      cd_explicado: 'Total explained',
+      cd_sin: 'Unexplained',
+      cd_ok: 'Collected and deposited match for the period: there is no gap to explain.',
+      cd_nodep: 'No bank statement or settlement transfers were loaded for the period, so the comparison against the deposit could not be made.',
+      cd_legend: 'These amounts are collected as well: they were settled by offset under article 1-B of the VAT Law, so they form part of the taxable base for the period even though they never reached the bank account. Filing only on what was deposited leaves this gap out.',
       isr_r1: 'Income for the month (net of VAT)', isr_r2: 'Year-to-date income', isr_r3: 'Profit coefficient', isr_r4: 'Estimated taxable profit', isr_r5: 'Tax losses applied', isr_r6: 'Taxable base', isr_r7: 'Cumulative income tax (30%)', isr_r8: 'Income tax withheld by marketplace (cumulative)', isr_r9: 'Prior provisional payments', isr_r10: 'Income tax payable',
       isr_no_cu: 'Pending: profit coefficient from the annual return. Without it no provisional payment can be determined.',
       detail_title: 'Sales and withholding detail', detail_lead: 'What the marketplace reports, month by month.',
@@ -3291,6 +3386,20 @@ function almDetalle_(metrica, periodo, owner) {
       iva_title: '增值税 (IVA)', iva_lead: '月度最终缴纳。', isr_title: '所得税 (ISR)', isr_lead: '月度预缴，按年初至今累计数计算。',
       col_concept: '项目', col_amount: '金额 (MXN)', col_source: '来源',
       iva_r1: '含 16% 增值税销售额（计税基础）', iva_r2: '不含增值税销售额（0% / 跨境）', iva_r3: '您收取的增值税 (16%)', iva_r4: '平台代扣的增值税', iva_r5: '可抵扣进项税（有 CFDI 的费用）', iva_r6: '上月留抵', iva_r7: '本月结果', iva_r8: '应缴增值税', iva_r9: '结转下期留抵',
+      cd_title: '已收取金额与银行到账金额对比',
+      cd_lead: '本期计税基础来自代扣代缴证明（即税务局看到的 CFDI），而非银行到账金额。以下为两者差额及其构成。',
+      cd_cobrado: '本期已收取（计税基础 + 销项增值税）',
+      cd_depositado: '银行账户实际到账',
+      cd_dif: '差额',
+      cd_comp: '差额构成',
+      cd_comis: '平台佣金、物流费用及广告费',
+      cd_ret_iva: '平台代扣的增值税',
+      cd_ret_isr: '平台代扣的所得税',
+      cd_explicado: '已说明合计',
+      cd_sin: '未说明',
+      cd_ok: '本期已收取金额与到账金额一致，无差额需要说明。',
+      cd_nodep: '本期未加载银行对账单或平台结算转账记录，因此无法与到账金额进行对比。',
+      cd_legend: '这些金额同样属于已收取：依据增值税法第 1-B 条以抵销方式清偿，因此即使从未进入银行账户，仍构成本期计税基础。仅按到账金额申报会遗漏这部分差额。',
       isr_r1: '本月收入（不含增值税）', isr_r2: '年初至今累计收入', isr_r3: '利润系数', isr_r4: '预计应税利润', isr_r5: '已抵减的税务亏损', isr_r6: '应税基础', isr_r7: '累计所得税 (30%)', isr_r8: '平台代扣所得税（累计）', isr_r9: '此前预缴税款', isr_r10: '应缴所得税',
       isr_no_cu: '待定：年度申报中的利润系数。缺少该系数无法确定预缴税款。',
       detail_title: '销售与代扣明细', detail_lead: '平台逐月报告的数据。',
@@ -3434,6 +3543,42 @@ function almDetalle_(metrica, periodo, owner) {
         <tr class="total hl"><td>${esc(t.isr_r10)}</td><td class="n">${typeof isr.a_pagar === 'number' ? '$ ' + m(isr.a_pagar, lang) : esc(t.pending)}</td></tr>
       </tbody></table>
     </section>`);
+
+    /* 4-bis · Lo cobrado contra lo depositado.
+       Va inmediatamente después del IVA porque es la lectura que decide si la
+       base declarada es la del certificado o la del depósito. Se imprime
+       siempre que haya con qué comparar: es un control, no un hallazgo
+       ocasional, y su valor está en aparecer solo todos los meses.        */
+    const cob = c.cobro || null;
+    if (cob) {
+      const cdFilas = [
+        [t.cd_cobrado, cob.cobrado, cob.src_cobrado],
+        [t.cd_depositado, cob.depositado, cob.src_depositado],
+      ];
+      const cdComp = [
+        [t.cd_comis, cob.comisiones, cob.src_comisiones],
+        [t.cd_ret_iva, cob.iva_retenido, ''],
+        [t.cd_ret_isr, cob.isr_retenido, ''],
+      ];
+      pages.push(`<section class="page">
+      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
+      <h2>${esc(t.cd_title)}</h2><p class="lead">${esc(t.cd_lead)}</p>
+      ${cob.depositado == null ? `<div class="note warn">${esc(t.cd_nodep)}</div>` : `
+      <table><thead><tr><th>${esc(t.col_concept)}</th><th class="n">${esc(t.col_amount)}</th><th>${esc(t.col_source)}</th></tr></thead><tbody>
+        ${cdFilas.map(x => `<tr><td>${esc(x[0])}</td><td class="n">${m(x[1], lang)}</td><td class="src">${esc(x[2] || '')}</td></tr>`).join('')}
+        <tr class="total hl"><td>${esc(t.cd_dif)}</td><td class="n">$ ${m(cob.diferencia, lang)}</td><td></td></tr>
+      </tbody></table>
+      ${cob.coincide ? `<div class="note">${esc(t.cd_ok)}</div>` : `
+      <h3 style="margin-top:22px">${esc(t.cd_comp)}</h3>
+      <table><thead><tr><th>${esc(t.col_concept)}</th><th class="n">${esc(t.col_amount)}</th><th>${esc(t.col_source)}</th></tr></thead><tbody>
+        ${cdComp.map(x => `<tr><td>${esc(x[0])}</td><td class="n">${m(x[1], lang)}</td><td class="src">${esc(x[2] || '')}</td></tr>`).join('')}
+        <tr class="total"><td>${esc(t.cd_explicado)}</td><td class="n">${m(cob.explicado, lang)}</td><td></td></tr>
+        ${Math.abs(Number(cob.sin_explicar) || 0) >= 0.01 ? `<tr><td>${esc(t.cd_sin)}</td><td class="n">${m(cob.sin_explicar, lang)}</td><td></td></tr>` : ''}
+      </tbody></table>
+      <div class="note warn">${esc(t.cd_legend)}</div>`}
+      `}
+    </section>`);
+    }
 
     // 5 · Detalle ventas/retenciones + banco
     const det = (c.detalle_meses || []).map(d => `<tr><td>${esc(t.months[d.mes - 1])}</td><td class="n">${d.ordenes != null ? d.ordenes : '—'}</td><td class="n">${m(d.base, lang)}</td><td class="n">${m(d.iva, lang)}</td><td class="n">${m(d.iva_ret, lang)}</td><td class="n">${m(d.isr_ret, lang)}</td></tr>`).join('');
@@ -4405,7 +4550,16 @@ function calcSyntage_(body) {
   const porMes = {};
   inv.forEach(function (i) {
     const d = String(i.issuedAt || '').slice(0, 7); porMes[d] = porMes[d] || { emitidos: [], recibidos: [], iva_acreditable_pue: 0, iva_ppd_pendiente: 0, iva_99: 0, n_99: 0 };
-    const row = { fecha: String(i.issuedAt || '').slice(0, 10), quien: (i.issuerName || i.issuerRfc) + ' → ' + (i.receiverName || i.receiverRfc), subtotal: Number(i.subtotal) || 0, iva: Number(i.tax) || 0, total: Number(i.total) || 0, tipo: i.type, pago: i.paymentType, metodo: String(i.paymentMethod || ''), uuid: i.uuid };
+    /* `issuedAt` es la fecha de EMISIÓN del CFDI, no la de timbrado: la fecha
+       de timbrado no se usa nunca como fecha de flujo. Para un PUE la emisión
+       sí es la fecha de cobro o pago. Para un PPD no lo es —la que manda es la
+       del complemento de pago— y esa fecha no viene en esta fuente, así que
+       cada renglón declara con qué fecha quedó clasificado en vez de aparentar
+       una precisión que no tiene. */
+    const esPPD = (i.paymentType === 'PPD') || String(i.paymentMethod || '') === '99';
+    const row = { fecha: String(i.issuedAt || '').slice(0, 10), quien: (i.issuerName || i.issuerRfc) + ' → ' + (i.receiverName || i.receiverRfc), subtotal: Number(i.subtotal) || 0, iva: Number(i.tax) || 0, total: Number(i.total) || 0, tipo: i.type, pago: i.paymentType, metodo: String(i.paymentMethod || ''), uuid: i.uuid,
+      fecha_base: esPPD ? 'emisión del CFDI — la fecha de flujo es la del complemento de pago y no viene en la fuente' : 'emisión del CFDI (PUE: coincide con la fecha de pago)',
+      fecha_flujo_confiable: !esPPD };
     /* Emisor o receptor: se usan las banderas del catálogo y, si no vienen, el RFC.
        Hay entidades cuyo registro en Syntage no trae RFC y ahí la comparación fallaba. */
     const esEmisor = i.isIssuer === true || i.isIssuer === 1 || i.isIssuer === '1' || String(i.issuerRfc || '').toUpperCase() === rfcUso;
@@ -5238,18 +5392,34 @@ function buildPeriodDocs(companyId, periodoId) {
   try { const j = JSON.parse(fc); out.carpeta_drive = j.Url || j.url || ''; }
   catch (e) { const m2 = fc.match(/https?:\/\/[^"\s,}]+/); out.carpeta_drive = m2 ? m2[0] : ''; }
 
-  // Resumen del período que va al prompt
+  /* Resumen del período, en dos versiones que NO se mezclan.
+
+     `resumen_periodo` es el interno: lleva el estado y la fecha de la
+     declaración porque el papel de trabajo del contador existe justamente
+     para señalar lo que falta y lo que se hizo tarde.
+
+     `resumen_periodo_cliente` es el que se le puede dar de comer a un prompt
+     que produce texto para el cliente: mismas cifras del negocio, sin una
+     sola línea sobre cómo va nuestro proceso. Etiquetar el bloque en el
+     origen es lo que hace que la regla se sostenga sola; confiar en que el
+     modelo se acuerde de callarse es lo que falló.                        */
   const R = [];
+  const RC = [];
   R.push('Período: ' + out.periodo_label + ' (PeriodID ' + target.pid + ')');
+  RC.push('Período: ' + out.periodo_label);
   R.push('Tipo de declaración: ' + (pick(target.r, ['DeclaracionTipo']) || 'N/D') +
          ' · Estado: ' + (pick(target.r, ['EstadoCliente', 'Estado Declaración']) || 'N/D') +
          ' · Fecha de declaración: ' + (pick(target.r, ['Fecha_Declaracion']) || 'no presentada'));
-  R.push('Ventas del período: ' + (numStrict(pick(target.r, ['VentasList'])) || numStrict(pick(target.r, ['SalesLastPeriod']))).toFixed(2));
-  R.push('IVA determinado: ' + numStrict(pick(target.r, ['IVA_pagar'])).toFixed(2) + ' (negativo = saldo a favor del cliente)');
-  R.push('ISR determinado: ' + numStrict(pick(target.r, ['ISR_pagar'])).toFixed(2));
-  R.push('Retención de Amazon del período: ' + numStrict(pick(target.r, ['PeriodoRetencion'])).toFixed(2));
-  // Notas_Declaracion es bitácora interna del equipo: NO entra al prompt del cliente.
+  const _cifras = [
+    'Ventas del período: ' + (numStrict(pick(target.r, ['VentasList'])) || numStrict(pick(target.r, ['SalesLastPeriod']))).toFixed(2),
+    'IVA determinado: ' + numStrict(pick(target.r, ['IVA_pagar'])).toFixed(2) + ' (negativo = saldo a favor del cliente)',
+    'ISR determinado: ' + numStrict(pick(target.r, ['ISR_pagar'])).toFixed(2),
+    'Retención de Amazon del período: ' + numStrict(pick(target.r, ['PeriodoRetencion'])).toFixed(2)
+  ];
+  _cifras.forEach(function (x) { R.push(x); RC.push(x); });
+  // Notas_Declaracion es bitácora interna del equipo: NO entra a ninguno de los dos.
   out.resumen_periodo = R.join('\n');
+  out.resumen_periodo_cliente = RC.join('\n');
 
   // Recolectar documentos del período en todas las tablas
   const docs = [];
@@ -5396,7 +5566,19 @@ function clientRows(table, tabNames, companyId, out) {
 }
 
 /** Digest de texto plano de los datos del cliente para el prompt de la IA. */
-function digestForPrompt(d, periodoId) {
+/* `paraCliente` decide qué se puede decir de cada mes.
+
+   El estado, el tipo y la fecha de la declaración describen cómo va NUESTRO
+   proceso, no el negocio del cliente: es de ahí de donde salió el párrafo de
+   "abril presentado fuera de fecha" en un reporte de julio. Para el cliente
+   se omiten en el origen. Para el papel de trabajo interno se conservan, que
+   es exactamente su propósito.
+
+   Ojo con el matiz, que importa: esto NO esconde un problema del cliente. Lo
+   que el cliente no ha entregado sigue saliendo, en su propio bloque y
+   redactado como petición. Lo que nosotros no hemos cargado o presentado es
+   nuestro y no tiene por qué salir.                                       */
+function digestForPrompt(d, periodoId, paraCliente) {
   const L = [];
   // Período global de análisis: la serie se corta ahí, para que el reporte
   // hable del mes que el equipo eligió y no siempre del último cargado.
@@ -5410,7 +5592,9 @@ function digestForPrompt(d, periodoId) {
   if (String(f.suspension).trim()) L.push('⚠️ Suspensión: ' + f.suspension);
   L.push('Bancos: Payoneer=' + (f.payoneer || 'N/D') + (d.bancos ? ' · Otro banco: ' + (d.bancos.otro || 'N/D') + ' (' + (d.bancos.status_otro || '') + ') ' + (d.bancos.comentarios || '') : ''));
   L.push('');
-  L.push('SERIE MENSUAL (ventas, impuestos y declaraciones — fuente Clientes_por_periodo):');
+  L.push(paraCliente
+    ? 'SERIE MENSUAL (ventas e impuestos del cliente — fuente Clientes_por_periodo):'
+    : 'SERIE MENSUAL (ventas, impuestos y declaraciones — fuente Clientes_por_periodo):');
   d.periodos.filter(function (p) {
     if (!corte) return true;
     return ((parseInt(p.anio) || 0) * 100 + (monthNumGS(p.mes) || 0)) <= corte;
@@ -5418,8 +5602,9 @@ function digestForPrompt(d, periodoId) {
     L.push('· ' + p.anio + '-' + p.mes + ' | ventas $' + p.ingresos.toFixed(2) +
            ' | IVA $' + p.iva.toFixed(2) + ' (negativo = saldo a favor) | ISR $' + p.isr.toFixed(2) +
            ' | retención Amazon $' + p.retencion.toFixed(2) +
-           ' | declaración: ' + (p.estado_declaracion || 'N/D') + ' (' + (p.tipo_declaracion || '') + ')' +
-           (p.fecha_declaracion ? ' | presentada: ' + p.fecha_declaracion : '') +
+           (paraCliente ? '' :
+             ' | declaración: ' + (p.estado_declaracion || 'N/D') + ' (' + (p.tipo_declaracion || '') + ')' +
+             (p.fecha_declaracion ? ' | presentada: ' + p.fecha_declaracion : '')) +
            '');
   });
   // REGLA CERO: tareas internas, notas de bitácora y tablas sin datos NO entran
