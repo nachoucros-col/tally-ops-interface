@@ -495,6 +495,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
             <button class="btn btn-ghost" onclick="openOps()" title="Vista interna del equipo — nada de esto sale en el reporte del cliente">⚙️ Ops</button>
           </div>
         </div>
+        <div id="rptFalla"></div>
         <div class="rpt-grid">
           <div>
             <div class="kpis" id="rptKpis"></div>
@@ -2853,7 +2854,7 @@ async function cliQuitar(cid,email){
   else toast('❌ '+(r.error||'error'));
 }
 /* ═══════════════ 📊 REPORTES DE CLIENTE ═══════════════ */
-const RPT={cid:null,data:null,docs:null,lang:'en',ctxSel:{},loading:false,periodo:'',periodoK:0,forceDocs:false,tecnica:null,pl:null,plStatus:'',plError:''};
+const RPT={cid:null,data:null,docs:null,lang:'en',ctxSel:{},loading:false,periodo:'',periodoK:0,forceDocs:false,tecnica:null,pl:null,plStatus:'',plError:'',ctxOmitidos:0};
 
 /* — modales — */
 function openModal(id){ document.getElementById(id).classList.add('open'); document.body.style.overflow='hidden'; }
@@ -3736,7 +3737,18 @@ const PL_T={
       noneT:'Estado de resultados del período',
       none:'Todavía no hay un cálculo de impuestos generado para este período, y el estado de resultados se construye únicamente con esas cifras — no se estima ninguna. En cuanto el cálculo del período esté generado, este bloque se llena solo.',
       loading:'Buscando el cálculo del período…',
-      err:'No se pudo leer el cálculo del período'},
+      err:'No se pudo leer el cálculo del período',
+      /* Rótulos para cuando un componente del costo no está disponible: el
+         renglón que sí está se llama por su nombre completo y la diferencia
+         NO se llama utilidad. "Estimado" no arregla nada: un componente
+         presentado como si fuera el total no es una aproximación, es otro
+         número. */
+      r5sin:'(=) Diferencia entre ventas y comisiones del marketplace',
+      pendCalc:'Se entrega al cerrar el cálculo del período',
+      alcance:'Este reporte presenta las ventas del período y las comisiones y tarifas cobradas por el marketplace. No incluye los gastos facturados del período ni el costo de inventario, por lo que la diferencia mostrada no representa utilidad. El estado de resultados completo y la posición fiscal del mes se entregan una vez cerrado el cálculo del período.',
+      sinMk:'La liquidación del marketplace de este período todavía no se ha cargado, así que las comisiones y tarifas no aparecen en este estado de resultados.',
+      sinRet:'Las retenciones que el marketplace hizo en el período no aparecen en el detalle de arriba porque el certificado de retenciones aún no se ha cargado. El saldo a favor que ves nace precisamente de esas retenciones: no es un error de tu operación.',
+      favorSinBase:'El saldo a favor de IVA de este período proviene de retenciones y de IVA acreditable que todavía no están desglosados en este reporte. El desglose completo va en el cálculo del período.'},
   en:{eye:'Income statement',
       t:'What came in, what it cost, and what you kept',
       q:'Your P&amp;L for the period, line by line, with the source of every number.',
@@ -3770,7 +3782,13 @@ const PL_T={
       noneT:'Income statement for the period',
       none:'There is no tax calculation generated for this period yet, and the income statement is built only from those figures — nothing is estimated. As soon as the calculation for the period exists, this block fills itself in.',
       loading:'Looking for the calculation of the period…',
-      err:'The calculation for the period could not be read'}
+      err:'The calculation for the period could not be read',
+      r5sin:'(=) Difference between sales and marketplace commissions',
+      pendCalc:'Delivered once the period calculation is closed',
+      alcance:'This report presents the sales for the period and the commissions and fees charged by the marketplace. It does not include the invoiced expenses for the period or the cost of inventory, so the difference shown does not represent profit. The full income statement and the tax position for the month are delivered once the calculation for the period is closed.',
+      sinMk:'The marketplace settlement for this period has not been loaded yet, so commissions and fees do not appear in this income statement.',
+      sinRet:'The amounts the marketplace withheld during the period do not appear in the detail above because the withholding certificate has not been loaded yet. The credit balance you see comes precisely from those withholdings: it is not an error in your operation.',
+      favorSinBase:'The VAT credit for this period comes from withholdings and creditable VAT that are not yet broken down in this report. The full breakdown is in the calculation for the period.'}
 };
 
 let CALC_INDEX=null;
@@ -3827,6 +3845,13 @@ function rptPLModel(){
     isrPagar:(is.a_pagar==null?null:Number(is.a_pagar)),
     detalle:(co.marketplace_detalle||[]).filter(x=>Number(x.importe)!==0),
     cfdiN:Number(co.cfdi_n)||0, control:co.marketplace_control,
+    /* ¿El componente existe, o simplemente no cargó? Un renglón en ceros
+       porque su fuente no llegó NO es lo mismo que un renglón en cero real,
+       y el reporte no puede presentarlos igual. La liquidación se da por
+       cargada si trae importe, desglose o resultado de control; los gastos
+       facturados, si hay al menos un CFDI contado o importe. */
+    hayMk: (mk!==0 || (co.marketplace_detalle||[]).length>0 || co.marketplace_control!=null),
+    hayCfdi: ((Number(co.cfdi_n)||0)>0 || cfdi!==0),
     liquidacion:(rs.ingreso_liquidacion==null?null:Number(rs.ingreso_liquidacion)),
     transferencias:(rs.transferencias==null?null:Number(rs.transferencias))
   };
@@ -3840,18 +3865,37 @@ function plAviso(P,lang){
 }
 function plPct(n){ return (n==null?'—':(n<0?'−':'')+Math.abs(n).toFixed(1)+'%'); }
 
-/* La tabla del P&L. `cls` deja usarla con el estilo del reporte o el de la interfaz. */
+/* La tabla del P&L. `cls` deja usarla con el estilo del reporte o el de la interfaz.
+
+   Dos reglas duras conviven aquí:
+
+   · Un bloque cuya fuente no cargó NO se imprime en ceros: o trae el dato o
+     no aparece. Un "−$0.00" al lado de un saldo a favor le hace preguntar al
+     cliente por qué hay saldo a favor si no hubo gastos ni retenciones.
+
+   · El generador no permite un renglón agregado llamado "gastos". Si un
+     componente no está disponible, se nombra el que sí está por su nombre
+     completo, la última línea deja de llamarse utilidad y se imprime la nota
+     de alcance. El margen tampoco sale: un porcentaje calculado sobre una
+     diferencia que no es utilidad es otro número mal rotulado.            */
 function plTablaHTML(P,lang,cls){
   const t=PL_T[lang];
   const row=(l,v,strong)=>'<tr'+(strong?' style="font-weight:700"':'')+'><td>'+l+'</td><td class="num">'+v+'</td></tr>';
+  const completo = P.hayMk && P.hayCfdi;
+  let cuerpo = row(t.r1, fmtM(P.ventas,2));
+  if(P.hayMk)   cuerpo += row(t.r2, '−'+fmtM(P.mk,2));
+  if(P.hayCfdi) cuerpo += row(t.r3, '−'+fmtM(P.cfdi,2));
+  if(completo){
+    cuerpo += row(t.r4, '−'+fmtM(P.total,2));
+    cuerpo += row(t.r5, fmtM(P.util,2), true);
+    cuerpo += row(t.r6, plPct(P.margen), true);
+  }else{
+    cuerpo += row(t.r5sin, fmtM(P.ventas - (P.hayMk?P.mk:0) - (P.hayCfdi?P.cfdi:0), 2), true);
+  }
   return '<table class="'+(cls||'')+'"><thead><tr><th>'+t.col1+'</th><th class="num">'+t.col2+'</th></tr></thead><tbody>'
-    + row(t.r1, fmtM(P.ventas,2))
-    + row(t.r2, '−'+fmtM(P.mk,2))
-    + row(t.r3, '−'+fmtM(P.cfdi,2))
-    + row(t.r4, '−'+fmtM(P.total,2))
-    + row(t.r5, fmtM(P.util,2), true)
-    + row(t.r6, plPct(P.margen), true)
-    + '</tbody></table>';
+    + cuerpo + '</tbody></table>'
+    + (completo?'':'<p class="muted">'+t.alcance+'</p>')
+    + (P.hayMk?'':'<p class="muted">'+t.sinMk+'</p>');
 }
 function plMemoHTML(P,lang,cls){
   const t=PL_T[lang], r=[];
@@ -3865,7 +3909,14 @@ function plMemoHTML(P,lang,cls){
   if(P.ticket!=null) add(t.m7,fmtM(P.ticket,2));
   if(P.liquidacion!=null) add(t.m8,fmtM(P.liquidacion,2));
   if(P.transferencias!=null) add(t.m9,fmtM(P.transferencias,2));
-  return '<table class="'+(cls||'')+'"><thead><tr><th>'+t.memoT+'</th><th class="num">MXN</th></tr></thead><tbody>'+r.join('')+'</tbody></table>';
+  /* Control de coherencia, no de relleno: si se imprime un saldo a favor y la
+     base que lo produce no está ni impresa ni explicada, el cliente pregunta
+     con razón de dónde salió. Entonces se imprime la explicación — nunca una
+     tabla vacía para tapar el hueco. */
+  let notas='';
+  if(P.ivaFavor>0 && P.ivaRet===0) notas += '<p class="muted">'+t.sinRet+'</p>';
+  else if(P.ivaFavor>0 && !P.hayMk && !P.hayCfdi) notas += '<p class="muted">'+t.favorSinBase+'</p>';
+  return '<table class="'+(cls||'')+'"><thead><tr><th>'+t.memoT+'</th><th class="num">MXN</th></tr></thead><tbody>'+r.join('')+'</tbody></table>'+notas;
 }
 function plCompHTML(P,lang,cls){
   const t=PL_T[lang];
@@ -3899,6 +3950,57 @@ function renderPL(){
     + plMemoHTML(P,lang,'mini-table') + plCompHTML(P,lang,'mini-table') + '</details>';
 }
 
+/* ═══════════ CONTROL DE PERÍODO POR BLOQUE ═══════════
+   Regla dura: ningún bloque del reporte puede imprimir un período distinto al
+   del reporte. Cada bloque declara de qué mes son sus cifras y este control
+   las compara contra el período declarado antes de imprimir.
+
+   Si no coinciden, el reporte NO se genera: falla con error visible que dice
+   qué bloque y qué período trajo. No se imprime el bloque con la cifra vieja
+   y tampoco se omite en silencio — omitir en silencio es exactamente cómo un
+   reporte de julio terminó mostrando el resultado y el saldo a favor de IVA
+   de junio.                                                                */
+function rptMesEtiqueta(k){
+  k=Number(k)||0; const m=k%100, y=Math.floor(k/100);
+  return (MES_FULL.es[m]||'?')+' '+y;
+}
+function rptExigeMismoPeriodo(bloques){
+  const per=rptPeriodoActual();
+  if(!per) return;
+  const malos=bloques.filter(b=>b.k!=null && Number(b.k)!==Number(per.k));
+  if(!malos.length) return;
+  const e=new Error(
+    'El reporte declara el período '+per.label+', pero hay bloques con datos de otro período:\n'
+    + malos.map(b=>'· '+b.bloque+' → trae '+(b.etiqueta||rptMesEtiqueta(b.k))).join('\n')
+    + '\n\nEl reporte no se genera. Corrige el período de esos datos en el sistema y vuelve a intentarlo.');
+  e.rptPeriodo=true; e.esperado=per.label; e.bloques=malos;
+  throw e;
+}
+/* Envoltura de generación: los tres botones (vista previa, descarga y
+   presentación) pasan por aquí, así que un desacuerdo de período detiene los
+   tres por igual y el equipo lee en pantalla qué bloque lo provocó. */
+function rptHTMLSeguro(){
+  const box=document.getElementById('rptFalla');
+  try{
+    const html=buildReportHTML();
+    if(box){
+      box.innerHTML = RPT.ctxOmitidos
+        ? '<div class="notice info">🗂 Se dejaron fuera '+RPT.ctxOmitidos+' nota'+(RPT.ctxOmitidos===1?'':'s')+' de sesión de otro período: el reporte mensual solo lleva lo capturado en el mes que cubre.</div>'
+        : '';
+    }
+    return html;
+  }catch(e){
+    if(e&&e.rptPeriodo){
+      if(box) box.innerHTML='<div class="notice warn">🛑 <b>Reporte no generado — desacuerdo de período</b><br>'
+        + esc(String(e.message||'')).replace(/\n/g,'<br>') + '</div>';
+      toast('🛑 Reporte no generado: hay bloques de otro período');
+      console.error('[reporte] desacuerdo de período', e.bloques);
+      return null;
+    }
+    throw e;
+  }
+}
+
 function buildReportHTML(){
   Object.keys(GLOSARIO).forEach(k=>delete GLOSARIO[k]);
   const d=RPT.data, f=d.ficha, lang=RPT.lang, T=RPT_I18N[lang], S=rptSeries();
@@ -3912,6 +4014,16 @@ function buildReportHTML(){
     .sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)));
   const res=byKind('resumen'), cier=byKind('cierre'), proy=byKind('proyeccion'), estr=byKind('estrategia');
   const last=S[S.length-1];
+  /* Primer bloque que declara su período: la serie mensual, de donde salen
+     los indicadores del mes, el estado de la declaración y los hallazgos.
+     `rptSeries()` corta en el período elegido pero deja pasar el último mes
+     CON datos anterior a él — por eso un julio sin fila terminaba mostrando
+     junio con la etiqueta de julio. Aquí se acaba. */
+  rptExigeMismoPeriodo([{
+    bloque:'Indicadores del mes, serie mensual y estado de la declaración',
+    k: last ? last.key : null,
+    etiqueta: last ? rptMesEtiqueta(last.key) : ''
+  }]);
   const today=new Date().toLocaleDateString(lang==='es'?'es-MX':'en-US',{year:'numeric',month:'long',day:'numeric'});
   const range=S.length?(MES_FULL[lang][S[0].m]+' '+S[0].y+' — '+MES_FULL[lang][last.m]+' '+last.y):'';
   // El QUOTE de la primera sección sube al bloque oscuro de portada (no se repite abajo).
@@ -3952,12 +4064,26 @@ function buildReportHTML(){
   // Contexto ya levantado del cliente, precargado en el documento
   /* Todo lo levantado con el cliente entra al reporte: contexto, estrategias y
      resúmenes de sesión — no solo la última nota de tipo "contexto". */
-  const ctxPrev=CONTEXTOS
+  /* El bloque de sesión capturada, preguntas y minuta entra SOLO si la sesión
+     pertenece al período del reporte. Es un caso particular del control de
+     período de arriba y se implementa con el mismo criterio, no con una
+     excepción aparte: la minuta de la reunión pasada no le aporta nada al
+     reporte mensual y confunde de qué mes se está hablando. Una nota sin
+     fecha no permite establecer a qué mes pertenece, así que tampoco entra. */
+  const _perRpt=rptPeriodoActual();
+  const _ctxTodos=CONTEXTOS
     .filter(c=>c.company_id===RPT.cid && RPT.ctxSel[c.contexto_id]!==false)
     .sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)))
     .map(c=>({tipo:String(c.tipo||'contexto'),titulo:String(c.titulo||''),
               fecha:String(c.fecha||'').slice(0,10),txt:String(c.contenido||'').trim()}))
     .filter(c=>c.txt);
+  const ctxPrev=_ctxTodos.filter(c=>{
+    if(!_perRpt) return true;
+    const m=c.fecha.match(/^(\d{4})-(\d{2})/);
+    if(!m) return false;
+    return (parseInt(m[1],10)*100+parseInt(m[2],10))===Number(_perRpt.k);
+  });
+  RPT.ctxOmitidos=_ctxTodos.length-ctxPrev.length;
   const ctxPrefill=ctxPrev.map(c=>c.txt).join('\n\n');
 
   /* ═══ HALLAZGOS: los quotes que sostienen la narrativa ═══
@@ -4081,6 +4207,13 @@ function buildReportHTML(){
      tiene cálculo generado, el acto no se imprime en el reporte del cliente:
      la interfaz sí lo señala, para que el equipo lo genere antes de la sesión. */
   const PL=rptPLModel(), PLT=PL_T[lang];
+  /* Segundo bloque que declara su período: el estado de resultados y la
+     posición fiscal, que vienen del cálculo del mes. */
+  rptExigeMismoPeriodo([{
+    bloque:'Estado de resultados y posición fiscal del mes',
+    k: (PL&&PL.per) ? PL.per.k : null,
+    etiqueta: (PL&&PL.per) ? PL.per.label : ''
+  }]);
   const plAv=PL?plAviso(PL,lang):'';
   const plAct = PL ? `
   <section class="act reveal">
@@ -4118,7 +4251,7 @@ function buildReportHTML(){
   DK.push(dkSlide('',dkHead(T.a2,T.a2,T.a2q),
     `<div class="kpis">
       <div class="kpi"><div class="kl">${T.kSales}</div><div class="kv">${last?fmtM(last.ingresos):'—'}</div><div class="ks">${last?MES_FULL[lang][last.m]+' '+last.y:''}</div></div>
-      <div class="kpi"><div class="kl">${T.kTax}</div><div class="kv">${last?fmtM(last.iva+last.isr,2):'—'}</div><div class="ks">${last?'IVA '+fmtM(last.iva,2)+' · ISR '+fmtM(last.isr,2):''}</div></div>
+      <div class="kpi"><div class="kl">${T.kTax}</div><div class="kv">${(last&&PL)?fmtM(last.iva+last.isr,2):'—'}</div><div class="ks">${(last&&PL)?'IVA '+fmtM(last.iva,2)+' · ISR '+fmtM(last.isr,2):PLT.pendCalc}</div></div>
       <div class="kpi"><div class="kl">${T.kFiling}</div><div class="kv" style="font-size:17px">${last?esc(last.estado||'N/D'):'—'}</div><div class="ks">${last&&last.fecha?esc(String(last.fecha)):''}</div></div>
     </div>${insight?`<blockquote class="pull">${insight}</blockquote>`:''}`));
   if(S.length){
@@ -4493,7 +4626,7 @@ body[data-mode="deck"] .exportbar{display:none}
     <div class="act-h"><div class="act-n">2</div><div><h2>${T.a2}</h2><div class="q">${T.a2q}</div></div></div>
     <div class="kpis">
       <div class="kpi"><div class="kl">${T.kSales}</div><div class="kv">${last?fmtM(last.ingresos):'—'}</div><div class="ks">${last?MES_FULL[lang][last.m]+' '+last.y:''}</div></div>
-      <div class="kpi"><div class="kl">${T.kTax}</div><div class="kv">${last?fmtM(last.iva+last.isr,2):'—'}</div><div class="ks">${last?'IVA '+fmtM(last.iva,2)+' · ISR '+fmtM(last.isr,2):''}</div></div>
+      <div class="kpi"><div class="kl">${T.kTax}</div><div class="kv">${(last&&PL)?fmtM(last.iva+last.isr,2):'—'}</div><div class="ks">${(last&&PL)?'IVA '+fmtM(last.iva,2)+' · ISR '+fmtM(last.isr,2):PLT.pendCalc}</div></div>
       <div class="kpi"><div class="kl">${T.kFiling}</div><div class="kv" style="font-size:17px">${last?esc(last.estado||'N/D'):'—'}</div><div class="ks">${last&&last.fecha?esc(String(last.fecha)):''}</div></div>
     </div>
     ${insight?`<blockquote class="pull">${insight}</blockquote>`:''}
@@ -4843,21 +4976,24 @@ async function nSave(){
 }
 function rptPreview(){
   if(!RPT.data){ toast('Carga un cliente primero'); return; }
-  const blob=new Blob([buildReportHTML()],{type:'text/html'});
+  const html=rptHTMLSeguro(); if(html===null) return;
+  const blob=new Blob([html],{type:'text/html'});
   window.open(URL.createObjectURL(blob),'_blank');
 }
 /* Mismo archivo, abierto directamente en formato presentación 16:9.
    Desde ahí se guarda como PDF con un slide por concepto. */
 function rptDeck(){
   if(!RPT.data){ toast('Carga un cliente primero'); return; }
-  const blob=new Blob([buildReportHTML()],{type:'text/html'});
+  const html=rptHTMLSeguro(); if(html===null) return;
+  const blob=new Blob([html],{type:'text/html'});
   window.open(URL.createObjectURL(blob)+'#presentacion','_blank');
   toast('🖥 Presentación abierta — usa «Guardar como PDF» arriba');
 }
 function rptDownload(){
   if(!RPT.data){ toast('Carga un cliente primero'); return; }
+  const html=rptHTMLSeguro(); if(html===null) return;
   const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([buildReportHTML()],{type:'text/html'}));
+  a.href=URL.createObjectURL(new Blob([html],{type:'text/html'}));
   a.download='tally-report-'+RPT.cid+'-'+new Date().toISOString().slice(0,10)+'-'+RPT.lang+'.html';
   document.body.appendChild(a); a.click(); a.remove();
   toast('⬇️ Reporte descargado — ábrelo y usa "Exportar a PDF"');
