@@ -583,7 +583,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
       <div class="page-head">
         <div>
           <h1>Bandeja</h1>
-          <p class="lead">Correos que requieren tu respuesta (clientes + equipo), filtrados por el agente. Desde aquí también respondes y redactas correos nuevos con envío inmediato.</p>
+          <p class="lead">Un renglón por cliente con sus correos sin responder, su owner y la fecha del último mensaje. Haz clic en la fila para abrir sus correos y responder desde ahí.</p>
         </div>
         <div class="head-actions">
           <button class="chip" onclick="requestRun()" title="El agente arranca en menos de 5 minutos">🔄 Actualizar correos</button>
@@ -591,18 +591,12 @@ tr:hover td{background:rgba(96,71,255,.04)}
         </div>
       </div>
       <div style="position:relative">
-        <div class="chips" id="catChips">
-          <button class="chip on" data-cat="*">Todos</button>
-          <button class="chip" data-cat="Documentación">Documentación</button>
-          <button class="chip" data-cat="Proceso">Proceso</button>
-          <button class="chip" data-cat="Quejas y alertas">Quejas y alertas</button>
-          <button class="chip" data-cat="__pend">⏳ Pendientes de mí</button>
-          <button class="chip" data-cat="__env">📤 Enviados</button>
-        </div>
+        <div class="bnd-filtros" id="catChips"></div>
         <div class="filter-pop" id="filterPop" style="display:none"></div>
       </div>
       <div class="split">
-        <div class="mail-list" id="mailList"><div style="color:var(--gray-500);padding:30px;text-align:center">Cargando…</div></div>
+        <div id="bandejaWrap"><table class="bandeja-tabla" id="bandejaTabla"><tbody><tr><td style="color:var(--gray-500);padding:30px;text-align:center">Cargando…</td></tr></tbody></table></div>
+        <div id="mailList" style="display:none"></div>
       </div>
     </section>
 
@@ -1044,6 +1038,7 @@ function api(action, payload, timeoutMs){
 /* ═══════════════ CONFIG EDITABLE ═══════════════ */
 function countCat(cat){
   const mails=EMAILS.filter(e=>{
+    if(!filtrosExtra(e)) return false;
     if(cuentaFilter && e.cuenta!==cuentaFilter) return false;
     if(envioFilter==='env' && e.estado!=='Enviado') return false;
     if(envioFilter==='sin' && e.estado==='Enviado') return false;
@@ -1059,7 +1054,7 @@ function countCat(cat){
     if(cat!=='*' && !catMatch(cat,e.categoria)) return false;
     return true;
   }).length;
-  return cat==='__env' ? mails+(cuentaFilter?0:SALIENTES.length) : mails;
+  return cat==='__env' ? mails+(cuentaFilter?0:SALIENTES.filter(filtrosExtraSaliente).length) : mails;
 }
 function chipN(cat){ return `<span class="chip-n">${countCat(cat)}</span>`; }
 function renderCatChips(){
@@ -1070,18 +1065,35 @@ function renderCatChips(){
     if(!cats.includes('Quejas y alertas')) cats.push('Quejas y alertas');
   }
   const el = document.getElementById('catChips');
-  el.innerHTML = `<button class="chip" data-cat="*">Todos ${chipN('*')}</button>`
-    + cats.map(c=>`<button class="chip" data-cat="${esc(c)}">${esc(c)} ${chipN(c)}</button>`).join('')
-    + `<button class="chip" data-cat="__pend">⏳ Pendientes de mí ${chipN('__pend')}</button>
-       <button class="chip" data-cat="__rev" title="Correos marcados como revisados — fuera de los filtros de trabajo">✔️ Revisado ${chipN('__rev')}</button>
-       <button class="chip" data-cat="__brr">📝 Borradores ${chipN('__brr')}</button>
-       <button class="chip" data-cat="__os" title="Correos que el equipo respondió por FUERA de la interfaz (Out Side)">🌐 Respuesta OS ${chipN('__os')}</button>
-       <button class="chip" data-cat="__env">📤 Enviados ${chipN('__env')}</button>
-       <span class="chip-sep">|</span>
-       <button class="chip" id="filterBtn" onclick="toggleFilterPop()" title="Filtros de cuenta y orden"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polygon points="22 3 2 3 10 12.5 10 19 14 21 14 12.5 22 3"/></svg> Filtros${(cuentaFilter||mailOrden!=='desc'||envioFilter||osFilter)?' <span class="fdot"></span>':''}</button>`;
-  el.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on', c.dataset.cat===catFilter));
+  if(el.contains(document.activeElement) && document.activeElement.id==='bndBuscar') return; // no re-pintar mientras escribe
+  const owners=[...new Set(CLIENTES.map(c=>String(c.owner||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const opt=(v,t)=>`<option value="${esc(v)}" ${catFilter===v?'selected':''}>${t}</option>`;
+  const hayFiltro=(qBandeja||fDesde||fHasta||ownerFilter||catFilter!=='*');
+  el.innerHTML=`
+    <input type="text" id="bndBuscar" class="bnd-q" placeholder="🔎 Buscar por ID de cliente, nombre, asunto o palabra…" value="${esc(qBandeja)}" oninput="buscarBandeja(this.value)" autocomplete="off">
+    <span class="bnd-lbl">📅 Recibidos</span>
+    <input type="date" id="bndDesde" value="${esc(fDesde)}" onchange="fDesde=this.value;renderMailList()" title="Desde esta fecha de recepción">
+    <span class="bnd-lbl">→</span>
+    <input type="date" id="bndHasta" value="${esc(fHasta)}" onchange="fHasta=this.value;renderMailList()" title="Hasta esta fecha de recepción">
+    <select id="bndOwner" onchange="ownerFilter=this.value;renderMailList()" title="Owner asignado al cliente">
+      <option value="">👤 Owner: todos</option>
+      ${owners.map(o=>`<option value="${esc(o)}" ${ownerFilter===o?'selected':''}>👤 ${esc(o)}</option>`).join('')}
+    </select>
+    <select id="bndCat" onchange="catFilter=this.value;renderMailList()" title="Tipo de correo">
+      ${opt('*','Todos ('+countCat('*')+')')}
+      ${cats.map(c=>opt(c,esc(c)+' ('+countCat(c)+')')).join('')}
+      ${opt('__pend','⏳ Pendientes de mí ('+countCat('__pend')+')')}
+      ${opt('__rev','✔️ Revisado ('+countCat('__rev')+')')}
+      ${opt('__os','🌐 Respuesta OS ('+countCat('__os')+')')}
+      ${opt('__env','📤 Enviados ('+countCat('__env')+')')}
+    </select>
+    <button class="chip ${catFilter==='__brr'?'on':''}" data-cat="__brr" title="Borradores guardados — filtro aparte, fuera del desplegable">📝 Borradores ${chipN('__brr')}</button>
+    <button class="chip" id="filterBtn" onclick="toggleFilterPop()" title="Filtros de cuenta, envío y orden"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polygon points="22 3 2 3 10 12.5 10 19 14 21 14 12.5 22 3"/></svg> Filtros${(cuentaFilter||mailOrden!=='desc'||envioFilter||osFilter)?' <span class="fdot"></span>':''}</button>
+    ${hayFiltro?`<button class="chip" onclick="limpiarBandeja()" title="Quitar buscador, fechas, owner y tipo">✕ Limpiar</button>`:''}`;
   renderFilterPop();
 }
+function buscarBandeja(v){ qBandeja=v; clearTimeout(window.__bndQT); window.__bndQT=setTimeout(renderTablaBandeja,200); }
+function limpiarBandeja(){ qBandeja='';fDesde='';fHasta='';ownerFilter='';catFilter='*';renderMailList(); }
 async function saveCfg(key, elId, okMsg){
   const v = document.getElementById(elId).value.trim();
   if(!v){ toast('El valor no puede quedar vacío'); return; }
@@ -1108,12 +1120,42 @@ function catNorm(c){ return (c==='Queja y reclamo'||c==='Alerta')?'Quejas y aler
 const ST_CLASS={'Nuevo':'st-Nuevo','Prompt recibido':'st-Prompt','Draft listo':'st-Draft','Aprobado':'st-Aprobado','Enviado':'st-Enviado','Descartado':'st-Nuevo','Borrador':'st-Borrador','Respuesta OS':'st-OS','Revisado':'st-Revisado'};
 
 let mailOrden='desc'; // 'desc' = más recientes primero · 'asc' = orden de llegada
+let qBandeja='';      // buscador global: ID de cliente o coincidencia de palabra
+let fDesde='';        // fecha mínima de recepción (YYYY-MM-DD)
+let fHasta='';        // fecha máxima de recepción (YYYY-MM-DD)
+let ownerFilter='';   // '' = todos los owners
+let selCliente=null;  // fila de cliente abierta en el panel lateral
 let cuentaFilter='';  // '' = todas las cuentas
 let envioFilter='';   // '' = todos · 'env' = enviados · 'sin' = sin enviar
 let osFilter='';      // '' = todos · 'os' = solo Respuesta OS · 'no' = sin Respuesta OS
 function esOS(e){ return e.estado==='Respuesta OS'||!!e.respuesta_os; }
+/* Un correo cuenta como SIN RESPONDER mientras no se haya enviado la respuesta
+   y no esté marcado como revisado o descartado. Los "Respuesta OS" SÍ cuentan. */
+function sinResponder(e){ return ['Enviado','Revisado','Descartado'].indexOf(e.estado)<0; }
+function soloFecha(v){ return String(v||'').slice(0,10); }
+/* Filtros de la barra superior: buscador, rango de fechas y owner */
+function pasaBusqueda(txt){
+  const q=qBandeja.trim().toLowerCase();
+  if(!q) return true;
+  return String(txt||'').toLowerCase().indexOf(q)>=0;
+}
+function filtrosExtra(e){
+  const f=soloFecha(e.fecha_recibido);
+  if(fDesde && f && f<fDesde) return false;
+  if(fHasta && f && f>fHasta) return false;
+  if(ownerFilter && ownerDe(e.company_id)!==ownerFilter) return false;
+  return pasaBusqueda([e.company_id,e.cliente,e.asunto,e.resumen,e.remitente_nombre,e.remitente_email,e.categoria].join(' | '));
+}
+function filtrosExtraSaliente(s){
+  const f=soloFecha(s.fecha);
+  if(fDesde && f && f<fDesde) return false;
+  if(fHasta && f && f>fHasta) return false;
+  if(ownerFilter && ownerDe(s.company_id)!==ownerFilter) return false;
+  return pasaBusqueda([s.company_id,s.cliente,s.asunto,s.destinatarios,s.categoria].join(' | '));
+}
 function visibleEmails(){
   return EMAILS.filter(e=>{
+    if(!filtrosExtra(e)) return false;
     if(cuentaFilter && e.cuenta!==cuentaFilter) return false;
     if(envioFilter==='env' && e.estado!=='Enviado') return false;
     if(envioFilter==='sin' && e.estado==='Enviado') return false;
@@ -1142,7 +1184,7 @@ function osNotice(e){
     🌐 <b>Respuesta OS (Out Side)</b> — este hilo ya fue respondido <b>por fuera de la interfaz</b>.
     ${quien?`<br>Respondió: <b>${esc(quien)}</b>${cuando?` · ${esc(cuando)}`:''}`:''}
     ${snippet?`<br><span style="font-style:italic">"${esc(snippet)}"</span>`:''}
-    <br><span style="font-size:12px">Verifica en Gmail antes de enviar otra respuesta desde aquí — evita duplicar la comunicación al cliente.</span>
+    <br><span style="font-size:12px">Puedes responder y enviar desde aquí igual que cualquier otro correo — <b>verifica primero en Gmail</b> para no duplicar la comunicación al cliente.</span>
   </div>`;
 }
 /* Fecha larga: "9 de junio de 2026, 09:58 a.m." */
@@ -1212,13 +1254,72 @@ function mailCardHtml(e){
       </div>
     </div>`;
 }
+/* ═══ Tabla de la Bandeja: un renglón por cliente ═══
+   Agrupa los correos visibles por cliente del directorio. Los correos del equipo
+   caen en un renglón "Equipo interno" y los remitentes externos sin cliente
+   vinculado abren su propio renglón, con el ID vacío. */
+function gruposBandeja(){
+  const map=new Map();
+  function bucket(key,nombre,cid){
+    if(!map.has(key)) map.set(key,{key:key,nombre:nombre,company_id:cid||'',owner:cid?ownerDe(cid):'',items:[],total:0,pend:0,ultima:''});
+    const g=map.get(key);
+    if(!g.nombre&&nombre) g.nombre=nombre;
+    if(!g.company_id&&cid){ g.company_id=cid; g.owner=ownerDe(cid); }
+    return g;
+  }
+  visibleEmails().forEach(e=>{
+    let key,nombre;
+    if(e.company_id){ key='C:'+e.company_id; nombre=(e.cliente&&e.cliente!=='INTERNO')?e.cliente:e.company_id; }
+    else if(String(e.cliente||'')==='INTERNO'){ key='INTERNO'; nombre='🏠 Equipo interno'; }
+    else { key='R:'+String(e.remitente_email||e.remitente_nombre||'sin-remitente').toLowerCase(); nombre=e.remitente_nombre||e.remitente_email||'Sin remitente'; }
+    const g=bucket(key,nombre,e.company_id);
+    g.items.push({fecha:e.fecha_recibido||'',out:false,e:e});
+    g.total++; if(sinResponder(e)) g.pend++;
+    if((e.fecha_recibido||'')>g.ultima) g.ultima=e.fecha_recibido||'';
+  });
+  if(catFilter==='__env'&&!cuentaFilter){
+    SALIENTES.filter(filtrosExtraSaliente).forEach(sa=>{
+      const key=sa.company_id?('C:'+sa.company_id):('S:'+String(sa.cliente||sa.destinatarios||'—').toLowerCase());
+      const g=bucket(key,sa.cliente||sa.destinatarios||'—',sa.company_id);
+      g.items.push({fecha:sa.fecha||'',out:true,s:sa});
+      g.total++;
+      if((sa.fecha||'')>g.ultima) g.ultima=sa.fecha||'';
+    });
+  }
+  const arr=[...map.values()];
+  const cmp=(a,b)=>{ const c=String(a||'').localeCompare(String(b||'')); return mailOrden==='asc'?c:-c; };
+  arr.forEach(g=>g.items.sort((a,b)=>cmp(a.fecha,b.fecha)));
+  arr.sort((a,b)=>cmp(a.ultima,b.ultima));
+  return arr;
+}
 function renderMailList(){
-  renderCatChips(); // refresca los contadores de cada filtro
-  const el = document.getElementById('mailList');
-  if(catFilter==='__env'){ renderEnviados(el); return; }
-  const list = visibleEmails();
-  if(!list.length){ el.innerHTML=`<div style="color:var(--gray-500);padding:40px;text-align:center;background:#fff;border-radius:var(--radius-md);border:1px solid var(--border-light)">Sin correos en esta vista. 🎉</div>`; return; }
-  el.innerHTML = list.map(mailCardHtml).join('');
+  renderCatChips();   // refresca contadores y estado de los filtros
+  renderTablaBandeja();
+}
+function renderTablaBandeja(){
+  const el=document.getElementById('bandejaTabla');
+  if(!el) return;
+  const grupos=gruposBandeja();
+  if(!grupos.length){
+    el.innerHTML=`<tbody><tr><td style="color:var(--gray-500);padding:40px;text-align:center">Sin correos con estos filtros. 🎉</td></tr></tbody>`;
+    return;
+  }
+  el.innerHTML=`<thead><tr>
+      <th style="width:110px">ID cliente</th>
+      <th>Cliente</th>
+      <th style="width:130px;text-align:right">Sin responder</th>
+      <th style="width:150px">Owner</th>
+      <th style="width:210px">Último correo recibido</th>
+      <th style="width:130px">Estado</th>
+    </tr></thead><tbody>`
+    + grupos.map(g=>`<tr data-k="${esc(g.key)}" onclick="openCliente(this.dataset.k)" class="${selCliente===g.key?'bnd-sel':''}">
+      <td><b>${g.company_id?esc(g.company_id):'<span style=\'color:var(--gray-500);font-weight:400\'>—</span>'}</b></td>
+      <td><span style="font-weight:600">${esc(g.nombre)}</span><div style="font-size:11px;color:var(--gray-500);margin-top:2px">${g.total} correo${g.total===1?'':'s'} en la vista</div></td>
+      <td style="text-align:right"><span class="pill ${g.pend?'B':'A'}">${g.pend}</span></td>
+      <td>${g.owner?esc(g.owner):'<span style="color:var(--gray-500)">sin owner</span>'}</td>
+      <td>${esc(fechaLarga(g.ultima))}</td>
+      <td><span class="pill ${g.pend?'Pendiente':'Aprobado'}">${g.pend?'Sin revisar':'Revisado'}</span></td>
+    </tr>`).join('') + `</tbody>`;
 }
 
 function salienteCardHtml(s){
@@ -1248,17 +1349,44 @@ function renderEnviados(el){
 }
 
 function openDrawer(){ document.getElementById('mailDrawer').classList.add('open'); document.getElementById('drawerBack').classList.add('open'); }
-function closeDrawer(){ document.getElementById('mailDrawer').classList.remove('open'); document.getElementById('drawerBack').classList.remove('open'); composeMode=false; selId=null; selOut=null; renderMailList(); }
-document.addEventListener('keydown',ev=>{ if(ev.key==='Escape') closeDrawer(); });
+function closeDrawer(){ document.getElementById('mailDrawer').classList.remove('open'); document.getElementById('drawerBack').classList.remove('open'); composeMode=false; selId=null; selOut=null; selCliente=null; renderMailList(); }
+/* Esc: si estás dentro de un correo vuelves al cliente; si ya estás en el cliente, cierras. */
+document.addEventListener('keydown',ev=>{
+  if(ev.key!=='Escape') return;
+  if(!composeMode && selCliente && (selId||selOut)) volverCliente(); else closeDrawer();
+});
 
-function select(id){ composeMode=false; selId=id; selOut=null; renderMailList(); renderDetail(id); openDrawer(); }
-function selectOut(id){ composeMode=false; selOut=id; selId=null; renderMailList(); renderOutDetail(id); openDrawer(); }
+/* Nivel 1 del panel: todos los correos de un cliente */
+function openCliente(key){ composeMode=false; selId=null; selOut=null; selCliente=key; renderClienteDrawer(); openDrawer(); renderTablaBandeja(); }
+function volverCliente(){ selId=null; selOut=null; renderClienteDrawer(); renderTablaBandeja(); }
+function grupoActual(){ return gruposBandeja().find(g=>g.key===selCliente)||null; }
+function renderClienteDrawer(){
+  const el=document.getElementById('mailDetail');
+  const g=grupoActual();
+  if(!g){ el.innerHTML='<div class="empty">Este cliente ya no tiene correos con los filtros actuales.</div>'; return; }
+  el.innerHTML=`
+    <div class="bandeja-crumb"><b>Bandeja</b><span>/</span><b class="crumb-actual">${esc(g.nombre)}</b></div>
+    <h3>${esc(g.nombre)}</h3>
+    <div class="meta">${g.company_id?`<b>${esc(g.company_id)}</b> · `:''}${g.owner?`👤 ${esc(g.owner)} · `:''}${g.total} correo${g.total===1?'':'s'} · <b>${g.pend}</b> sin responder · último: ${esc(fechaLarga(g.ultima))}</div>
+    <div class="msg-label" style="margin-top:18px">📬 Correos de este cliente</div>
+    <div class="mail-list">${g.items.map(i=>i.out?salienteCardHtml(i.s):mailCardHtml(i.e)).join('')}</div>`;
+}
+/* Miga de pan del nivel 2 (un correo abierto) */
+function crumbHtml(titulo){
+  if(!selCliente) return '';
+  const g=grupoActual();
+  return `<div class="bandeja-crumb"><a href="#" onclick="volverCliente();return false">← ${esc(g?g.nombre:'Cliente')}</a><span>/</span><b class="crumb-actual">${esc(titulo||'Correo')}</b></div>`;
+}
+
+function select(id){ composeMode=false; selId=id; selOut=null; renderTablaBandeja(); renderDetail(id); openDrawer(); }
+function selectOut(id){ composeMode=false; selOut=id; selId=null; renderTablaBandeja(); renderOutDetail(id); openDrawer(); }
 
 function renderOutDetail(id){
   const s = SALIENTES.find(x=>x.saliente_id===id);
   const el = document.getElementById('mailDetail');
   if(!s){ el.innerHTML='<div class="empty">No encontrado.</div>'; return; }
   el.innerHTML = `
+    ${crumbHtml(s.asunto)}
     <h3>${esc(s.asunto)}</h3>
     <div class="meta">Para: ${esc(s.destinatarios)} · ${esc(String(s.fecha).substring(0,16).replace('T',' '))} · ${esc(s.categoria)} · desde juan@tally.legal</div>
     <div class="draft-box"><div style="white-space:pre-wrap;font-size:14px">${esc(s.cuerpo)}</div></div>
@@ -1369,13 +1497,14 @@ function renderDetail(id){
   const el = document.getElementById('mailDetail');
   if(!e){ el.innerHTML='<div class="empty">Correo no encontrado.</div>'; return; }
   let html = `
+    ${crumbHtml(e.asunto)}
     <h3>${esc(e.asunto)}</h3>
     <div class="meta">${esc(e.remitente_nombre)} &lt;${esc(e.remitente_email)}&gt; · ${esc(e.fecha_recibido)} · vía ${esc(e.cuenta)}@tally.legal${e.company_id?` · <b>${esc(e.company_id)}</b>`:''} · <a href="#" onclick="abrirTareas('Bandeja','${esc(e.email_id)}','${esc(e.cliente&&e.cliente!=='INTERNO'?e.cliente:(e.remitente_nombre||''))}');return false" style="color:var(--brand-primary);font-weight:500">➕ Crear tarea</a></div>
     ${osNotice(e)}
     ${e.mensaje_original?`<div class="msg-label">💬 Mensaje del cliente (texto original)</div><div class="msg-original">${esc(e.mensaje_original)}</div>`:''}
     ${renderCcOriginales(e)}
     ${renderContexto(e)}`;
-  if(e.estado==='Nuevo'||e.estado==='Prompt recibido'||(e.estado==='Borrador'&&!e.draft_cuerpo)){
+  if(e.estado==='Nuevo'||e.estado==='Prompt recibido'||(e.estado==='Borrador'&&!e.draft_cuerpo)||(e.estado==='Respuesta OS'&&!e.draft_cuerpo)){
     html += `
     <label>Tu instrucción para la respuesta</label>
     <textarea id="promptBox" rows="5" placeholder="Ej: Dile que recibimos sus documentos y que su declaración de junio queda presentada esta semana.">${esc(e.prompt_juan||'')}</textarea>
@@ -1389,7 +1518,7 @@ function renderDetail(id){
     ${e.estado==='Prompt recibido'?`<div class="notice info">⏳ Hay una instrucción guardada sin draft. Pulsa <b>⚡ Generar respuesta AHORA</b> (o el agente la redactará en su próxima corrida horaria).</div>`:''}
     ${e.estado==='Borrador'?`<div class="notice warn">📝 <b>Borrador guardado — pendiente de confirmación del equipo.</b> La instrucción quedó registrada; el agente NO lo procesa hasta que alguien pulse Generar o Aprobar.</div>`:''}`;
   }
-  if(e.estado==='Draft listo'||(e.estado==='Borrador'&&e.draft_cuerpo)){
+  if(e.estado==='Draft listo'||(e.estado==='Borrador'&&e.draft_cuerpo)||(e.estado==='Respuesta OS'&&e.draft_cuerpo)){
     html += `
     <label>Draft — edítalo directamente si lo necesitas</label>
     <div class="draft-box">
@@ -1482,19 +1611,23 @@ async function guardarBorradorDraft(id){
 async function revisar(id){
   const r=await api('revisar',{email_id:id});
   if(r.ok){ const e=EMAILS.find(x=>x.email_id===id); e.estado='Revisado';
-    if(selId===id){ selId=null; document.getElementById('mailDetail').innerHTML='<div class="empty">Selecciona un correo.</div>'; }
-    toast('✔ Marcado como Revisado — lo encuentras en su propio filtro'); renderMailList(); }
+    if(selId===id) selId=null;
+    toast('✔ Marcado como Revisado — lo encuentras en su propio filtro'); renderMailList();
+    if(selCliente&&!selId) renderClienteDrawer();
+    else if(!selCliente&&!selId) document.getElementById('mailDetail').innerHTML='<div class="empty">Selecciona un correo.</div>'; }
   else toast('❌ '+(r.error||'error'));
 }
 async function reabrir(id){
   const r=await api('no_revisado',{email_id:id});
-  if(r.ok){ const e=EMAILS.find(x=>x.email_id===id); e.estado='Nuevo'; toast('↩ Reabierto — vuelve a ⏳ Pendientes de mí'); renderMailList(); }
+  if(r.ok){ const e=EMAILS.find(x=>x.email_id===id); e.estado='Nuevo'; toast('↩ Reabierto — vuelve a ⏳ Pendientes de mí'); renderMailList();
+    if(selId===id) renderDetail(id); else if(selCliente) renderClienteDrawer(); }
   else toast('❌ '+(r.error||'error'));
 }
 async function discard(id){
   const r=await api('discard',{email_id:id});
   if(r.ok){ const e=EMAILS.find(x=>x.email_id===id); e.estado='Descartado'; selId=null; toast('Descartado'); renderMailList();
-    document.getElementById('mailDetail').innerHTML='<div class="empty">Selecciona un correo.</div>'; }
+    if(selCliente) renderClienteDrawer();
+    else document.getElementById('mailDetail').innerHTML='<div class="empty">Selecciona un correo.</div>'; }
   else toast('❌ '+(r.error||'error'));
 }
 function toggleNewPrompt(){ const w=document.getElementById('newPromptWrap'); w.style.display=w.style.display==='none'?'block':'none'; }
@@ -2782,8 +2915,8 @@ document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',ev=>{
 document.getElementById('catChips').addEventListener('click',ev=>{
   const ch=ev.target.closest('.chip');
   if(!ch||!ch.dataset.cat) return;
-  catFilter=ch.dataset.cat; composeMode=false;
-  document.querySelectorAll('#catChips .chip').forEach(c=>c.classList.toggle('on',c===ch));
+  catFilter=(catFilter===ch.dataset.cat)?'*':ch.dataset.cat; // el chip de Borradores se enciende y se apaga
+  composeMode=false;
   renderMailList();
 });
 
@@ -6523,6 +6656,24 @@ tr:hover td{background:var(--card-2)}
 .preview-card{border-radius:var(--r-lg);padding:20px 22px}
 .msg-original{background:var(--card-2);border:.5px solid var(--hairline);border-radius:var(--r-md)}
 .msg-label{color:var(--t3);letter-spacing:.07em}
+/* Barra de filtros de la Bandeja */
+.bnd-filtros{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:20px}
+.bnd-filtros input,.bnd-filtros select{width:auto;padding:7px 11px;font-size:13px;border-radius:var(--r-md);
+  background:var(--card);border:.5px solid var(--hairline);box-shadow:var(--sh-1);color:var(--t1)}
+.bnd-filtros .bnd-q{flex:1 1 260px;min-width:220px;max-width:420px}
+.bnd-filtros .bnd-lbl{font-size:12px;color:var(--t3);font-weight:500}
+.bnd-filtros .chip{background:var(--card);border:.5px solid var(--hairline);box-shadow:var(--sh-1)}
+.bnd-filtros .chip.on{background:var(--ink);color:var(--cream);border-color:var(--ink)}
+/* Tabla por cliente */
+.bandeja-tabla tbody tr{cursor:pointer}
+.bandeja-tabla tbody tr.bnd-sel td{background:var(--violet-100)}
+.bandeja-tabla td{vertical-align:middle}
+/* Miga de pan del panel lateral */
+.bandeja-crumb{display:flex;gap:7px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--t3);
+  margin:0 0 12px;padding-right:44px}
+.bandeja-crumb a{color:var(--violet-500);font-weight:600;text-decoration:none}
+.bandeja-crumb a:hover{text-decoration:underline}
+.bandeja-crumb .crumb-actual{color:var(--t1);font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ── Panel deslizante y modales: material translúcido ───────────────────── */
 #drawerBack,#dashModalBack,#kbConfirmBack{background:rgba(28,28,30,.28);
