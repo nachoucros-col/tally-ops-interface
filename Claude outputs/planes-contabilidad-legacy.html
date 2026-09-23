@@ -86,42 +86,47 @@ section + section{margin-top:var(--space-24);}
 .sec-head p{font-size:18px; color:var(--text-secondary);}
 
 /* ===== Tarjetas de plan ===== */
-.tiers{display:grid; grid-template-columns:repeat(3,1fr); gap:var(--space-8);}
-@media (max-width:1023px){ .tiers{grid-template-columns:1fr;} }
+.tiers{display:grid; grid-template-columns:repeat(4,1fr); gap:var(--space-6);}
+@media (max-width:1100px){ .tiers{grid-template-columns:repeat(2,1fr);} }
+@media (max-width:640px){ .tiers{grid-template-columns:1fr;} }
 .tier{
   background:var(--cream); border:1px solid var(--border-light);
   border-radius:var(--radius-md); box-shadow:var(--shadow-md);
   padding:var(--space-8) var(--space-6);
   display:flex; flex-direction:column; gap:var(--space-6);
 }
-.tier--silver{border-color:var(--brand-primary-soft); box-shadow:var(--shadow-lg);}
-.tier--gold{background:var(--surface-dark); color:var(--text-on-dark); border-color:var(--ink); box-shadow:var(--shadow-lg);}
-.tier--gold .tier-name{color:var(--text-on-dark);}
-.tier--gold .price small{color:var(--text-muted-dark);}
-.tier--gold li{border-color:rgba(254,252,248,.14);}
+.tier--silver{border-color:var(--brand-primary-soft);}
+.tier--gold{border-color:var(--brand-primary); border-width:2px; box-shadow:var(--shadow-lg);}
+.tier--diamond{background:var(--surface-dark); color:var(--text-on-dark); border-color:var(--ink); box-shadow:var(--shadow-lg);}
+.tier--diamond .tier-name{color:var(--text-on-dark);}
+.tier--diamond .price small{color:var(--text-muted-dark);}
+.tier--diamond li{border-color:rgba(254,252,248,.14);}
+.tier--diamond .quote{font-size:17px; line-height:1.5; color:var(--text-on-dark); opacity:.88;}
+.tier--diamond .note{font-size:14px; color:var(--text-muted-dark); line-height:1.5;}
 .tier-name{font-size:24px; font-weight:500; line-height:1.25; letter-spacing:-0.005em;}
-.price{font-size:40px; font-weight:700; line-height:1.05; letter-spacing:-0.015em;}
+.price{font-size:34px; font-weight:700; line-height:1.05; letter-spacing:-0.015em;}
 .tier--basico .price{color:var(--text-primary);}
-.tier--silver .price{color:var(--brand-primary);}
-.tier--gold .price{color:var(--cream);}
+.tier--silver .price{color:var(--text-primary);}
+.tier--gold .price{color:var(--brand-primary);}
+.tier--diamond .price{color:var(--cream); font-size:28px;}
 .price small{display:block; font-size:14px; font-weight:400; color:var(--text-secondary); letter-spacing:0; margin-top:var(--space-2);}
 .tier ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column;}
 .tier li{
   display:grid; grid-template-columns:20px 1fr; gap:var(--space-3);
-  align-items:start; font-size:16px; line-height:1.5;
+  align-items:start; font-size:15px; line-height:1.5;
   padding-block:var(--space-3); border-top:1px solid var(--border-light);
 }
 .tier li:first-child{border-top:none; padding-top:0;}
 .mark{width:18px; height:18px; margin-top:3px; flex:none;}
 .tier li.out{color:var(--text-secondary);}
-.tier--gold li.out{color:var(--text-muted-dark);}
+.tier--diamond li.out{color:var(--text-muted-dark);}
 
 /* ===== Tabla comparativa ===== */
 .tablebox{
   overflow-x:auto; background:var(--cream);
   border:1px solid var(--border-light); border-radius:var(--radius-md); box-shadow:var(--shadow-md);
 }
-table{border-collapse:collapse; width:100%; min-width:720px; font-size:16px;}
+table{border-collapse:collapse; width:100%; min-width:880px; font-size:16px;}
 caption{text-align:left; padding:var(--space-6) var(--space-6) 0; font-size:14px; color:var(--text-secondary);}
 th,td{padding:var(--space-4) var(--space-6); text-align:left; vertical-align:top; border-bottom:1px solid var(--border-light);}
 thead th{
@@ -150,6 +155,7 @@ td.no{color:var(--text-secondary);}
   content:counter(d,decimal-leading-zero); font-size:14px; font-weight:700;
   color:var(--brand-primary); font-feature-settings:'tnum' 1;
 }
+.deliverable li em{font-style:normal; color:var(--text-secondary); font-weight:400;}
 .deliverable li span{font-size:17px; font-weight:500; line-height:1.45;}
 
 /* ===== Reglas ===== */
@@ -200,7 +206,7 @@ footer p{font-size:14px; color:var(--text-secondary);}
     <img class="brand-mark" src="data:image/png;base64,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" width="130" height="64" alt="Tally">
     <span class="eyebrow">Contabilidad · Clientes Legacy</span>
     <h1>Planes de contabilidad para <strong>clientes Legacy.</strong></h1>
-    <p class="lead">Alcance, límites y costos incrementales de los tres niveles de servicio. Lo que no está escrito aquí no está incluido: se cotiza por separado.</p>
+    <p class="lead">Alcance, límites y costos incrementales de los cuatro niveles de servicio. Lo que no está escrito aquí no está incluido: se cotiza por separado.</p>
     <div class="meta">
       <span>Revisión del 23 de septiembre de 2026</span>
       <span class="tnum">Pesos mexicanos (MXN), antes de IVA</span>
@@ -215,8 +221,8 @@ footer p{font-size:14px; color:var(--text-secondary);}
     <section>
       <div class="sec-head">
         <span class="eyebrow">Niveles de servicio</span>
-        <h2>Los tres planes</h2>
-        <p>La diferencia entre planes es capacidad operativa: cuántas cuentas se concilian, con qué velocidad respondemos y cuántos comprobantes emitimos. El paquete documental mensual es idéntico en los tres.</p>
+        <h2>Los cuatro planes</h2>
+        <p>La diferencia entre planes es capacidad operativa: cuántas cuentas se concilian, con qué velocidad respondemos y cuántos comprobantes emitimos. El paquete documental mensual es idéntico en todos.</p>
       </div>
 
       <div class="tiers">
@@ -245,7 +251,7 @@ footer p{font-size:14px; color:var(--text-secondary);}
           <ul>
             <li><svg class="mark" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 5" fill="none" stroke="#6047ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>2 a 3 cuentas</b> de conciliación bancaria — banco, tarjeta de crédito o depósito electrónico: cada una cuenta como una.</span></li>
             <li><svg class="mark" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 5" fill="none" stroke="#6047ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Pagos y depósitos organizados y nombrados con referencias trazables.</span></li>
-            <li><svg class="mark" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 5" fill="none" stroke="#6047ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Canal de WhatsApp activo, respuesta en <b>24 a 48 horas</b> laborales.</span></li>
+            <li><svg class="mark" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 5" fill="none" stroke="#6047ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Canal de WhatsApp activo, respuesta <b>de 24 a 48 h laborales</b>.</span></li>
             <li><svg class="mark" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 5" fill="none" stroke="#6047ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>1 reunión quincenal</b> de revisión y ajustes contables y fiscales.</span></li>
             <li><svg class="mark" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 5" fill="none" stroke="#6047ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Hasta <b>15 facturas</b> mensuales B2B o B2C.</span></li>
             <li class="out"><svg class="mark" viewBox="0 0 18 18" aria-hidden="true"><path d="M5 5l8 8M13 5l-8 8" fill="none" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round"/></svg><span>Sin reportes ni solicitudes especiales.</span></li>
@@ -258,14 +264,25 @@ footer p{font-size:14px; color:var(--text-secondary);}
             <div class="price tnum">$20,000<small>MXN al mes</small></div>
           </div>
           <ul>
-            <li><svg class="mark" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 5" fill="none" stroke="#fefcf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Hasta <b>5 cuentas</b> de conciliación bancaria — banco, tarjeta de crédito o depósito electrónico: cada una cuenta como una.</span></li>
-            <li><svg class="mark" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 5" fill="none" stroke="#fefcf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Pagos y depósitos organizados y nombrados con referencias trazables.</span></li>
-            <li><svg class="mark" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 5" fill="none" stroke="#fefcf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Canal de WhatsApp activo, respuesta en <b>8 horas</b> laborales.</span></li>
-            <li><svg class="mark" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 5" fill="none" stroke="#fefcf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>1 reunión semanal</b> de revisión y ajustes contables y fiscales.</span></li>
-            <li><svg class="mark" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 5" fill="none" stroke="#fefcf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Hasta <b>3 reportes extra</b> al mes.</span></li>
-            <li><svg class="mark" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 5" fill="none" stroke="#fefcf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Hasta <b>15 facturas</b> mensuales B2B o B2C.</span></li>
+            <li><svg class="mark" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 5" fill="none" stroke="#6047ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Hasta <b>5 cuentas</b> de conciliación bancaria — banco, tarjeta de crédito o depósito electrónico: cada una cuenta como una.</span></li>
+            <li><svg class="mark" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 5" fill="none" stroke="#6047ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Pagos y depósitos organizados y nombrados con referencias trazables.</span></li>
+            <li><svg class="mark" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 5" fill="none" stroke="#6047ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Canal de WhatsApp activo, respuesta <b>hasta 8 h laborales</b>.</span></li>
+            <li><svg class="mark" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 5" fill="none" stroke="#6047ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>1 reunión semanal</b> de revisión y ajustes contables y fiscales.</span></li>
+            <li><svg class="mark" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 5" fill="none" stroke="#6047ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Hasta <b>3 reportes extra</b> al mes.</span></li>
+            <li><svg class="mark" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 5" fill="none" stroke="#6047ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>División de centros de costos</b> — hasta 3 centros de costos.</span></li>
+            <li><svg class="mark" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4L15 5" fill="none" stroke="#6047ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Hasta <b>15 facturas</b> mensuales B2B o B2C.</span></li>
           </ul>
         </article>
+
+        <article class="tier tier--diamond">
+          <div>
+            <div class="tier-name">Diamond</div>
+            <div class="price tnum">Desde $21,000<small>MXN al mes</small></div>
+          </div>
+          <p class="quote">Contáctanos para una cotización personalizada.</p>
+          <p class="note">El alcance se define caso por caso a partir de las necesidades de la operación del cliente.</p>
+        </article>
+
 
       </div>
     </section>
@@ -279,21 +296,22 @@ footer p{font-size:14px; color:var(--text-secondary);}
         <table>
           <caption>Cifras en pesos mexicanos, antes de IVA.</caption>
           <thead>
-            <tr><th scope="col">Concepto</th><th scope="col">Básico</th><th scope="col">Silver</th><th scope="col">Gold</th></tr>
+            <tr><th scope="col">Concepto</th><th scope="col">Básico</th><th scope="col">Silver</th><th scope="col">Gold</th><th scope="col">Diamond</th></tr>
           </thead>
           <tbody>
-            <tr><th scope="row">Fee mensual</th><td>Fee actual</td><td>$12,000</td><td>$20,000</td></tr>
-            <tr><th scope="row">Cuentas conciliadas incluidas</th><td>1</td><td>2 a 3</td><td>Hasta 5</td></tr>
-            <tr><th scope="row">Cuenta adicional ligada al mismo RFC</th><td colspan="3">$1,500 al mes por cada cuenta adicional</td></tr>
-            <tr><th scope="row">Canal de WhatsApp</th><td class="no">No</td><td class="si">Sí · 24 a 48 h laborales</td><td class="si">Sí · 8 h laborales</td></tr>
-            <tr><th scope="row">Reuniones de revisión</th><td>Mensual · lectura de contabilidad</td><td>Quincenal · revisión y ajustes</td><td>Semanal · revisión y ajustes</td></tr>
-            <tr><th scope="row">Facturas incluidas al mes</th><td>5 · solo B2B</td><td>15 · B2B o B2C</td><td>15 · B2B o B2C</td></tr>
-            <tr><th scope="row">Factura adicional</th><td colspan="3">$99 por factura B2B o B2C</td></tr>
-            <tr><th scope="row">Reportes extra al mes</th><td class="no">No</td><td class="no">No</td><td class="si">Hasta 3</td></tr>
-            <tr><th scope="row">Paquete documental mensual</th><td colspan="3">Idéntico en los tres planes</td></tr>
-            <tr><th scope="row">Fecha límite de entrega de información</th><td colspan="3">Día 10 de cada mes</td></tr>
-            <tr><th scope="row">Aprobación del cálculo de impuestos</th><td colspan="3">Obligatoria por parte del cliente antes de declarar</td></tr>
-            <tr><th scope="row">Nómina</th><td colspan="3">No incluida en ningún plan — se cotiza aparte con Axya</td></tr>
+            <tr><th scope="row">Fee mensual</th><td>Fee actual</td><td>$12,000</td><td>$20,000</td><td>Desde $21,000</td></tr>
+            <tr><th scope="row">Cuentas conciliadas incluidas</th><td>1</td><td>2 a 3</td><td>Hasta 5</td><td>Según cotización</td></tr>
+            <tr><th scope="row">Cuenta adicional ligada al mismo RFC</th><td colspan="4">$1,500 al mes por cada cuenta adicional</td></tr>
+            <tr><th scope="row">Canal de WhatsApp</th><td class="no">No</td><td class="si">Sí · de 24 a 48 h laborales</td><td class="si">Sí · hasta 8 h laborales</td><td>Según cotización</td></tr>
+            <tr><th scope="row">Reuniones de revisión</th><td>Mensual · lectura de contabilidad</td><td>Quincenal · revisión y ajustes</td><td>Semanal · revisión y ajustes</td><td>Según cotización</td></tr>
+            <tr><th scope="row">Facturas incluidas al mes</th><td>5 · solo B2B</td><td>15 · B2B o B2C</td><td>15 · B2B o B2C</td><td>Según cotización</td></tr>
+            <tr><th scope="row">Factura adicional</th><td colspan="4">$99 por factura B2B o B2C</td></tr>
+            <tr><th scope="row">Reportes extra al mes</th><td class="no">No</td><td class="no">No</td><td class="si">Hasta 3</td><td>Según cotización</td></tr>
+            <tr><th scope="row">División de centros de costos</th><td class="no">No</td><td class="no">No</td><td class="si">Hasta 3 centros</td><td>Según cotización</td></tr>
+            <tr><th scope="row">Paquete documental mensual</th><td colspan="4">Idéntico en todos los planes</td></tr>
+            <tr><th scope="row">Fecha límite de entrega de información</th><td colspan="4">Día 10 de cada mes</td></tr>
+            <tr><th scope="row">Aprobación del cálculo de impuestos</th><td colspan="4">Obligatoria por parte del cliente antes de declarar</td></tr>
+            <tr><th scope="row">Nómina</th><td colspan="4">No incluida en ningún plan — se cotiza aparte con Axya</td></tr>
           </tbody>
         </table>
       </div>
@@ -303,11 +321,12 @@ footer p{font-size:14px; color:var(--text-secondary);}
       <div class="sec-head">
         <span class="eyebrow">Entregable mensual</span>
         <h2>Lo que se envía cada mes</h2>
-        <p>Este es el alcance completo de la documentación mensual. No procesamos reportes ni solicitudes especiales fuera de esta lista, salvo los reportes extra incluidos en Gold.</p>
+        <p>Este es el alcance completo de la documentación mensual. No procesamos reportes ni solicitudes especiales fuera de esta lista, salvo los reportes extra incluidos en Gold y lo que se acuerde en una cotización Diamond.</p>
       </div>
       <div class="deliverable">
         <ol>
           <li><span>Envío de declaración: declaración, acuse y DIOT</span></li>
+          <li><span>Generación y envío de línea de captura para pago de impuestos <em>(si aplica)</em></span></li>
           <li><span>Reporte de Estado de Resultados</span></li>
           <li><span>Reporte de Balance General</span></li>
           <li><span>Reporte de Balanza de Comprobación</span></li>
@@ -380,7 +399,7 @@ footer p{font-size:14px; color:var(--text-secondary);}
       <div class="closing">
         <span class="eyebrow">Regla dura</span>
         <h2>Tally no lleva nómina de clientes.</h2>
-        <p>Todos los planes que requieran nómina se cotizan por aparte con Axya. No hay excepción ni versión reducida dentro de Básico, Silver o Gold.</p>
+        <p>Todos los planes que requieran nómina se cotizan por aparte con Axya. No hay excepción ni versión reducida dentro de Básico, Silver, Gold ni Diamond.</p>
       </div>
     </section>
 
