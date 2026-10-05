@@ -197,17 +197,17 @@ td.no{color:var(--text-secondary);}
 
 /* ===== Banda de servicios incluidos en todos los planes ===== */
 .included{
-  display:flex; align-items:flex-start; gap:var(--space-4);
+  display:flex; align-items:flex-start; gap:var(--space-3);
   background:var(--green-100); border:2px solid var(--green-500);
-  border-radius:var(--radius-md); padding:var(--space-6);
+  border-radius:var(--radius-md); padding:var(--space-4) var(--space-6);
   box-shadow:var(--shadow-md);
 }
-.included svg{flex:none; width:26px; height:26px; margin-top:1px;}
+.included svg{flex:none; width:20px; height:20px; margin-top:3px;}
 .included p{
-  font-size:clamp(17px,2vw,20px); font-weight:500; line-height:1.4;
-  color:var(--ink); letter-spacing:-0.005em;
+  font-size:16px; font-weight:400; line-height:1.6;
+  color:var(--ink); letter-spacing:0;
 }
-.included .tip{font-weight:700;}
+.included .tip{font-weight:500;}
 .included .tip-bubble{font-weight:400;}
 
 /* ===== Tooltip (Axya) ===== */
@@ -406,7 +406,7 @@ footer p{font-size:14px; color:var(--text-secondary);}
             <tr><th scope="row">Reuniones de revisión</th><td>Mensual · lectura de contabilidad</td><td>Quincenal · revisión y ajustes</td><td>Semanal · revisión y ajustes</td><td>Según cotización</td></tr>
             <tr><th scope="row">Facturas incluidas al mes</th><td>5 · solo B2B</td><td>15 · B2B o B2C</td><td>15 · B2B o B2C</td><td>Según cotización</td></tr>
             <tr><th scope="row">Factura adicional</th><td colspan="4">$99 por factura B2B o B2C</td></tr>
-            <tr><th scope="row">Reportes extra al mes</th><td class="no">No</td><td class="no">No</td><td class="si">Hasta 3<a class="cell-link" href="#reportes-especializados">ver reportes extra</a></td><td>Según cotización</td></tr>
+            <tr><th scope="row">Reportes extra al mes</th><td class="no">No</td><td class="no">No</td><td class="si">Hasta 3</td><td>Según cotización</td></tr>
             <tr><th scope="row">División de centros de costos</th><td class="no">No</td><td class="no">No</td><td class="si">Hasta 3 centros</td><td>Según cotización</td></tr>
             <tr><th scope="row">Paquete documental mensual</th><td colspan="4">Idéntico en todos los planes</td></tr>
             <tr><th scope="row">Fecha límite de entrega de información</th><td colspan="4">Día 10 de cada mes</td></tr>
@@ -422,7 +422,6 @@ footer p{font-size:14px; color:var(--text-secondary);}
         <span class="eyebrow">Entregable mensual</span>
         <h2>Lo que se envía cada mes</h2>
         <p>Este es el alcance completo de la documentación mensual. No procesamos reportes ni solicitudes especiales fuera de esta lista, salvo los reportes extra incluidos en Gold y lo que se acuerde en una cotización Diamond.</p>
-        <a class="anchor-link" href="#reportes-especializados">Ver los tres reportes especializados que se contratan por separado →</a>
       </div>
       <div class="deliverable">
         <ol>
@@ -477,17 +476,17 @@ footer p{font-size:14px; color:var(--text-secondary);}
               <td class="price-cell">Según cotización</td>
             </tr>
             <tr>
-              <th scope="row"><a href="#reportes-especializados">Unit Economics Transfronterizo</a></th>
+              <th scope="row">Reporte de Unit Economics Transfronterizo</th>
               <td>Rentabilidad neta real por ASIN después de procesar toda la carga logística y fiscal mexicana.</td>
               <td class="price-cell">$1,499 por reporte</td>
             </tr>
             <tr>
-              <th scope="row"><a href="#reportes-especializados">Conciliación de Inventario Deducible</a></th>
+              <th scope="row">Reporte de Conciliación de Inventario Deducible</th>
               <td>Cruce entre el stock alojado en los almacenes del marketplace en México y su respaldo aduanero legal.</td>
               <td class="price-cell">$1,499 por reporte</td>
             </tr>
             <tr>
-              <th scope="row"><a href="#reportes-especializados">Repatriación y Flujo de Efectivo</a></th>
+              <th scope="row">Reporte de Repatriación y Flujo de Efectivo</th>
               <td>Trazabilidad del dinero desde el payout quincenal del marketplace hasta la liquidación en la cuenta extranjera. Incluido sin costo con Tensec.</td>
               <td class="price-cell">$1,499 por reporte</td>
             </tr>
@@ -549,81 +548,7 @@ footer p{font-size:14px; color:var(--text-secondary);}
     </section>
 
 
-    <section id="reportes-especializados">
-      <div class="sec-head">
-        <span class="eyebrow">Reportes especializados · se contratan por separado</span>
-        <h2>Tres reportes que tu marketplace no puede darte</h2>
-        <p>Se cotizan por reporte y son independientes del plan contratado.</p>
-      </div>
-
-      <div class="reports">
-
-        <article class="report">
-          <div class="report-head">
-            <span class="report-price">$1,499 MXN por reporte</span>
-            <h3>Unit Economics Transfronterizo</h3>
-          </div>
-          <dl>
-            <div>
-              <dt>Qué mide</dt>
-              <dd>La rentabilidad neta real por ASIN después de procesar toda la carga logística y fiscal mexicana.</dd>
-            </div>
-            <div>
-              <dt>Data</dt>
-              <dd>Precio de venta neto menos tarifas de logística del marketplace en México, costos aduanales y aranceles prorrateados, retenciones aplicables de ISR e IVA, y pérdida por tipo de cambio.</dd>
-            </div>
-            <div>
-              <dt>Valor para el cliente</dt>
-              <dd class="value">El vendedor extranjero suele calcular sus utilidades basándose únicamente en el dashboard del marketplace, ignorando el costo fiscal. Este reporte le muestra <b>exactamente cuántos pesos líquidos netos está ganando por unidad vendida en México</b>.</dd>
-            </div>
-          </dl>
-        </article>
-
-        <article class="report">
-          <div class="report-head">
-            <span class="report-price">$1,499 MXN por reporte</span>
-            <h3>Conciliación de Inventario Deducible</h3>
-          </div>
-          <dl>
-            <div>
-              <dt>Qué mide</dt>
-              <dd>El cruce exacto entre el stock físico alojado en los almacenes del marketplace en México y su respaldo aduanero legal.</dd>
-            </div>
-            <div>
-              <dt>Data</dt>
-              <dd>Unidades activas en el marketplace contra unidades amparadas bajo Pedimentos de Importación Definitiva (clave A1) y Manifestación de Valor Electrónica validados.</dd>
-            </div>
-            <div>
-              <dt>Valor para el cliente</dt>
-              <dd class="value">Previene el inventario huérfano. Le advierte qué porcentaje de su stock actual no es fiscalmente deducible, <b>lo cual le generará un golpe directo del 30% de ISR al momento de su venta</b> por carecer de soporte legal.</dd>
-            </div>
-          </dl>
-        </article>
-
-        <article class="report">
-          <div class="report-head">
-            <span class="report-price">$1,499 MXN por reporte</span>
-            <h3>Repatriación y Flujo de Efectivo</h3>
-          </div>
-          <dl>
-            <div>
-              <dt>Qué mide</dt>
-              <dd>La trazabilidad del dinero desde el payout quincenal del marketplace hasta la liquidación en su cuenta extranjera.</dd>
-            </div>
-            <div>
-              <dt>Data</dt>
-              <dd>Dinero inmovilizado por saldos a favor de IVA, capital bloqueado para cubrir líneas de captura del SAT en el mes en curso, y capital libre y seguro para repatriar internacionalmente.</dd>
-            </div>
-            <div>
-              <dt>Valor para el cliente</dt>
-              <dd class="value">Elimina la incertidumbre sobre <b>cuánto dinero puede extraer a su país de origen sin descapitalizar su entidad mexicana</b> para mantener el flujo de caja para costos y gastos o de reinversión en México.</dd>
-            </div>
-          </dl>
-          <p class="report-flag">Incluido sin costo cuando el cliente elige a Tensec, nuestro aliado estratégico de repatriación.</p>
-        </article>
-
-      </div>
-    </section>
+    
 
     <section>
       <div class="closing">
