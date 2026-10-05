@@ -195,6 +195,21 @@ td.no{color:var(--text-secondary);}
 .closing h2{font-size:clamp(28px,3.4vw,40px); font-weight:700; line-height:1.1; letter-spacing:-0.01em;}
 .closing p{font-size:18px; color:var(--text-on-dark); opacity:.85; max-width:70ch;}
 
+/* ===== Banda de servicios incluidos en todos los planes ===== */
+.included{
+  display:flex; align-items:flex-start; gap:var(--space-4);
+  background:var(--green-100); border:2px solid var(--green-500);
+  border-radius:var(--radius-md); padding:var(--space-6);
+  box-shadow:var(--shadow-md);
+}
+.included svg{flex:none; width:26px; height:26px; margin-top:1px;}
+.included p{
+  font-size:clamp(17px,2vw,20px); font-weight:500; line-height:1.4;
+  color:var(--ink); letter-spacing:-0.005em;
+}
+.included .tip{font-weight:700;}
+.included .tip-bubble{font-weight:400;}
+
 /* ===== Tooltip (Axya) ===== */
 .tip{position:relative; display:inline; color:inherit; font-weight:500;
   border-bottom:1px dashed currentColor; cursor:help; outline-offset:3px;}
@@ -292,6 +307,11 @@ footer p{font-size:14px; color:var(--text-secondary);}
         <span class="eyebrow">Niveles de servicio</span>
         <h2>Los cuatro planes</h2>
         <p>La diferencia entre planes es capacidad operativa: cuántas cuentas se concilian, con qué velocidad respondemos y cuántos comprobantes emitimos. El paquete documental mensual es idéntico en todos.</p>
+      </div>
+
+      <div class="included">
+        <svg viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="12" fill="#49d475"/><path d="M7 13.5l4 4 8-9" fill="none" stroke="#212121" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <p>Todos los planes incluyen los servicios de <span class="tip" tabindex="0" role="note" aria-label="Domicilio fiscal. Dirección registrada ante el SAT donde la autoridad localiza y notifica legalmente a tu empresa mexicana. Es obligatoria para operar y la autoridad debe poder verificarla.">domicilio fiscal<span class="tip-bubble" aria-hidden="true">Dirección registrada ante el SAT donde la autoridad localiza y notifica legalmente a tu empresa mexicana. Es obligatoria para operar y la autoridad debe poder verificarla.</span></span> y la <span class="tip" tabindex="0" role="note" aria-label="Representación legal. Persona designada para actuar a nombre de tu empresa mexicana ante autoridades y terceros, y firmar los trámites que la sociedad requiere.">representación legal<span class="tip-bubble" aria-hidden="true">Persona designada para actuar a nombre de tu empresa mexicana ante autoridades y terceros, y firmar los trámites que la sociedad requiere.</span></span>.</p>
       </div>
 
       <div class="tiers">
