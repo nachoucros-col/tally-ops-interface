@@ -142,22 +142,25 @@ td.si{color:var(--brand-primary);}
 td.no{color:var(--text-secondary);}
 
 /* ===== Entregable mensual ===== */
-.deliverable{
-  background:var(--brand-primary-soft); border-radius:var(--radius-lg);
-  padding:var(--space-8) var(--space-6);
-}
+.deliverable{max-width:70ch;}
 .deliverable ol{
   margin:0; padding:0; list-style:none; counter-reset:d;
-  display:grid; grid-template-columns:repeat(2,1fr); gap:var(--space-6);
+  display:flex; flex-direction:column;
 }
-@media (max-width:767px){ .deliverable ol{grid-template-columns:1fr;} }
-.deliverable li{counter-increment:d; display:grid; grid-template-columns:auto 1fr; gap:var(--space-4); align-items:baseline;}
+.deliverable li{
+  counter-increment:d;
+  display:grid; grid-template-columns:28px 1fr; gap:var(--space-4);
+  align-items:baseline;
+  padding-block:var(--space-3);
+  border-top:1px solid var(--border-light);
+}
+.deliverable li:first-child{border-top:none; padding-top:0;}
 .deliverable li::before{
-  content:counter(d,decimal-leading-zero); font-size:14px; font-weight:700;
-  color:var(--brand-primary); font-feature-settings:'tnum' 1;
+  content:counter(d,decimal-leading-zero);
+  font-size:13px; font-weight:700; color:var(--brand-primary);
+  font-feature-settings:'tnum' 1;
 }
-.deliverable li em{font-style:normal; color:var(--text-secondary); font-weight:400;}
-.deliverable li span{font-size:17px; font-weight:500; line-height:1.45;}
+.deliverable li span{font-size:16px; font-weight:400; line-height:1.6;}
 
 /* ===== Reglas ===== */
 .rules{display:grid; grid-template-columns:repeat(2,1fr); gap:var(--space-6);}
@@ -387,6 +390,23 @@ footer p{font-size:14px; color:var(--text-secondary);}
       </div>
     </section>
 
+<section>
+      <div class="sec-head">
+        <span class="eyebrow">Entregable mensual</span>
+        <h2>Lo que se envía cada mes</h2>
+        <p>Este es el alcance completo de la documentación mensual. No procesamos reportes ni solicitudes especiales fuera de esta lista, salvo los reportes extra incluidos en Gold y lo que se acuerde en una cotización Diamond.</p>
+      </div>
+      <div class="deliverable">
+        <ol>
+          <li><span>Envío de declaración: declaración, acuse y DIOT</span></li>
+          <li><span>Generación y envío de línea de captura para pago de impuestos <em>(si aplica)</em></span></li>
+          <li><span>Reporte de Estado de Resultados</span></li>
+          <li><span>Reporte de Balance General</span></li>
+          <li><span>Reporte de Balanza de Comprobación</span></li>
+        </ol>
+      </div>
+    </section>
+
     <section>
       <div class="sec-head">
         <span class="eyebrow">Comparativo</span>
@@ -417,22 +437,7 @@ footer p{font-size:14px; color:var(--text-secondary);}
       </div>
     </section>
 
-    <section>
-      <div class="sec-head">
-        <span class="eyebrow">Entregable mensual</span>
-        <h2>Lo que se envía cada mes</h2>
-        <p>Este es el alcance completo de la documentación mensual. No procesamos reportes ni solicitudes especiales fuera de esta lista, salvo los reportes extra incluidos en Gold y lo que se acuerde en una cotización Diamond.</p>
-      </div>
-      <div class="deliverable">
-        <ol>
-          <li><span>Envío de declaración: declaración, acuse y DIOT</span></li>
-          <li><span>Generación y envío de línea de captura para pago de impuestos <em>(si aplica)</em></span></li>
-          <li><span>Reporte de Estado de Resultados</span></li>
-          <li><span>Reporte de Balance General</span></li>
-          <li><span>Reporte de Balanza de Comprobación</span></li>
-        </ol>
-      </div>
-    </section>
+    
 
 <section>
       <div class="sec-head">
