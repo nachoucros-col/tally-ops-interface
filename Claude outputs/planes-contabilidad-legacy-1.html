@@ -252,6 +252,11 @@ td.no{color:var(--text-secondary);}
   background:var(--brand-warm-soft); border-radius:var(--radius-sm);
   padding:var(--space-3) var(--space-4); font-size:13px; line-height:1.45;
 }
+.cell-link{
+  display:block; margin-top:var(--space-1);
+  font-size:13px; font-weight:500; color:var(--brand-primary);
+  text-decoration:underline; text-underline-offset:3px;
+}
 .anchor-link{
   display:inline-block; margin-top:var(--space-4);
   font-size:15px; font-weight:500; color:var(--brand-primary);
@@ -374,7 +379,7 @@ footer p{font-size:14px; color:var(--text-secondary);}
             <tr><th scope="row">Reuniones de revisión</th><td>Mensual · lectura de contabilidad</td><td>Quincenal · revisión y ajustes</td><td>Semanal · revisión y ajustes</td><td>Según cotización</td></tr>
             <tr><th scope="row">Facturas incluidas al mes</th><td>5 · solo B2B</td><td>15 · B2B o B2C</td><td>15 · B2B o B2C</td><td>Según cotización</td></tr>
             <tr><th scope="row">Factura adicional</th><td colspan="4">$99 por factura B2B o B2C</td></tr>
-            <tr><th scope="row">Reportes extra al mes</th><td class="no">No</td><td class="no">No</td><td class="si">Hasta 3</td><td>Según cotización</td></tr>
+            <tr><th scope="row">Reportes extra al mes</th><td class="no">No</td><td class="no">No</td><td class="si">Hasta 3<a class="cell-link" href="#reportes-especializados">ver reportes extra</a></td><td>Según cotización</td></tr>
             <tr><th scope="row">División de centros de costos</th><td class="no">No</td><td class="no">No</td><td class="si">Hasta 3 centros</td><td>Según cotización</td></tr>
             <tr><th scope="row">Paquete documental mensual</th><td colspan="4">Idéntico en todos los planes</td></tr>
             <tr><th scope="row">Fecha límite de entrega de información</th><td colspan="4">Día 10 de cada mes</td></tr>
@@ -454,8 +459,8 @@ footer p{font-size:14px; color:var(--text-secondary);}
     <section id="reportes-especializados">
       <div class="sec-head">
         <span class="eyebrow">Reportes especializados · se contratan por separado</span>
-        <h2>Tres reportes que el dashboard de Amazon no puede darte</h2>
-        <p>Se cotizan por reporte y son independientes del plan contratado. Cada uno responde una pregunta que el vendedor extranjero normalmente no puede contestar con la información de Seller Central.</p>
+        <h2>Tres reportes que tu marketplace no puede darte</h2>
+        <p>Se cotizan por reporte y son independientes del plan contratado.</p>
       </div>
 
       <div class="reports">
@@ -472,11 +477,11 @@ footer p{font-size:14px; color:var(--text-secondary);}
             </div>
             <div>
               <dt>Data</dt>
-              <dd>Precio de venta neto menos tarifas FBA México, costos aduanales y aranceles prorrateados, retenciones aplicables de ISR e IVA, y pérdida por tipo de cambio.</dd>
+              <dd>Precio de venta neto menos tarifas de logística del marketplace en México, costos aduanales y aranceles prorrateados, retenciones aplicables de ISR e IVA, y pérdida por tipo de cambio.</dd>
             </div>
             <div>
               <dt>Valor para el cliente</dt>
-              <dd class="value">El vendedor extranjero suele calcular sus utilidades basándose únicamente en el dashboard de Amazon Seller Central, ignorando el costo fiscal. Este reporte le muestra <b>exactamente cuántos pesos líquidos netos está ganando por unidad vendida en México</b>.</dd>
+              <dd class="value">El vendedor extranjero suele calcular sus utilidades basándose únicamente en el dashboard del marketplace, ignorando el costo fiscal. Este reporte le muestra <b>exactamente cuántos pesos líquidos netos está ganando por unidad vendida en México</b>.</dd>
             </div>
           </dl>
         </article>
@@ -493,7 +498,7 @@ footer p{font-size:14px; color:var(--text-secondary);}
             </div>
             <div>
               <dt>Data</dt>
-              <dd>Unidades activas en Seller Central contra unidades amparadas bajo Pedimentos de Importación Definitiva (clave A1) y Manifestación de Valor Electrónica validados.</dd>
+              <dd>Unidades activas en el marketplace contra unidades amparadas bajo Pedimentos de Importación Definitiva (clave A1) y Manifestación de Valor Electrónica validados.</dd>
             </div>
             <div>
               <dt>Valor para el cliente</dt>
@@ -510,7 +515,7 @@ footer p{font-size:14px; color:var(--text-secondary);}
           <dl>
             <div>
               <dt>Qué mide</dt>
-              <dd>La trazabilidad del dinero desde el payout quincenal de Amazon hasta la liquidación en su cuenta extranjera: WorldFirst, PingPong o cuenta matriz.</dd>
+              <dd>La trazabilidad del dinero desde el payout quincenal del marketplace hasta la liquidación en su cuenta extranjera.</dd>
             </div>
             <div>
               <dt>Data</dt>
@@ -518,7 +523,7 @@ footer p{font-size:14px; color:var(--text-secondary);}
             </div>
             <div>
               <dt>Valor para el cliente</dt>
-              <dd class="value">Elimina la incertidumbre sobre <b>cuánto dinero puede extraer a su país de origen sin descapitalizar su entidad mexicana</b> para el pago inminente de impuestos.</dd>
+              <dd class="value">Elimina la incertidumbre sobre <b>cuánto dinero puede extraer a su país de origen sin descapitalizar su entidad mexicana</b> para mantener el flujo de caja para costos y gastos o de reinversión en México.</dd>
             </div>
           </dl>
           <p class="report-flag">Incluido sin costo cuando el cliente elige a Tensec, nuestro aliado estratégico de repatriación.</p>
