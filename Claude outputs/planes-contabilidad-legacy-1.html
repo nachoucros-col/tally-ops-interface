@@ -267,6 +267,13 @@ td.no{color:var(--text-secondary);}
   background:var(--brand-warm-soft); border-radius:var(--radius-sm);
   padding:var(--space-3) var(--space-4); font-size:13px; line-height:1.45;
 }
+.t-extras tbody th{width:26%; font-weight:500; color:var(--text-primary);}
+.t-extras tbody td{font-weight:400; color:var(--text-secondary);}
+.t-extras td.price-cell{
+  width:20%; font-weight:700; color:var(--brand-primary);
+  font-feature-settings:'tnum' 1; white-space:nowrap;
+}
+.t-extras tbody th a{color:var(--brand-primary); text-decoration:underline; text-underline-offset:3px;}
 .cell-link{
   display:block; margin-top:var(--space-1);
   font-size:13px; font-weight:500; color:var(--brand-primary);
@@ -431,15 +438,66 @@ footer p{font-size:14px; color:var(--text-secondary);}
 <section>
       <div class="sec-head">
         <span class="eyebrow">Costos incrementales</span>
-        <h2>Lo que se cobra por encima del fee</h2>
+        <h2>Incrementos por modificación o solicitud</h2>
       </div>
-      <div class="extras">
-        <span class="chip">Cuenta adicional ligada al RFC <b>+$1,500 al mes</b></span>
-        <span class="chip">Factura adicional B2B o B2C <b>+$99 cada una</b></span>
-        <span class="chip">Conciliación complicada por desorden administrativo <b>hasta +$15,000 al mes</b></span>
-        <span class="chip">Solicitudes adicionales fuera de alcance <b>según cotización</b></span>
-        <span class="chip"><a href="#reportes-especializados">Reportes especializados</a> <b>USD $100 c/u</b></span>
-        <span class="chip">Nómina — tercerizada <b><span class="tip" tabindex="0" role="note" aria-label="Axya. Disponible a través de nuestros aliados certificados. Desde 300 dólares estadounidenses al mes.">Axya<span class="tip-bubble" aria-hidden="true">Disponible a través de nuestros aliados certificados. Desde $300 USD al mes.</span></span></b></span>
+      <div class="tablebox">
+        <table class="t-extras">
+          <caption>Cifras en pesos mexicanos, antes de IVA. Se facturan en el mes en que se generan.</caption>
+          <thead>
+            <tr>
+              <th scope="col">Servicio o modificación</th>
+              <th scope="col">Descripción</th>
+              <th scope="col">Precio</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Cuenta adicional ligada al RFC</th>
+              <td>Cada cuenta que se suma a las incluidas en el plan. Banco, tarjeta de crédito y depósito electrónico cuentan como una cuenta cada uno.</td>
+              <td class="price-cell">+$1,500 al mes</td>
+            </tr>
+            <tr>
+              <th scope="row">Factura adicional</th>
+              <td>Cada comprobante B2B o B2C que excede las facturas incluidas en el plan.</td>
+              <td class="price-cell">+$99 cada una</td>
+            </tr>
+            <tr>
+              <th scope="row">Atención Plus</th>
+              <td>Comunícate con nuestro equipo de soporte y asesoría por WhatsApp y obtén 2 sesiones adicionales de seguimiento técnico al mes.</td>
+              <td class="price-cell">+$1,990 al mes</td>
+            </tr>
+            <tr>
+              <th scope="row">Conciliación complicada por desorden administrativo</th>
+              <td>Se aplica cuando la falta de referencias y el desorden en pagos y depósitos del cliente obligan a reconstruir la conciliación.</td>
+              <td class="price-cell">hasta +$15,000 al mes</td>
+            </tr>
+            <tr>
+              <th scope="row">Solicitudes adicionales fuera de alcance</th>
+              <td>Cualquier reporte o gestión que no forme parte del paquete documental mensual ni de los reportes extra del plan.</td>
+              <td class="price-cell">Según cotización</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="#reportes-especializados">Unit Economics Transfronterizo</a></th>
+              <td>Rentabilidad neta real por ASIN después de procesar toda la carga logística y fiscal mexicana.</td>
+              <td class="price-cell">$1,499 por reporte</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="#reportes-especializados">Conciliación de Inventario Deducible</a></th>
+              <td>Cruce entre el stock alojado en los almacenes del marketplace en México y su respaldo aduanero legal.</td>
+              <td class="price-cell">$1,499 por reporte</td>
+            </tr>
+            <tr>
+              <th scope="row"><a href="#reportes-especializados">Repatriación y Flujo de Efectivo</a></th>
+              <td>Trazabilidad del dinero desde el payout quincenal del marketplace hasta la liquidación en la cuenta extranjera. Incluido sin costo con Tensec.</td>
+              <td class="price-cell">$1,499 por reporte</td>
+            </tr>
+            <tr>
+              <th scope="row">Nómina</th>
+              <td>No la lleva Tally. Se terceriza a través de <span class="tip" tabindex="0" role="note" aria-label="Axya. Disponible a través de nuestros aliados certificados. Desde 300 dólares estadounidenses al mes.">Axya<span class="tip-bubble" aria-hidden="true">Disponible a través de nuestros aliados certificados. Desde $300 USD al mes.</span></span>.</td>
+              <td class="price-cell">Según cotización</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </section>
 
@@ -502,7 +560,7 @@ footer p{font-size:14px; color:var(--text-secondary);}
 
         <article class="report">
           <div class="report-head">
-            <span class="report-price">USD $100 por reporte</span>
+            <span class="report-price">$1,499 MXN por reporte</span>
             <h3>Unit Economics Transfronterizo</h3>
           </div>
           <dl>
@@ -523,7 +581,7 @@ footer p{font-size:14px; color:var(--text-secondary);}
 
         <article class="report">
           <div class="report-head">
-            <span class="report-price">USD $100 por reporte</span>
+            <span class="report-price">$1,499 MXN por reporte</span>
             <h3>Conciliación de Inventario Deducible</h3>
           </div>
           <dl>
@@ -544,7 +602,7 @@ footer p{font-size:14px; color:var(--text-secondary);}
 
         <article class="report">
           <div class="report-head">
-            <span class="report-price">USD $100 por reporte</span>
+            <span class="report-price">$1,499 MXN por reporte</span>
             <h3>Repatriación y Flujo de Efectivo</h3>
           </div>
           <dl>
