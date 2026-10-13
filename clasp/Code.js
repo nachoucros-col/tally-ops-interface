@@ -204,22 +204,6 @@ function handle(body) {
       return { ok: true, accesos: accOut };
     }
 
-    /* ── Auditoría (7-sep-2026): solicitud de activación de un cliente en Syntage.
-       Crea la tarea para Juan y le avisa por DM (excepción explícita al silencio de Slack, orden de Juan 7-sep). */
-    case 'syntage_activar_solicitud': {
-      const uS = checkUser(body.auth);
-      if (!uS.ok) return uS;
-      const cid = String(body.company_id || '').trim(), nom = String(body.cliente || cid).trim();
-      if (!cid) return { ok: false, error: 'falta company_id' };
-      const shT = getOrCreate(ss, 'Tareas', ['tarea_id','fecha_creacion','creado_por','responsable','titulo','origen','ref_id','cliente','estado','fecha_finalizacion','ultima_actualizacion','descripcion','clientes','fecha_entrega']);
-      ensureTareasCols(shT);
-      const tid = 'T-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
-      shT.appendRow([tid, now, uS.email, 'juan@tally.legal', 'Activar en Syntage: ' + nom + ' (' + cid + ')', 'Auditoría · Syntage', cid, nom, 'Sin iniciar', '', now,
-        'Solicitado desde la vista de Auditoría por ' + uS.email + '. La activación habilita las reglas automáticas del semáforo (opinión, declaraciones y CFDI directo del SAT).', nom, '']);
-      const dm = calcAvisarJuan_('🚦 *Solicitud de activación en Syntage*\n' + (uS.nombre || uS.email) + ' pide activar a *' + nom + '* (' + cid + ') para el semáforo de auditoría.\nTarea creada: ' + tid + ' → https://tally-accounting-ops.netlify.app/#tareas');
-      return { ok: true, tarea_id: tid, dm: !!(dm && dm.ok), dm_error: (dm && dm.error) || '' };
-    }
-
     case 'report_client_data': {
       if (!body.company_id) return { ok: false, error: 'falta company_id' };
       return buildClientData(String(body.company_id).trim());
@@ -878,32 +862,6 @@ function handle(body) {
       return { ok: true, periodo: perD, presencia: presD, universo: univD, excluidos_ceros: cerosD, detalle: debugD };
     }
 
-    /* ── Tareas: auto-bloqueo por vencimiento ──
-       Toda tarea 'Sin iniciar' o 'En proceso' cuya fecha_entrega ya pasó se mueve
-       a 'Bloqueado'. Corre dentro de sync_inbox (cron 15 min); también invocable directo. */
-    case 'tareas_auto_bloqueo': {
-      const shT = ss.getSheetByName('Tareas');
-      if (!shT) return { ok: true, bloqueadas: 0 };
-      const dataT = shT.getDataRange().getValues();
-      const hoyT = Utilities.formatDate(new Date(), 'America/Mexico_City', 'yyyy-MM-dd');
-      let nB = 0;
-      for (let i = 1; i < dataT.length; i++) {
-        const estT = String(dataT[i][8] || '').trim();          // col 9 estado
-        if (estT !== 'Sin iniciar' && estT !== 'En proceso' && estT !== '') continue;
-        const feRaw = dataT[i][13];                              // col 14 fecha_entrega
-        if (!feRaw) continue;
-        const fe = (feRaw instanceof Date)
-          ? Utilities.formatDate(feRaw, 'America/Mexico_City', 'yyyy-MM-dd')
-          : String(feRaw).substring(0, 10);
-        if (fe && fe < hoyT) {
-          shT.getRange(i + 1, 9).setValue('Bloqueado');
-          shT.getRange(i + 1, 11).setValue(now);                 // ultima_actualizacion
-          nB++;
-        }
-      }
-      return { ok: true, bloqueadas: nB };
-    }
-
     /* ── WeeklyPlan: restaurar la columna Week con su valor original ──
        Contexto (10-ago-2026): la migración masiva de owner Cristina→Cristian por la API de
        AppSheet disparó el recálculo de `Week`, que quedó en la semana corriente (33) en las
@@ -1094,7 +1052,6 @@ function handle(body) {
       if (body.adjuntos && body.adjuntos.length) {
         const faltantes = [];
         body.adjuntos.forEach(function(a){
-          if (a.calc_id) { const dc = calcAdjuntoDoc_(a); if (dc) docs.push(dc); else faltantes.push('cálculo ' + a.calc_id); return; }
           const d = buscarDocumento(body.company_id, a.tabla, a.columna);
           if (d) docs.push(d); else faltantes.push(a.tabla + '.' + a.columna);
         });
@@ -1393,67 +1350,6 @@ function handle(body) {
       return { ok: true, accion: 'creado', email: emU };
     }
 
-    case 'tarea_crear': {
-      // body: {tareas:[{titulo, descripcion, responsable, origen, ref_id, cliente, clientes, fecha_entrega}], auth}
-      const u = checkUser(body.auth);
-      if (!u.ok) return u;
-      const sh = getOrCreate(ss, 'Tareas', ['tarea_id','fecha_creacion','creado_por','responsable','titulo','origen','ref_id','cliente','estado','fecha_finalizacion','ultima_actualizacion','descripcion','clientes','fecha_entrega']);
-      ensureTareasCols(sh);
-      const ids = [];
-      (body.tareas || []).forEach(function(t){
-        if (!String(t.titulo || '').trim()) return;
-        const id = 'T-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
-        sh.appendRow([id, now, u.email, String(t.responsable || '').toLowerCase(), String(t.titulo), String(t.origen || ''), String(t.ref_id || ''), String(t.cliente || ''), 'Sin iniciar', '', now,
-                      String(t.descripcion || ''), String(t.clientes || ''), String(t.fecha_entrega || '')]);
-        ids.push(id);
-      });
-      return { ok: true, creadas: ids.length, ids: ids };
-    }
-    case 'tarea_edit': {
-      // Edición en línea desde la lista: titulo, descripcion, responsable, fecha_entrega, estado, clientes
-      const u = checkUser(body.auth);
-      if (!u.ok) return u;
-      const sh = ss.getSheetByName('Tareas');
-      if (!sh) return { ok: false, error: 'sin pestaña Tareas' };
-      ensureTareasCols(sh);
-      const row = findRow(sh, 1, body.tarea_id);
-      if (!row) return { ok: false, error: 'tarea no encontrada' };
-      if (body.titulo !== undefined && String(body.titulo).trim()) sh.getRange(row, 5).setValue(String(body.titulo).trim());
-      if (body.responsable !== undefined) sh.getRange(row, 4).setValue(String(body.responsable).toLowerCase());
-      if (body.descripcion !== undefined) sh.getRange(row, 12).setValue(String(body.descripcion));
-      if (body.clientes !== undefined) sh.getRange(row, 13).setValue(String(body.clientes));
-      if (body.fecha_entrega !== undefined) sh.getRange(row, 14).setValue(String(body.fecha_entrega));
-      if (body.estado !== undefined) {
-        const est = body.estado === 'Finalizado' ? 'Finalizado' : 'Sin iniciar';
-        sh.getRange(row, 9).setValue(est);
-        sh.getRange(row, 10).setValue(est === 'Finalizado' ? now : '');
-      }
-      sh.getRange(row, 11).setValue(now);
-      return { ok: true, tarea_id: body.tarea_id };
-    }
-    case 'tarea_del': {
-      const u = checkUser(body.auth);
-      if (!u.ok) return u;
-      const sh = ss.getSheetByName('Tareas');
-      if (!sh) return { ok: false, error: 'sin pestaña Tareas' };
-      const row = findRow(sh, 1, body.tarea_id);
-      if (!row) return { ok: false, error: 'tarea no encontrada' };
-      sh.deleteRow(row);
-      return { ok: true, tarea_id: body.tarea_id, eliminada: true };
-    }
-    case 'tarea_estado': {
-      const u2 = checkUser(body.auth);
-      if (!u2.ok) return u2;
-      const sh = ss.getSheetByName('Tareas');
-      if (!sh) return { ok: false, error: 'sin pestaña Tareas aún' };
-      const row = findRow(sh, 1, body.tarea_id);
-      if (!row) return { ok: false, error: 'tarea no encontrada' };
-      const est = body.estado === 'Finalizado' ? 'Finalizado' : 'Sin iniciar';
-      sh.getRange(row, 9).setValue(est);
-      sh.getRange(row, 10).setValue(est === 'Finalizado' ? now : '');
-      sh.getRange(row, 11).setValue(now);
-      return { ok: true, tarea_id: body.tarea_id, estado: est };
-    }
     case 'guardar_borrador': {
       // 📝 Guarda instrucción/ediciones SIN generar ni enviar — queda pendiente de confirmación
       // de otro miembro del equipo. El agente NO procesa filas en estado Borrador.
@@ -1912,7 +1808,7 @@ function handle(body) {
       try { osres = handle({ action: 'detectar_os', max: 20 }); } catch (e) { osres = { ok: false, error: String(e) }; }
       // Auto-bloqueo de tareas vencidas (misma corrida de 15 min)
       let tkres = null;
-      try { tkres = handle({ action: 'tareas_auto_bloqueo' }); } catch (e) { tkres = { ok: false, error: String(e) }; }
+      tkres = { ok: true, bloqueadas: 0, nota: 'sección Tareas retirada 13-oct-2026' };
       return { ok: true, threads: threads.length, operaciones_aplicadas: ops, errores: errs.slice(0, 5), respuesta_os: osres, tareas_bloqueadas: tkres, week_restore: rWeek };
     }
 
@@ -1985,9 +1881,9 @@ function handle(body) {
     case 'init_schema':
       return initSchema(ss);
 
-    /* 🧮 Cálculo de impuestos (4-sep-2026) */
+    /* 🗂️ Clientes Marketplace (13-oct-2026) */
     default:
-      if (String(body.action || '').indexOf('calc_') === 0) return calcDispatch_(body);
+      if (String(body.action || '').indexOf('cm_') === 0) return cmDispatch_(body);
       return { ok: false, error: 'acción desconocida: ' + body.action };
   }
 }
@@ -2003,6 +1899,8 @@ function cronSync() {
   console.log(JSON.stringify(r));
   // Almacén v0 + Syntage: avanza el ciclo diario en cada corrida (código, sin IA).
   try { const a = almacenTick_(); console.log('almacen ' + JSON.stringify(a)); } catch (e) { console.log('almacen error ' + e); }
+  // Clientes Marketplace: avanza el ciclo del Kanban (código, sin IA) en cada corrida.
+  try { const k = cmTick_(); console.log('cm ' + JSON.stringify(k)); } catch (e) { console.log('cm error ' + e); }
 }
 
 /**
@@ -2052,7 +1950,7 @@ function initSchema(ss) {
   // Seed Config (solo si está vacía)
   const cfg = ss.getSheetByName('Config');
   if (cfg.getLastRow() < 2) {
-    [['cuentas_monitoreadas','contabilidad@tally.legal, accounting@tally.legal, elizabeth@tally.legal, juan@tally.legal'],
+    [['cuentas_monitoreadas','contabilidad@tally.legal, accounting@tally.legal, juan@tally.legal, cristian@tally.legal'],
      ['dominios_excluidos','no-reply, noreply, notifications, calendar-notification, mailer-daemon, stripe.com, google.com, appsheet.com, anthropic.com, openai.com, netlify, github.com, notion.so, slack.com, intuit, docusign, zoom.us'],
      ['asuntos_excluidos','unsubscribe, invitación:, invitation:, receipt, invoice #, payment received, renewal, license'],
      ['firma_juan','Best regards,\nJuan Vélez\nTally — Accounting & Tax\njuan@tally.legal'],
@@ -2466,13 +2364,6 @@ function resolveSender(ss, body, categoria) {
 }
 
 /** Valida credenciales de administrador (para acciones de gestión de usuarios). */
-/** Garantiza las columnas extendidas de Tareas: L descripcion, M clientes, N fecha_entrega. */
-function ensureTareasCols(sh) {
-  if (String(sh.getRange(1, 12).getValue()) !== 'descripcion') {
-    sh.getRange(1, 12, 1, 3).setValues([['descripcion', 'clientes', 'fecha_entrega']]);
-  }
-}
-
 /** Valida credenciales de CUALQUIER usuario activo de la plataforma. Devuelve {ok,email,nombre} o {ok:false}. */
 function checkUser(auth) {
   try {
@@ -3066,1971 +2957,13 @@ function almDetalle_(metrica, periodo, owner) {
 }
 
 
-/* ═══ Motor y formato del cálculo de impuestos — mismos archivos que la interfaz (formato/calculo-engine.js, calculo-render.js) ═══ */
-/* ============================================================================
-   Tally · Motor determinista del cálculo de impuestos (sin IA en los números)
-   Entrada normalizada (lo que el backend arma con OCR + Syntage + banco) y
-   salida = objeto `calculo` que consume calculo-render.js.
-   Funciona en navegador, Node y Apps Script (V8).
-   Criterio por defecto: "Lectura A" — el IVA trasladado es el que el
-   marketplace reporta por orden en el certificado de retenciones.
-   ============================================================================ */
-(function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.TallyCalculoEngine = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
-
-  const r2 = n => Math.round((Number(n) || 0) * 100) / 100;
-
-  /**
-   * @param {Object} in_
-   *  cliente:  {nombre, rfc, company_id, regimen, marketplace}
-   *  periodo:  {mes, anio}
-   *  meses: [{mes, anio, cert:{ordenes, base, ordenes_16, iva_trasladado, isr_retenido, iva_retenido, folio},
-   *                       liq:{ingreso_neto, gastos_netos, transferencias, iva_retenido, isr_retenido},
-   *                       cfdi:{emitidos:[{fecha,quien,subtotal,iva,total}], recibidos:[...], iva_acreditable_pue, iva_ppd_pendiente},
-   *                       banco:{abonos, cuenta, nota} | null }]   // orden cronológico, ene..mes del cálculo
-   *  isr: {cu, perdidas, pagos_previos:[{mes, importe}]}
-   *  saldo_favor_inicial: number (IVA a favor antes del primer mes de la serie)
-   *  fuentes: [{nombre, es, en, zh, que_es, que_en, que_zh, estado}]
-   *  idioma, estado, emitido
-   */
-  function calcular(in_) {
-    const meses = (in_.meses || []).slice().sort((a, b) => (a.anio - b.anio) || (a.mes - b.mes));
-    const target = in_.periodo;
-    let saldoFavor = Number(in_.saldo_favor_inicial) || 0;
-    let ingresosAcum = 0, retAcum = 0, pagosAcum = 0;
-    const cu = (in_.isr && typeof in_.isr.cu === 'number') ? in_.isr.cu : null;
-    const perdidas = (in_.isr && Number(in_.isr.perdidas)) || 0;
-    const pagosPrev = {}; ((in_.isr && in_.isr.pagos_previos) || []).forEach(p => { pagosPrev[p.anio + '-' + p.mes] = Number(p.importe) || 0; });
-
-    const detalle = [], banco = [], serie = [];
-    let out = null;
-    meses.forEach(m => {
-      const c = m.cert || {}, l = m.liq || {}, f = m.cfdi || {};
-      let base16 = r2((c.iva_trasladado || 0) / 0.16);
-      let base0 = r2((c.base || 0) - base16);
-      if (c.base && Math.abs(base0) < 1) { base16 = r2(c.base); base0 = 0; }   /* residuo de dividir entre 0.16 */
-      const trasladado = r2(c.iva_trasladado || 0);
-      /* El IVA retenido lo manda el certificado de retenciones: es el CFDI que ve el SAT.
-         La liquidación del marketplace queda como cotejo y, si difiere, se avisa. */
-      const retenido = r2(c.iva_retenido != null ? c.iva_retenido : (l.iva_retenido || 0));
-      const retenidoLiq = l.iva_retenido != null ? r2(l.iva_retenido) : null;
-      const difRet = (c.iva_retenido != null && retenidoLiq != null && Math.abs(retenidoLiq - retenido) > 0.01) ? r2(retenidoLiq - retenido) : null;
-      /* Retenciones de meses anteriores que el cliente no acreditó: las captura el contador
-         y se aplican en el primer mes de la serie, en su propio renglón. */
-      const retAnterior = (m === meses[0]) ? r2(Number(in_.retenciones_pendientes) || 0) : 0;
-      const acreditable = r2(f.iva_acreditable_pue || 0);
-      const resultado = r2(trasladado - retenido - acreditable - retAnterior);
-      const posicion = r2(resultado - saldoFavor);
-      const aPagar = Math.max(0, posicion);
-      const arrastre = Math.max(0, -posicion);
-
-      ingresosAcum = r2(ingresosAcum + (c.base || 0));
-      retAcum = r2(retAcum + (c.isr_retenido || 0));
-      pagosAcum = r2(pagosAcum + (pagosPrev[m.anio + '-' + m.mes] || 0));
-      let utilidad = null, baseISR = null, isrAcum = null, isrPagar = null;
-      if (cu !== null) {
-        utilidad = r2(ingresosAcum * cu);
-        const perd = Math.min(utilidad, perdidas);
-        baseISR = Math.max(0, r2(utilidad - perd));
-        isrAcum = r2(baseISR * 0.30);
-        isrPagar = Math.max(0, r2(isrAcum - retAcum - pagosAcum));
-      }
-
-      detalle.push({ mes: m.mes, anio: m.anio, ordenes: c.ordenes, base: c.base, iva: trasladado, iva_ret: retenido, isr_ret: c.isr_retenido });
-      banco.push({ mes: m.mes, anio: m.anio, esperado: l.transferencias, real: m.banco ? m.banco.abonos : null, nota: m.banco ? (m.banco.nota || m.banco.cuenta || '') : '' });
-      serie.push({ mes: m.mes, anio: m.anio, iva_a_pagar: aPagar, arrastre, isr_a_pagar: isrPagar });
-
-      if (m.mes === target.mes && m.anio === target.anio) {
-        /* Costos y gastos del mes, con los documentos como única fuente:
-           las comisiones del resumen del marketplace (su suma cuadra contra tarifas netas)
-           y los gastos facturados con CFDI a nombre del cliente. */
-        const gLista = l.gastos_detalle || [];
-        const gSuma = gLista.reduce(function (a, x) { return a + (Number(x.importe) || 0); }, 0);
-        const gmk = gLista.length ? r2(gSuma) : (l.gastos_netos != null ? r2(l.gastos_netos) : null);
-        const gcf = (f.recibidos || []).reduce(function (a, x) { return { sub: a.sub + (Number(x.subtotal) || 0), iva: a.iva + (Number(x.iva) || 0), tot: a.tot + (Number(x.total) || 0) }; }, { sub: 0, iva: 0, tot: 0 });
-        const costoTotal = r2(Math.abs(gmk || 0) + gcf.sub);
-
-        /* ═══ CONTROL: LO COBRADO CONTRA LO DEPOSITADO ═══
-           El motor toma la base del certificado de retenciones — el CFDI que
-           ve el SAT — y no el depósito bancario. Cuando el criterio de quien
-           declara es "sobre lo depositado", la diferencia entre las dos
-           cifras no es un error de nadie: es exactamente lo que el
-           marketplace se quedó de la liquidación (comisiones, tarifas de
-           logística, publicidad) más lo que retuvo de impuestos.
-
-           Eso también está cobrado. Se extinguió por compensación, y por lo
-           tanto es base gravada del período aunque nunca haya tocado la
-           cuenta bancaria.
-
-           Este control no cambia el criterio de nadie ni corrige la fórmula:
-           pone la diferencia enfrente, cliente por cliente y mes por mes,
-           para que una exposición que hoy es invisible aparezca sola.     */
-        const cobrado = r2((c.base || 0) + trasladado);
-        const depBanco = (m.banco && m.banco.abonos != null) ? r2(m.banco.abonos) : null;
-        const depositado = depBanco != null ? depBanco : (l.transferencias != null ? r2(l.transferencias) : null);
-        const cobComis = r2(Math.abs(gmk || 0));
-        const cobRetIva = r2(retenido);
-        const cobRetIsr = r2(c.isr_retenido || 0);
-        const cobExplicado = r2(cobComis + cobRetIva + cobRetIsr);
-        const cobDif = depositado != null ? r2(cobrado - depositado) : null;
-
-        out = {
-          cobro: {
-            cobrado: cobrado,
-            depositado: depositado,
-            diferencia: cobDif,
-            coincide: cobDif != null ? (Math.abs(cobDif) < 0.01) : null,
-            /* Composición de la diferencia, cada parte con su documento. */
-            comisiones: cobComis,
-            comisiones_detalle: gLista.filter(function (x) { return Number(x.importe) !== 0; }),
-            iva_retenido: cobRetIva,
-            isr_retenido: cobRetIsr,
-            explicado: cobExplicado,
-            sin_explicar: cobDif != null ? r2(cobDif - cobExplicado) : null,
-            src_cobrado: 'Certificado de retenciones: base del período más IVA trasladado',
-            src_depositado: depBanco != null ? 'Estado de cuenta bancario del período'
-                          : (l.transferencias != null ? 'Transferencias reportadas en la liquidación del marketplace' : null),
-            src_comisiones: gLista.length ? 'Desglose de conceptos de la liquidación del marketplace'
-                                          : (l.gastos_netos != null ? 'Tarifas netas de la liquidación del marketplace' : null),
-            leyenda: 'La diferencia entre lo cobrado y lo depositado son las comisiones, tarifas de logística y publicidad que el marketplace descontó de la liquidación, más el IVA y el ISR que retuvo. Esos importes también están cobrados: se extinguieron por compensación conforme al artículo 1-B de la Ley del IVA, así que forman parte de la base gravada del período aunque nunca hayan entrado a la cuenta bancaria.'
-          },
-          costos: { marketplace_detalle: gLista.filter(function (x) { return Number(x.importe) !== 0; }), marketplace_total: gmk,
-                    marketplace_declarado: l.gastos_netos != null ? r2(l.gastos_netos) : null,
-                    marketplace_control: (l.gastos_netos != null && gLista.length) ? (Math.abs(r2(gSuma - l.gastos_netos)) < 0.05) : null,
-                    cfdi_n: (f.recibidos || []).length, cfdi_subtotal: r2(gcf.sub), cfdi_iva: r2(gcf.iva), cfdi_total: r2(gcf.tot),
-                    total: costoTotal, utilidad_estimada: r2((c.base || 0) - costoTotal),
-                    /* Cada renglón del costo carga su fuente y con qué fecha se
-                       clasificó. El sesgo por fechas vive del lado del costo —no
-                       del de las ventas, que solo toman el reporte del
-                       marketplace— y es justo el lado que se rotulaba como si
-                       estuviera completo. Para efectos de IVA la fecha que manda
-                       es la de cobro o pago: PUE toma la de emisión y PPD la del
-                       complemento de pago. La fecha de timbrado no se usa nunca
-                       como fecha de flujo.                                     */
-                    src_marketplace: gLista.length ? 'Desglose de conceptos de la liquidación del marketplace'
-                                                   : (l.gastos_netos != null ? 'Tarifas netas de la liquidación del marketplace' : null),
-                    src_cfdi: 'CFDI recibidos a nombre del cliente (SAT / Syntage)',
-                    fecha_base_marketplace: 'Período de la liquidación del marketplace',
-                    fecha_base_cfdi: 'Fecha de emisión del CFDI (PUE). Para PPD la fecha de flujo es la del complemento de pago y no está disponible en la fuente.' },
-          cliente: in_.cliente, periodo: target, idioma: in_.idioma || 'es', estado: in_.estado || 'draft', emitido: in_.emitido || new Date().toISOString().slice(0, 10),
-          logo_svg: in_.logo_svg || null, lectura: in_.lectura || null, fuentes: in_.fuentes || [], alertas: (in_.alertas || []).concat(difRet != null ? ['El IVA retenido del certificado (' + retenido.toFixed(2) + ') no coincide con el de la liquidación del marketplace (' + retenidoLiq.toFixed(2) + '): diferencia de ' + difRet.toFixed(2) + '. El cálculo usa el certificado.'] : []), notas: in_.notas || [],
-          resumen: { ventas_base: c.base, ordenes: c.ordenes, ordenes_16: c.ordenes_16, ordenes_0: (c.ordenes != null && c.ordenes_16 != null) ? c.ordenes - c.ordenes_16 : null,
-                     isr_retenido_mes: c.isr_retenido, iva_retenido_mes: retenido, ingreso_liquidacion: l.ingreso_neto, transferencias: l.transferencias,
-                     /* Proporción de la base a 16% contra tasa 0%, recalculada
-                        desde los renglones. Nunca se toma un porcentaje de la
-                        fila de totales de un archivo externo: esa celda suele
-                        ser el promedio de los porcentajes de cada renglón y no
-                        la proporción real, y quien la automatiza se equivoca de
-                        forma sistemática y sin ruido.                        */
-                     proporcion_16: (Number(c.base) > 0) ? r2(base16 / Number(c.base) * 100) : null,
-                     proporcion_0: (Number(c.base) > 0) ? r2(base0 / Number(c.base) * 100) : null,
-                     src_ventas: c.src_base || 'Certificado de retenciones' + (c.folio ? ' ' + c.folio : ''),
-                     src_liquidacion: 'Liquidación mensual del marketplace' },
-          iva: { base_16: base16, base_0: base0, trasladado, retenido, retenido_anterior: retAnterior, acreditable, saldo_favor_anterior: saldoFavor, resultado, a_pagar: aPagar, saldo_favor_arrastre: arrastre,
-                 src_retenido_anterior: 'Historial capturado por el contador' + (in_.retenciones_pendientes_detalle ? ' · ' + in_.retenciones_pendientes_detalle : ''),
-                 ppd_pendiente: f.iva_ppd_pendiente || 0,
-                 src_16: c.src_base || ('Certificado de retenciones ' + (c.folio || '')), src_0: c.src_base || 'Certificado de retenciones', src_trasladado: c.src_base || 'Certificado de retenciones', src_retenido: 'Certificado de retenciones' + (retenidoLiq != null ? ' · liquidación: ' + retenidoLiq.toFixed(2) : ''), src_acreditable: 'CFDI recibidos y pagados (SAT / Syntage) · clasificados por FECHA DE EMISIÓN del CFDI; para los PPD la fecha de flujo es la del complemento de pago y esa fecha no viene en la fuente' + (f.iva_99 ? ' · se excluyó ' + Number(f.iva_99).toFixed(2) + ' de facturas con método de pago 99 (no pagadas en el mes)' : ''), iva_no_pagado_99: f.iva_99 || 0 },
-          isr: { ingresos_mes: c.base, ingresos_acum: ingresosAcum, cu, utilidad, perdidas: cu !== null ? Math.min(utilidad, perdidas) : null, base: baseISR, isr_acum: isrAcum, retenido_acum: retAcum, pagos_previos: pagosAcum, a_pagar: isrPagar },
-          cfdi_emitidos: f.emitidos || [], cfdi_recibidos: f.recibidos || [],
-          detalle_meses: detalle.slice(), banco: banco.slice(), serie: serie.slice(),
-          contexto: in_.contexto || '', contexto_autor: in_.contexto_autor || '',
-          rango: in_.rango ? {
-            desde: in_.rango.desde, hasta: in_.rango.hasta, meses: serie.length,
-            iva_a_pagar: r2(serie.reduce(function (a, x) { return a + (x.iva_a_pagar || 0); }, 0)),
-            ventas: r2(detalle.reduce(function (a, x) { return a + (x.base || 0); }, 0)),
-            ordenes: detalle.reduce(function (a, x) { return a + (Number(x.ordenes) || 0); }, 0),
-            iva_trasladado: r2(detalle.reduce(function (a, x) { return a + (x.iva || 0); }, 0)),
-            iva_retenido: r2(detalle.reduce(function (a, x) { return a + (x.iva_ret || 0); }, 0)),
-            isr_retenido: r2(detalle.reduce(function (a, x) { return a + (x.isr_ret || 0); }, 0)),
-            saldo_favor_final: arrastre, isr_a_pagar: isrPagar
-          } : null
-        };
-      }
-      saldoFavor = arrastre;
-    });
-    if (!out) throw new Error('El período solicitado no está en la serie de meses');
-    return out;
-  }
-
-  return { calcular };
-});
-
-/* ============================================================================
-   Tally · Cálculo de impuestos — renderizador del formato (ES / EN / 中文)
-   Uso en navegador:  window.TallyCalculo.render(calculo, 'es') -> HTML string
-   Uso en Node:       require('./calculo-render.js').render(calculo, 'en')
-   El mismo archivo alimenta la vista previa en Tally Ops, el PDF (imprimir)
-   y el adjunto que se manda por correo. Un solo lugar para el formato.
-   Marca: brand-master.md §6 (cream / ink / violet; DM Sans Light+Bold;
-   máximo 3 colores por vista). Logo: wordmark tipográfico con ranura para
-   el SVG oficial (tally-logotipo-violet.svg) vía calculo.logo_svg.
-   ============================================================================ */
-(function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.TallyCalculo = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
-
-  const I18N = {
-    es: {
-      doc_title: 'Cálculo de impuestos', subtitle: 'Papel de trabajo mensual · IVA e ISR', period: 'Período', prepared: 'Preparado por Tally', issued: 'Fecha de emisión',
-      rfc: 'RFC', regime: 'Régimen', marketplace: 'Canal de venta', status: 'Estado', status_draft: 'Borrador para revisión', status_approved: 'Aprobado por el cliente', status_filed: 'Declarado',
-      lang_note: 'Documento disponible en español, inglés y chino. Las cifras son idénticas en los tres.',
-      exec_title: 'Resumen ejecutivo', exec_lead: 'Lo que pagas este mes, en tres líneas.',
-      kpi_iva: 'IVA a pagar', kpi_isr: 'ISR a pagar', kpi_total: 'Total a pagar', kpi_favor: 'Saldo a favor de IVA que se arrastra', kpi_ret: 'Impuestos ya retenidos por el marketplace',
-      exec_sales: 'Ventas del mes (base sin IVA)', exec_orders: 'Órdenes', exec_domestic: 'Órdenes con IVA 16% (venta nacional)', exec_cross: 'Órdenes sin IVA (transfronterizas)',
-      exec_next: 'Qué sigue', exec_next_1: 'Revisas este documento y nos confirmas tu aprobación (o tus dudas) respondiendo al correo.', exec_next_2: 'Con tu aprobación presentamos la declaración ante el SAT y te enviamos el acuse.', exec_next_3: 'El saldo a favor se acredita mes a mes en tu declaración; no requiere ningún trámite tuyo.',
-      how_title: 'Cómo calculamos tus impuestos', how_lead: 'De dónde sale cada número y por qué.',
-      src_title: 'Fuentes de información', src_col_src: 'Fuente', src_col_what: 'Qué aporta', src_col_status: 'Estado',
-      src_ok: 'Recibida', src_missing: 'Pendiente', src_partial: 'Parcial',
-      how_steps_title: 'Los cinco pasos', how_step_1: 'Tomamos tus ventas del mes desde el certificado de retenciones de Amazon: cada orden, con o sin IVA.',
-      how_step_2: 'Identificamos el IVA que cobraste (solo órdenes con 16%) y el que ya te retuvo el marketplace.',
-      how_step_3: 'Restamos el IVA que pagaste en tus gastos con factura (CFDI) a nombre de tu empresa; eso es IVA acreditable.',
-      how_step_4: 'Para ISR sumamos tus ingresos acumulados del año, aplicamos el coeficiente de utilidad y restamos las retenciones ya hechas.',
-      how_step_5: 'Cruzamos todo contra tu estado de cuenta bancario y contra lo que el SAT tiene registrado de tu RFC.',
-      iva_title: 'IVA — impuesto al valor agregado', iva_lead: 'Pago definitivo del mes.',
-      isr_title: 'ISR — impuesto sobre la renta', isr_lead: 'Pago provisional del mes, calculado sobre el acumulado del año.',
-      col_concept: 'Concepto', col_amount: 'Importe (MXN)', col_source: 'De dónde sale',
-      iva_r1: 'Ventas con IVA 16% (base)', iva_r2: 'Ventas sin IVA (tasa 0% / transfronterizas)', iva_r3: 'IVA que cobraste (16%)', iva_r4: 'IVA retenido por el marketplace', iva_r5: 'IVA acreditable (tus gastos con CFDI)', iva_r6: 'Saldo a favor del mes anterior', iva_r7: 'Resultado del mes', iva_r8: 'IVA a pagar', iva_r9: 'Saldo a favor que se arrastra',
-      cd_title: 'Lo cobrado contra lo depositado',
-      cd_lead: 'La base del período sale del certificado de retenciones — el CFDI que ve el SAT — y no del depósito bancario. Aquí está la diferencia entre las dos cifras, y de qué se compone.',
-      cd_cobrado: 'Cobrado en el período (base + IVA trasladado)',
-      cd_depositado: 'Depositado en la cuenta bancaria',
-      cd_dif: 'Diferencia',
-      cd_comp: 'De qué se compone la diferencia',
-      cd_comis: 'Comisiones, tarifas de logística y publicidad del marketplace',
-      cd_ret_iva: 'IVA retenido por el marketplace',
-      cd_ret_isr: 'ISR retenido por el marketplace',
-      cd_explicado: 'Total explicado',
-      cd_sin: 'Sin explicar',
-      cd_ok: 'Lo cobrado y lo depositado coinciden en el período: no hay diferencia que explicar.',
-      cd_nodep: 'No hay estado de cuenta bancario ni transferencias de la liquidación cargadas para el período, así que la comparación contra lo depositado no se pudo hacer.',
-      cd_legend: 'Estos importes también están cobrados: se extinguieron por compensación conforme al artículo 1-B de la Ley del IVA, así que forman parte de la base gravada del período aunque nunca hayan entrado a la cuenta bancaria. Declarar únicamente sobre lo depositado deja fuera esta diferencia.',
-      isr_r1: 'Ingresos del mes (base sin IVA)', isr_r2: 'Ingresos acumulados del año', isr_r3: 'Coeficiente de utilidad', isr_r4: 'Utilidad fiscal estimada', isr_r5: 'Pérdidas fiscales aplicadas', isr_r6: 'Base gravable', isr_r7: 'ISR acumulado (30%)', isr_r8: 'ISR retenido por el marketplace (acumulado)', isr_r9: 'Pagos provisionales anteriores', isr_r10: 'ISR a pagar',
-      isr_no_cu: 'Pendiente: coeficiente de utilidad de la declaración anual. Sin él no se determina pago provisional.',
-      detail_title: 'Detalle de ventas y retenciones', detail_lead: 'Lo que reporta el marketplace, mes a mes.',
-      col_month: 'Mes', col_orders: 'Órdenes', col_base: 'Base sin IVA', col_iva: 'IVA cobrado', col_isr_ret: 'ISR retenido', col_iva_ret: 'IVA retenido', col_total: 'Total',
-      cost_title: 'Costos y gastos', cost_lead: 'Lo que costó vender este mes, según los documentos.', cost_mk: 'Comisiones y tarifas del marketplace (resumen mensual)', cost_cfdi: 'Gastos facturados a tu empresa (CFDI recibidos del mes)', cost_total: 'Total de costos y gastos del mes', cost_profit: 'Utilidad estimada del mes (ventas − costos y gastos)', cost_ctrl: 'Control: la suma del detalle contra las tarifas netas del resumen', cost_ok: 'cuadra', cost_bad: 'no cuadra', cost_none: 'Sin resumen mensual del marketplace: no hay detalle de comisiones', cost_note: 'Las comisiones salen del resumen mensual del marketplace y su suma cuadra contra el renglón de tarifas netas. Los gastos facturados son el subtotal de los CFDI recibidos del mes. Si el marketplace factura sus comisiones por CFDI, esas comisiones están en los dos bloques: este documento no decide la deducibilidad, eso lo revisa el contador.',
-      iva_r4b: 'IVA retenido de meses anteriores, pendiente de acreditar', ctx_title: 'Observaciones del contador', ctx_lead: 'Contexto que el contador dejó asentado para este cálculo.', rango_title: 'Resumen del rango', rango_lead: 'El acumulado de todos los períodos incluidos en este documento.', rango_meses: 'Períodos incluidos',
-      cfdi_title: 'Facturas (CFDI) registradas en el SAT', cfdi_lead: 'Lo que el SAT ve de tu empresa este mes.',
-      cfdi_issued: 'Facturas emitidas por tu empresa', cfdi_received: 'Facturas recibidas (gastos)', col_date: 'Fecha', col_who: 'Emisor / receptor', col_subtotal: 'Subtotal', col_none: 'Sin facturas en el período',
-      bank_title: 'Conciliación bancaria', bank_lead: 'Lo que el marketplace dice que te depositó contra lo que llegó al banco.', col_bank_expected: 'Depósitos según marketplace', col_bank_actual: 'Abonos en el estado de cuenta', col_diff: 'Diferencia', bank_missing: 'Sin estado de cuenta del mes',
-      notes_title: 'Notas y supuestos', notes_lead: 'Lo que debes saber para leer bien las cifras.',
-      glossary_title: 'Glosario', gl_iva: 'IVA', gl_iva_d: 'Impuesto al valor agregado, 16%. Lo cobras al vender y lo pagas al comprar; al SAT se entera la diferencia.', gl_isr: 'ISR', gl_isr_d: 'Impuesto sobre la renta. Se paga mensualmente a cuenta (provisional) y se ajusta en la declaración anual.', gl_cfdi: 'CFDI', gl_cfdi_d: 'Factura electrónica mexicana. Solo lo que tiene CFDI a nombre de tu empresa se deduce o acredita.', gl_ret: 'Retención', gl_ret_d: 'Impuesto que el marketplace descuenta de tus ventas y entrega al SAT en tu nombre; se resta de lo que te toca pagar.', gl_favor: 'Saldo a favor', gl_favor_d: 'IVA que pagaste de más y se acredita contra meses siguientes. No se solicita en devolución: se aplica solo.', gl_cu: 'Coeficiente de utilidad', gl_cu_d: 'Porcentaje de utilidad del año anterior con el que el SAT estima tu utilidad de este año para el pago provisional.',
-      footer: 'Tally prepara, calcula y da seguimiento. Las declaraciones se presentan ante el SAT con tu aprobación previa. Este documento no sustituye la declaración ni el acuse.',
-      page: 'Página', of: 'de', months: ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'],
-      pending: 'pendiente', na: 'n/d', reading: 'Criterio aplicado'
-    },
-    en: {
-      doc_title: 'Tax calculation', subtitle: 'Monthly working paper · VAT and Income Tax', period: 'Period', prepared: 'Prepared by Tally', issued: 'Issue date',
-      rfc: 'Tax ID (RFC)', regime: 'Tax regime', marketplace: 'Sales channel', status: 'Status', status_draft: 'Draft for your review', status_approved: 'Approved by client', status_filed: 'Filed with SAT',
-      lang_note: 'Available in Spanish, English and Chinese. Figures are identical in all three.',
-      exec_title: 'Executive summary', exec_lead: 'What you pay this month, in three lines.',
-      kpi_iva: 'VAT payable', kpi_isr: 'Income tax payable', kpi_total: 'Total payable', kpi_favor: 'VAT credit carried forward', kpi_ret: 'Taxes already withheld by the marketplace',
-      exec_sales: 'Sales for the month (net of VAT)', exec_orders: 'Orders', exec_domestic: 'Orders with 16% VAT (domestic)', exec_cross: 'Orders without VAT (cross-border)',
-      exec_next: 'What happens next', exec_next_1: 'You review this document and confirm your approval (or questions) by replying to the email.', exec_next_2: 'With your approval we file the return with SAT and send you the receipt.', exec_next_3: 'Any VAT credit is applied automatically month to month in your return; nothing is required from you.',
-      how_title: 'How we calculate your taxes', how_lead: 'Where every number comes from, and why.',
-      src_title: 'Data sources', src_col_src: 'Source', src_col_what: 'What it provides', src_col_status: 'Status', src_ok: 'Received', src_missing: 'Pending', src_partial: 'Partial',
-      how_steps_title: 'The five steps', how_step_1: 'We take your sales for the month from Amazon\'s withholding certificate: every order, with or without VAT.',
-      how_step_2: 'We identify the VAT you collected (16% orders only) and the VAT the marketplace already withheld.',
-      how_step_3: 'We subtract the VAT you paid on expenses invoiced (CFDI) to your company; that is creditable VAT.',
-      how_step_4: 'For income tax we add your year-to-date income, apply the profit coefficient and subtract withholdings already made.',
-      how_step_5: 'We reconcile everything against your bank statement and against what SAT has on record for your RFC.',
-      iva_title: 'VAT — value added tax', iva_lead: 'Definitive monthly payment.', isr_title: 'Income tax (ISR)', isr_lead: 'Provisional monthly payment, computed on year-to-date figures.',
-      col_concept: 'Item', col_amount: 'Amount (MXN)', col_source: 'Source',
-      iva_r1: 'Sales with 16% VAT (base)', iva_r2: 'Sales without VAT (0% / cross-border)', iva_r3: 'VAT you collected (16%)', iva_r4: 'VAT withheld by the marketplace', iva_r5: 'Creditable VAT (your CFDI expenses)', iva_r6: 'Credit balance from prior month', iva_r7: 'Result for the month', iva_r8: 'VAT payable', iva_r9: 'Credit carried forward',
-      cd_title: 'Collected versus deposited',
-      cd_lead: 'The taxable base for the period comes from the withholding certificate — the document the tax office sees — not from the bank deposit. Here is the gap between the two figures and what it is made of.',
-      cd_cobrado: 'Collected in the period (base + VAT charged)',
-      cd_depositado: 'Deposited into the bank account',
-      cd_dif: 'Difference',
-      cd_comp: 'What the difference is made of',
-      cd_comis: 'Marketplace commissions, logistics fees and advertising',
-      cd_ret_iva: 'VAT withheld by the marketplace',
-      cd_ret_isr: 'Income tax withheld by the marketplace',
-      cd_explicado: 'Total explained',
-      cd_sin: 'Unexplained',
-      cd_ok: 'Collected and deposited match for the period: there is no gap to explain.',
-      cd_nodep: 'No bank statement or settlement transfers were loaded for the period, so the comparison against the deposit could not be made.',
-      cd_legend: 'These amounts are collected as well: they were settled by offset under article 1-B of the VAT Law, so they form part of the taxable base for the period even though they never reached the bank account. Filing only on what was deposited leaves this gap out.',
-      isr_r1: 'Income for the month (net of VAT)', isr_r2: 'Year-to-date income', isr_r3: 'Profit coefficient', isr_r4: 'Estimated taxable profit', isr_r5: 'Tax losses applied', isr_r6: 'Taxable base', isr_r7: 'Cumulative income tax (30%)', isr_r8: 'Income tax withheld by marketplace (cumulative)', isr_r9: 'Prior provisional payments', isr_r10: 'Income tax payable',
-      isr_no_cu: 'Pending: profit coefficient from the annual return. Without it no provisional payment can be determined.',
-      detail_title: 'Sales and withholding detail', detail_lead: 'What the marketplace reports, month by month.',
-      col_month: 'Month', col_orders: 'Orders', col_base: 'Base (net of VAT)', col_iva: 'VAT collected', col_isr_ret: 'Income tax withheld', col_iva_ret: 'VAT withheld', col_total: 'Total',
-      cost_title: 'Costs and expenses', cost_lead: 'What it cost to sell this month, per the documents.', cost_mk: 'Marketplace fees and commissions (monthly summary)', cost_cfdi: 'Expenses invoiced to your company (CFDI received this month)', cost_total: 'Total costs and expenses for the month', cost_profit: 'Estimated profit for the month (sales − costs and expenses)', cost_ctrl: 'Control: detail total against net fees in the summary', cost_ok: 'matches', cost_bad: 'does not match', cost_none: 'No marketplace monthly summary: no fee detail available', cost_note: 'Fees come from the marketplace monthly summary and their total ties to the net fees line. Invoiced expenses are the subtotal of the CFDI received this month. If the marketplace invoices its fees by CFDI, those fees appear in both blocks: this document does not rule on deductibility, your accountant does.',
-      iva_r4b: 'VAT withheld in prior months, still to be credited', ctx_title: "Accountant's notes", ctx_lead: 'Context the accountant recorded for this calculation.', rango_title: 'Range summary', rango_lead: 'The total across every period included in this document.', rango_meses: 'Periods included',
-      cfdi_title: 'Invoices (CFDI) on record with SAT', cfdi_lead: 'What SAT sees of your company this month.', cfdi_issued: 'Invoices issued by your company', cfdi_received: 'Invoices received (expenses)', col_date: 'Date', col_who: 'Issuer / receiver', col_subtotal: 'Subtotal', col_none: 'No invoices in the period',
-      bank_title: 'Bank reconciliation', bank_lead: 'What the marketplace says it paid you versus what reached the bank.', col_bank_expected: 'Payouts per marketplace', col_bank_actual: 'Credits on bank statement', col_diff: 'Difference', bank_missing: 'No bank statement for the month',
-      notes_title: 'Notes and assumptions', notes_lead: 'What you need to know to read the figures correctly.',
-      glossary_title: 'Glossary', gl_iva: 'VAT (IVA)', gl_iva_d: 'Value added tax, 16%. You collect it when you sell and pay it when you buy; the difference is remitted to SAT.', gl_isr: 'ISR', gl_isr_d: 'Mexican income tax. Paid monthly on account (provisional) and settled in the annual return.', gl_cfdi: 'CFDI', gl_cfdi_d: 'Mexican electronic invoice. Only expenses with a CFDI issued to your company are deductible or creditable.', gl_ret: 'Withholding', gl_ret_d: 'Tax the marketplace deducts from your sales and remits to SAT on your behalf; it reduces what you owe.', gl_favor: 'Credit balance', gl_favor_d: 'VAT you overpaid, applied against following months. Not claimed as a refund: it is applied automatically.', gl_cu: 'Profit coefficient', gl_cu_d: 'Last year\'s profit ratio SAT uses to estimate this year\'s profit for provisional payments.',
-      footer: 'Tally prepares, calculates and follows up. Returns are filed with SAT only after your approval. This document is not the tax return or the filing receipt.',
-      page: 'Page', of: 'of', months: ['January','February','March','April','May','June','July','August','September','October','November','December'],
-      pending: 'pending', na: 'n/a', reading: 'Criterion applied'
-    },
-    zh: {
-      doc_title: '税务计算', subtitle: '月度工作底稿 · 增值税与所得税', period: '期间', prepared: 'Tally 编制', issued: '出具日期',
-      rfc: '税号 (RFC)', regime: '税制', marketplace: '销售渠道', status: '状态', status_draft: '待您审阅的草稿', status_approved: '客户已批准', status_filed: '已向 SAT 申报',
-      lang_note: '本文件提供西班牙语、英语和中文版本，三个版本的数字完全一致。',
-      exec_title: '执行摘要', exec_lead: '本月应缴税款，三行看懂。',
-      kpi_iva: '应缴增值税', kpi_isr: '应缴所得税', kpi_total: '应缴总额', kpi_favor: '结转下期的增值税留抵', kpi_ret: '平台已代扣的税款',
-      exec_sales: '本月销售额（不含增值税）', exec_orders: '订单数', exec_domestic: '含 16% 增值税订单（本地销售）', exec_cross: '不含增值税订单（跨境）',
-      exec_next: '接下来', exec_next_1: '您审阅本文件后，回复邮件确认批准（或提出疑问）。', exec_next_2: '获得您的批准后，我们向 SAT 提交申报并把回执发给您。', exec_next_3: '增值税留抵会在您的申报中逐月自动抵扣，无需您办理任何手续。',
-      how_title: '我们如何计算您的税款', how_lead: '每个数字的来源与依据。',
-      src_title: '数据来源', src_col_src: '来源', src_col_what: '提供的信息', src_col_status: '状态', src_ok: '已收到', src_missing: '待提供', src_partial: '部分',
-      how_steps_title: '五个步骤', how_step_1: '从亚马逊代扣证明中提取本月每一笔订单的销售额，区分含税与不含税。',
-      how_step_2: '识别您实际收取的增值税（仅 16% 订单）以及平台已代扣的增值税。',
-      how_step_3: '扣减以贵公司名义开具发票 (CFDI) 的费用所含增值税，即可抵扣进项税。',
-      how_step_4: '所得税方面，累计年初至今收入，乘以利润系数，再扣减已被代扣的税款。',
-      how_step_5: '将全部数据与您的银行对账单及 SAT 对贵公司税号的登记记录进行核对。',
-      iva_title: '增值税 (IVA)', iva_lead: '月度最终缴纳。', isr_title: '所得税 (ISR)', isr_lead: '月度预缴，按年初至今累计数计算。',
-      col_concept: '项目', col_amount: '金额 (MXN)', col_source: '来源',
-      iva_r1: '含 16% 增值税销售额（计税基础）', iva_r2: '不含增值税销售额（0% / 跨境）', iva_r3: '您收取的增值税 (16%)', iva_r4: '平台代扣的增值税', iva_r5: '可抵扣进项税（有 CFDI 的费用）', iva_r6: '上月留抵', iva_r7: '本月结果', iva_r8: '应缴增值税', iva_r9: '结转下期留抵',
-      cd_title: '已收取金额与银行到账金额对比',
-      cd_lead: '本期计税基础来自代扣代缴证明（即税务局看到的 CFDI），而非银行到账金额。以下为两者差额及其构成。',
-      cd_cobrado: '本期已收取（计税基础 + 销项增值税）',
-      cd_depositado: '银行账户实际到账',
-      cd_dif: '差额',
-      cd_comp: '差额构成',
-      cd_comis: '平台佣金、物流费用及广告费',
-      cd_ret_iva: '平台代扣的增值税',
-      cd_ret_isr: '平台代扣的所得税',
-      cd_explicado: '已说明合计',
-      cd_sin: '未说明',
-      cd_ok: '本期已收取金额与到账金额一致，无差额需要说明。',
-      cd_nodep: '本期未加载银行对账单或平台结算转账记录，因此无法与到账金额进行对比。',
-      cd_legend: '这些金额同样属于已收取：依据增值税法第 1-B 条以抵销方式清偿，因此即使从未进入银行账户，仍构成本期计税基础。仅按到账金额申报会遗漏这部分差额。',
-      isr_r1: '本月收入（不含增值税）', isr_r2: '年初至今累计收入', isr_r3: '利润系数', isr_r4: '预计应税利润', isr_r5: '已抵减的税务亏损', isr_r6: '应税基础', isr_r7: '累计所得税 (30%)', isr_r8: '平台代扣所得税（累计）', isr_r9: '此前预缴税款', isr_r10: '应缴所得税',
-      isr_no_cu: '待定：年度申报中的利润系数。缺少该系数无法确定预缴税款。',
-      detail_title: '销售与代扣明细', detail_lead: '平台逐月报告的数据。',
-      col_month: '月份', col_orders: '订单', col_base: '不含税基础', col_iva: '收取增值税', col_isr_ret: '代扣所得税', col_iva_ret: '代扣增值税', col_total: '合计',
-      cost_title: '成本与费用', cost_lead: '按单据计算的本月销售成本。', cost_mk: '平台佣金与费用（月度汇总）', cost_cfdi: '开具给贵公司的费用发票（本月收到的 CFDI）', cost_total: '本月成本与费用合计', cost_profit: '本月预估利润（销售额 − 成本与费用）', cost_ctrl: '核对：明细合计与汇总中的净费用', cost_ok: '一致', cost_bad: '不一致', cost_none: '没有平台月度汇总：无费用明细', cost_note: '费用取自平台月度汇总，其合计与净费用行核对一致。已开票费用为本月收到的 CFDI 小计。若平台以 CFDI 开具其佣金，则该佣金同时出现在两个板块：本文件不判定可抵扣性，由会计师复核。',
-      iva_r4b: '往月代扣增值税，尚未抵扣', ctx_title: '会计师备注', ctx_lead: '会计师为本次计算记录的背景说明。', rango_title: '区间汇总', rango_lead: '本文件所含全部期间的累计。', rango_meses: '包含期间',
-      cfdi_title: 'SAT 登记的发票 (CFDI)', cfdi_lead: 'SAT 本月看到的贵公司情况。', cfdi_issued: '贵公司开具的发票', cfdi_received: '收到的发票（费用）', col_date: '日期', col_who: '开票方 / 受票方', col_subtotal: '小计', col_none: '本期无发票',
-      bank_title: '银行对账', bank_lead: '平台声称的付款与实际到账的对比。', col_bank_expected: '平台付款', col_bank_actual: '银行对账单入账', col_diff: '差额', bank_missing: '缺少本月银行对账单',
-      notes_title: '说明与假设', notes_lead: '正确阅读数字所需了解的事项。',
-      glossary_title: '术语表', gl_iva: '增值税 (IVA)', gl_iva_d: '税率 16%。销售时收取，采购时支付，差额缴纳给 SAT。', gl_isr: '所得税 (ISR)', gl_isr_d: '墨西哥所得税。按月预缴，年度申报时清算。', gl_cfdi: 'CFDI', gl_cfdi_d: '墨西哥电子发票。只有开具给贵公司的 CFDI 才可扣除或抵扣。', gl_ret: '代扣', gl_ret_d: '平台从您的销售额中扣除并代您缴给 SAT 的税款，可从应缴额中减除。', gl_favor: '留抵', gl_favor_d: '多缴的增值税，用于抵扣后续月份。不申请退税，自动抵扣。', gl_cu: '利润系数', gl_cu_d: 'SAT 用上一年度的利润率估算本年度利润，以计算预缴税款。',
-      footer: 'Tally 负责编制、计算与跟进。申报仅在获得您批准后向 SAT 提交。本文件不构成纳税申报表或申报回执。',
-      page: '第', of: '页 / 共', months: ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'],
-      pending: '待定', na: '无', reading: '适用标准'
-    }
-  };
-
-  const fmt = (n, lang) => (n === null || n === undefined || n === '' || isNaN(n)) ? '—'
-    : new Intl.NumberFormat(lang === 'zh' ? 'zh-CN' : lang === 'en' ? 'en-US' : 'es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
-  const money = (n, lang) => { if (n === null || n === undefined || isNaN(n)) return '—'; const s = fmt(Math.abs(n), lang); return n < 0 ? '(' + s + ')' : s; };
-  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const pct = (n, d = 4) => (n === null || n === undefined || isNaN(n)) ? '—' : (Number(n)).toFixed(d);
-
-  const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
-  :root{--violet:#6047ff;--violet-100:#dcdcff;--cyan:#5ed7ff;--cyan-100:#dcf8ff;--green:#49d475;--green-100:#c8e8ce;--orange:#ff8248;--orange-100:#fcddd6;--ink:#212121;--cream:#fefcf8;--line:#e6e2da;--muted:#6b6b6b}
-  *{box-sizing:border-box} html,body{margin:0;background:var(--cream);color:var(--ink);font-family:'DM Sans','Noto Sans SC','Noto Sans CJK SC','PingFang SC','Helvetica Neue',Arial,sans-serif;font-size:11pt;line-height:1.5}
-  .page{width:210mm;min-height:297mm;padding:18mm 18mm 20mm;margin:0 auto;background:var(--cream);position:relative;page-break-after:always}
-  .page:last-child{page-break-after:auto}
-  .wordmark{font-weight:700;letter-spacing:-.03em;color:var(--violet);font-size:26px;line-height:1} .wordmark svg{height:26px;width:auto;display:block}
-  .eyebrow{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
-  h1{font-size:40px;font-weight:700;line-height:1.05;letter-spacing:-.015em;margin:8px 0 6px;text-wrap:balance} h1 .light{font-weight:300}
-  h2{font-size:24px;font-weight:700;line-height:1.1;letter-spacing:-.01em;margin:0 0 4px;text-wrap:balance}
-  h3{font-size:14px;font-weight:500;margin:18px 0 6px}
-  .lead{font-size:14px;color:var(--muted);margin:0 0 18px}
-  .cover{display:flex;flex-direction:column;justify-content:space-between;background:var(--ink);color:var(--cream)}
-  .cover .wordmark{color:var(--cream)} .cover .eyebrow{color:#c9c4ff} .cover h1{font-size:56px;color:var(--cream)} .cover .meta{display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;margin-top:28px;font-size:13px}
-  .cover .meta b{display:block;font-weight:500;color:#c9c4ff;font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
-  .cover .pill{display:inline-block;background:var(--violet);color:var(--cream);border-radius:999px;padding:4px 12px;font-size:12px;font-weight:500}
-  .cover .bar{height:6px;background:linear-gradient(90deg,var(--violet-100),var(--cyan-100));border-radius:3px;margin:22px 0}
-  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0}
-  .kpi{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:#fff}
-  .kpi.big{grid-column:span 1;background:var(--violet-100);border-color:var(--violet-100)}
-  .kpi .l{font-size:11px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.04em} .kpi .v{font-size:26px;font-weight:700;letter-spacing:-.01em;font-feature-settings:'tnum' 1;margin-top:4px}
-  .kpi .s{font-size:11px;color:var(--muted);margin-top:2px}
-  table{width:100%;border-collapse:collapse;font-size:10.5pt;font-feature-settings:'tnum' 1} th{text-align:left;font-weight:500;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:6px 8px;border-bottom:2px solid var(--ink)}
-  td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top} td.n,th.n{text-align:right;white-space:nowrap} tr.total td{font-weight:700;border-top:2px solid var(--ink);border-bottom:none}
-  tr.hl td{background:var(--violet-100)} .src{color:var(--muted);font-size:9.5pt}
-  .tag{display:inline-block;border-radius:999px;padding:1px 8px;font-size:10px;font-weight:500} .tag.ok{background:var(--green-100)} .tag.miss{background:var(--orange-100)} .tag.part{background:var(--cyan-100)}
-  .steps{counter-reset:s;display:grid;gap:8px;margin:8px 0 0} .step{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start} .step:before{counter-increment:s;content:counter(s);width:28px;height:28px;border-radius:50%;background:var(--violet);color:var(--cream);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
-  .note{border-left:3px solid var(--violet);padding:6px 12px;margin:8px 0;background:#fff;font-size:10.5pt} .warn{border-left-color:var(--orange)}
-  .two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-  .foot{position:absolute;left:18mm;right:18mm;bottom:10mm;font-size:9px;color:var(--muted);display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:6px}
-  .gl dt{font-weight:700;margin-top:8px} .gl dd{margin:0;color:#444}
-  @media print{body{background:#fff} .page{margin:0;box-shadow:none} @page{size:A4;margin:0}}
-  @media screen{.page{box-shadow:0 2px 14px rgba(0,0,0,.08);margin:16px auto}}
-  `;
-
-  function statusLabel(t, s) { return s === 'approved' ? t.status_approved : s === 'filed' ? t.status_filed : t.status_draft; }
-
-  function render(c, lang) {
-    lang = I18N[lang] ? lang : 'es'; const t = I18N[lang];
-    const m = money, cl = c.cliente || {}, p = c.periodo || {}, iva = c.iva || {}, isr = c.isr || {}, r = c.resumen || {};
-    const periodLabel = (t.months[(p.mes || 1) - 1] || '') + ' ' + (p.anio || '');
-    const logo = c.logo_svg ? c.logo_svg : 'Tally';
-    const foot = (n, total) => `<div class="foot"><span>${esc(cl.nombre || '')} · ${esc(t.doc_title)} · ${esc(periodLabel)}</span><span>${esc(t.page)} ${n} ${esc(t.of)} ${total}</span></div>`;
-    const pages = [];
-    const src = (c.fuentes || []).map(f => `<tr><td>${esc(f[lang] || f.nombre)}</td><td class="src">${esc(f['que_' + lang] || f.que || '')}</td><td><span class="tag ${f.estado === 'ok' ? 'ok' : f.estado === 'partial' ? 'part' : 'miss'}">${f.estado === 'ok' ? t.src_ok : f.estado === 'partial' ? t.src_partial : t.src_missing}</span></td></tr>`).join('');
-    const total = (iva.a_pagar || 0) + (typeof isr.a_pagar === 'number' ? isr.a_pagar : 0);
-
-    // 1 · Portada
-    pages.push(`<section class="page cover">
-      <div><div class="wordmark">${logo}</div></div>
-      <div>
-        <div class="eyebrow">${esc(t.doc_title)} · ${esc(t.subtitle)}</div>
-        <h1><span class="light">${esc(cl.nombre || '')}</span><br>${esc(periodLabel)}</h1>
-        <div class="bar"></div>
-        <span class="pill">${esc(statusLabel(t, c.estado))}</span>
-        <div class="meta">
-          <div><b>${esc(t.rfc)}</b>${esc(cl.rfc || '')}</div>
-          <div><b>${esc(t.regime)}</b>${esc(cl.regimen || '—')}</div>
-          <div><b>${esc(t.marketplace)}</b>${esc(cl.marketplace || '—')}</div>
-          <div><b>${esc(t.issued)}</b>${esc(c.emitido || '')}</div>
-        </div>
-      </div>
-      <div style="font-size:11px;color:#c9c4ff">${esc(t.prepared)} · ${esc(t.lang_note)}</div>
-    </section>`);
-
-    // 2 · Resumen ejecutivo
-    pages.push(`<section class="page">
-      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
-      <h2>${esc(t.exec_title)}</h2><p class="lead">${esc(t.exec_lead)}</p>
-      <div class="kpis">
-        <div class="kpi big"><div class="l">${esc(t.kpi_total)}</div><div class="v">$ ${m(total, lang)}</div><div class="s">MXN</div></div>
-        <div class="kpi"><div class="l">${esc(t.kpi_iva)}</div><div class="v">$ ${m(iva.a_pagar, lang)}</div><div class="s">${esc(t.kpi_favor)}: $ ${m(iva.saldo_favor_arrastre, lang)}</div></div>
-        <div class="kpi"><div class="l">${esc(t.kpi_isr)}</div><div class="v">${typeof isr.a_pagar === 'number' ? '$ ' + m(isr.a_pagar, lang) : esc(t.pending)}</div><div class="s">${esc(t.kpi_ret)}: $ ${m((r.isr_retenido_mes || 0) + (r.iva_retenido_mes || 0), lang)}</div></div>
-      </div>
-      <table><tbody>
-        <tr><td>${esc(t.exec_sales)}</td><td class="n">$ ${m(r.ventas_base, lang)}</td></tr>
-        <tr><td>${esc(t.exec_orders)}</td><td class="n">${r.ordenes != null ? r.ordenes : '—'}</td></tr>
-        <tr><td>${esc(t.exec_domestic)}</td><td class="n">${r.ordenes_16 != null ? r.ordenes_16 : '—'}</td></tr>
-        <tr><td>${esc(t.exec_cross)}</td><td class="n">${r.ordenes_0 != null ? r.ordenes_0 : '—'}</td></tr>
-      </tbody></table>
-      ${c.lectura && c.lectura[lang] ? `<div class="note"><b>${esc(t.reading)}:</b> ${esc(c.lectura[lang])}</div>` : ''}
-      <h3>${esc(t.exec_next)}</h3>
-      <div class="steps"><div class="step"><div>${esc(t.exec_next_1)}</div></div><div class="step"><div>${esc(t.exec_next_2)}</div></div><div class="step"><div>${esc(t.exec_next_3)}</div></div></div>
-      ${(c.alertas && c.alertas.length) ? c.alertas.map(a => `<div class="note warn">${esc(a[lang] || a.es || a)}</div>`).join('') : ''}
-    </section>`);
-
-    // 3 · Cómo calculamos
-    pages.push(`<section class="page">
-      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
-      <h2>${esc(t.how_title)}</h2><p class="lead">${esc(t.how_lead)}</p>
-      <h3>${esc(t.how_steps_title)}</h3>
-      <div class="steps">${[1,2,3,4,5].map(i => `<div class="step"><div>${esc(t['how_step_' + i])}</div></div>`).join('')}</div>
-      <h3>${esc(t.src_title)}</h3>
-      <table><thead><tr><th>${esc(t.src_col_src)}</th><th>${esc(t.src_col_what)}</th><th>${esc(t.src_col_status)}</th></tr></thead><tbody>${src}</tbody></table>
-    </section>`);
-
-    // 4 · IVA e ISR
-    const ivaRows = [
-      [t.iva_r1, iva.base_16, iva.src_16], [t.iva_r2, iva.base_0, iva.src_0], [t.iva_r3, iva.trasladado, iva.src_trasladado],
-      [t.iva_r4, -(iva.retenido || 0), iva.src_retenido], [t.iva_r5, -(iva.acreditable || 0), iva.src_acreditable], [t.iva_r6, -(iva.saldo_favor_anterior || 0), ''],
-    ];
-    const isrRows = [
-      [t.isr_r1, isr.ingresos_mes], [t.isr_r2, isr.ingresos_acum], [t.isr_r3, isr.cu != null ? pct(isr.cu) : t.pending, 'raw'], [t.isr_r4, isr.utilidad], [t.isr_r5, -(isr.perdidas || 0)],
-      [t.isr_r6, isr.base], [t.isr_r7, isr.isr_acum], [t.isr_r8, -(isr.retenido_acum || 0)], [t.isr_r9, -(isr.pagos_previos || 0)],
-    ];
-    pages.push(`<section class="page">
-      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
-      <h2>${esc(t.iva_title)}</h2><p class="lead">${esc(t.iva_lead)}</p>
-      <table><thead><tr><th>${esc(t.col_concept)}</th><th class="n">${esc(t.col_amount)}</th><th>${esc(t.col_source)}</th></tr></thead><tbody>
-        ${ivaRows.map(x => `<tr><td>${esc(x[0])}</td><td class="n">${m(x[1], lang)}</td><td class="src">${esc(x[2] || '')}</td></tr>`).join('')}
-        <tr><td>${esc(t.iva_r7)}</td><td class="n">${m(iva.resultado, lang)}</td><td></td></tr>
-        <tr class="total hl"><td>${esc(t.iva_r8)}</td><td class="n">$ ${m(iva.a_pagar, lang)}</td><td></td></tr>
-        <tr><td>${esc(t.iva_r9)}</td><td class="n">${m(iva.saldo_favor_arrastre, lang)}</td><td></td></tr>
-      </tbody></table>
-      <h2 style="margin-top:26px">${esc(t.isr_title)}</h2><p class="lead">${esc(t.isr_lead)}</p>
-      ${isr.cu == null ? `<div class="note warn">${esc(t.isr_no_cu)}</div>` : ''}
-      <table><thead><tr><th>${esc(t.col_concept)}</th><th class="n">${esc(t.col_amount)}</th></tr></thead><tbody>
-        ${isrRows.map(x => `<tr><td>${esc(x[0])}</td><td class="n">${x[2] === 'raw' ? esc(x[1]) : (typeof x[1] === 'number' ? m(x[1], lang) : esc(t.pending))}</td></tr>`).join('')}
-        <tr class="total hl"><td>${esc(t.isr_r10)}</td><td class="n">${typeof isr.a_pagar === 'number' ? '$ ' + m(isr.a_pagar, lang) : esc(t.pending)}</td></tr>
-      </tbody></table>
-    </section>`);
-
-    /* 4-bis · Lo cobrado contra lo depositado.
-       Va inmediatamente después del IVA porque es la lectura que decide si la
-       base declarada es la del certificado o la del depósito. Se imprime
-       siempre que haya con qué comparar: es un control, no un hallazgo
-       ocasional, y su valor está en aparecer solo todos los meses.        */
-    const cob = c.cobro || null;
-    if (cob) {
-      const cdFilas = [
-        [t.cd_cobrado, cob.cobrado, cob.src_cobrado],
-        [t.cd_depositado, cob.depositado, cob.src_depositado],
-      ];
-      const cdComp = [
-        [t.cd_comis, cob.comisiones, cob.src_comisiones],
-        [t.cd_ret_iva, cob.iva_retenido, ''],
-        [t.cd_ret_isr, cob.isr_retenido, ''],
-      ];
-      pages.push(`<section class="page">
-      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
-      <h2>${esc(t.cd_title)}</h2><p class="lead">${esc(t.cd_lead)}</p>
-      ${cob.depositado == null ? `<div class="note warn">${esc(t.cd_nodep)}</div>` : `
-      <table><thead><tr><th>${esc(t.col_concept)}</th><th class="n">${esc(t.col_amount)}</th><th>${esc(t.col_source)}</th></tr></thead><tbody>
-        ${cdFilas.map(x => `<tr><td>${esc(x[0])}</td><td class="n">${m(x[1], lang)}</td><td class="src">${esc(x[2] || '')}</td></tr>`).join('')}
-        <tr class="total hl"><td>${esc(t.cd_dif)}</td><td class="n">$ ${m(cob.diferencia, lang)}</td><td></td></tr>
-      </tbody></table>
-      ${cob.coincide ? `<div class="note">${esc(t.cd_ok)}</div>` : `
-      <h3 style="margin-top:22px">${esc(t.cd_comp)}</h3>
-      <table><thead><tr><th>${esc(t.col_concept)}</th><th class="n">${esc(t.col_amount)}</th><th>${esc(t.col_source)}</th></tr></thead><tbody>
-        ${cdComp.map(x => `<tr><td>${esc(x[0])}</td><td class="n">${m(x[1], lang)}</td><td class="src">${esc(x[2] || '')}</td></tr>`).join('')}
-        <tr class="total"><td>${esc(t.cd_explicado)}</td><td class="n">${m(cob.explicado, lang)}</td><td></td></tr>
-        ${Math.abs(Number(cob.sin_explicar) || 0) >= 0.01 ? `<tr><td>${esc(t.cd_sin)}</td><td class="n">${m(cob.sin_explicar, lang)}</td><td></td></tr>` : ''}
-      </tbody></table>
-      <div class="note warn">${esc(t.cd_legend)}</div>`}
-      `}
-    </section>`);
-    }
-
-    // 5 · Detalle ventas/retenciones + banco
-    const det = (c.detalle_meses || []).map(d => `<tr><td>${esc(t.months[d.mes - 1])}</td><td class="n">${d.ordenes != null ? d.ordenes : '—'}</td><td class="n">${m(d.base, lang)}</td><td class="n">${m(d.iva, lang)}</td><td class="n">${m(d.iva_ret, lang)}</td><td class="n">${m(d.isr_ret, lang)}</td></tr>`).join('');
-    const bank = (c.banco || []).map(b => `<tr><td>${esc(t.months[b.mes - 1])}</td><td class="n">${m(b.esperado, lang)}</td><td class="n">${b.real == null ? '<span class="tag miss">' + esc(t.bank_missing) + '</span>' : m(b.real, lang)}</td><td class="n">${b.real == null ? '—' : m(b.esperado - b.real, lang)}</td><td class="src">${esc(b.nota || '')}</td></tr>`).join('');
-    pages.push(`<section class="page">
-      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
-      <h2>${esc(t.detail_title)}</h2><p class="lead">${esc(t.detail_lead)}</p>
-      <table><thead><tr><th>${esc(t.col_month)}</th><th class="n">${esc(t.col_orders)}</th><th class="n">${esc(t.col_base)}</th><th class="n">${esc(t.col_iva)}</th><th class="n">${esc(t.col_iva_ret)}</th><th class="n">${esc(t.col_isr_ret)}</th></tr></thead><tbody>${det}</tbody></table>
-      <h2 style="margin-top:26px">${esc(t.bank_title)}</h2><p class="lead">${esc(t.bank_lead)}</p>
-      <table><thead><tr><th>${esc(t.col_month)}</th><th class="n">${esc(t.col_bank_expected)}</th><th class="n">${esc(t.col_bank_actual)}</th><th class="n">${esc(t.col_diff)}</th><th></th></tr></thead><tbody>${bank}</tbody></table>
-    </section>`);
-
-    // 6 · CFDI
-    const cf = (arr) => (arr && arr.length) ? arr.map(x => `<tr><td>${esc(x.fecha)}</td><td>${esc(x.quien)}</td><td class="n">${m(x.subtotal, lang)}</td><td class="n">${m(x.iva, lang)}</td><td class="n">${m(x.total, lang)}</td></tr>`).join('') : `<tr><td colspan="5" class="src">${esc(t.col_none)}</td></tr>`;
-    pages.push(`<section class="page">
-      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
-      <h2>${esc(t.cfdi_title)}</h2><p class="lead">${esc(t.cfdi_lead)}</p>
-      <h3>${esc(t.cfdi_issued)}</h3>
-      <table><thead><tr><th>${esc(t.col_date)}</th><th>${esc(t.col_who)}</th><th class="n">${esc(t.col_subtotal)}</th><th class="n">IVA</th><th class="n">${esc(t.col_total)}</th></tr></thead><tbody>${cf(c.cfdi_emitidos)}</tbody></table>
-      <h3>${esc(t.cfdi_received)}</h3>
-      <table><thead><tr><th>${esc(t.col_date)}</th><th>${esc(t.col_who)}</th><th class="n">${esc(t.col_subtotal)}</th><th class="n">IVA</th><th class="n">${esc(t.col_total)}</th></tr></thead><tbody>${cf(c.cfdi_recibidos)}</tbody></table>
-    </section>`);
-
-    // 7 · Notas + glosario
-    pages.push(`<section class="page">
-      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
-      <h2>${esc(t.notes_title)}</h2><p class="lead">${esc(t.notes_lead)}</p>
-      ${(c.notas || []).map(n => `<div class="note">${esc(n[lang] || n.es || n)}</div>`).join('')}
-      <h2 style="margin-top:26px">${esc(t.glossary_title)}</h2>
-      <dl class="gl two">${['iva','isr','cfdi','ret','favor','cu'].map(k => `<div><dt>${esc(t['gl_' + k])}</dt><dd>${esc(t['gl_' + k + '_d'])}</dd></div>`).join('')}</dl>
-      <p class="src" style="margin-top:24px">${esc(t.footer)}</p>
-    </section>`);
-
-    const n = pages.length;
-    const html = pages.map((pg, i) => pg.replace('</section>', foot(i + 1, n) + '</section>')).join('\n');
-    return `<!doctype html><html lang="${lang === 'zh' ? 'zh-CN' : lang}"><head><meta charset="utf-8"><title>${esc(cl.nombre || '')} · ${esc(t.doc_title)} · ${esc(periodLabel)}</title><style>${CSS}</style></head><body>${html}</body></html>`;
-  }
-
-  /* Resumen corto para la plantilla de correo (Bandeja → Redactar) */
-  function emailSummary(c, lang) {
-    lang = I18N[lang] ? lang : 'es'; const t = I18N[lang]; const p = c.periodo || {}, iva = c.iva || {}, isr = c.isr || {}, r = c.resumen || {};
-    const periodLabel = (t.months[(p.mes || 1) - 1] || '') + ' ' + (p.anio || '');
-    const total = (iva.a_pagar || 0) + (typeof isr.a_pagar === 'number' ? isr.a_pagar : 0);
-    const L = {
-      es: { hi: 'Hola, equipo de', intro: `Adjuntamos el cálculo de impuestos de ${periodLabel}. Lo relevante:`, ok: 'Si están de acuerdo, respondan este correo con su aprobación y presentamos la declaración. Si tienen preguntas, aquí mismo las resolvemos.', bye: 'Saludos,\nEquipo de Contabilidad · Tally' },
-      en: { hi: 'Hello team at', intro: `Attached is your tax calculation for ${periodLabel}. The highlights:`, ok: 'If you agree, reply to this email with your approval and we will file the return. If you have questions, we will answer them right here.', bye: 'Best regards,\nAccounting Team · Tally' },
-      zh: { hi: '您好，', intro: `附件为 ${periodLabel} 的税务计算。要点如下：`, ok: '如无异议，请回复本邮件确认批准，我们将提交申报。如有疑问，欢迎在此邮件中提出。', bye: '此致\nTally 会计团队' }
-    }[lang];
-    const lines = [
-      `• ${t.exec_sales}: $ ${money(r.ventas_base, lang)} MXN`,
-      `• ${t.kpi_iva}: $ ${money(iva.a_pagar, lang)} MXN` + (iva.saldo_favor_arrastre ? ` (${t.kpi_favor}: $ ${money(iva.saldo_favor_arrastre, lang)})` : ''),
-      `• ${t.kpi_isr}: ${typeof isr.a_pagar === 'number' ? '$ ' + money(isr.a_pagar, lang) + ' MXN' : t.pending}`,
-      `• ${t.kpi_total}: $ ${money(total, lang)} MXN`,
-      `• ${t.kpi_ret}: $ ${money((r.isr_retenido_mes || 0) + (r.iva_retenido_mes || 0), lang)} MXN`
-    ];
-    const subject = `${c.cliente && c.cliente.nombre ? c.cliente.nombre + ' · ' : ''}${t.doc_title} · ${periodLabel}`;
-    const body = `${L.hi} ${c.cliente ? c.cliente.nombre : ''}:\n\n${L.intro}\n\n${lines.join('\n')}\n\n${L.ok}\n\n${L.bye}`;
-    return { subject, body };
-  }
-
-  return { render, emailSummary, I18N, money };
-});
-
-
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   🧮 MÓDULO CÁLCULO DE IMPUESTOS (4-sep-2026, Talia)
-   Endpoints `calc_*`. Enganchado en handle() antes de `default:`.
-   Guarda en el Almacén v0: calculos_impuestos, solicitudes_syntage, credenciales_ciec_pendientes.
-   Archivos en Drive: carpeta "Tally · Cálculos de impuestos" / RFC / AAAA-MM.
-   Propiedades: SYNTAGE_API_KEY (existe) · SLACK_BOT_TOKEN (opcional; sin él avisa a Juan por correo)
-                JUAN_SLACK_ID (default U08095WJXTR) · CALC_DRIVE_ROOT (opcional) · CIEC_SECRET (opcional)
-   Config (hoja Config del Sheet DB): ciec_en_slack = "no" (default) | "si"
-   Sin IA en los números: motor TallyCalculoEngine; formato TallyCalculo (mismos JS que la interfaz).
-   ═══════════════════════════════════════════════════════════════════════════ */
-ALM_TABS.calculos_impuestos = ['calc_id', 'company_id', 'rfc', 'nombre', 'periodo', 'anio', 'mes', 'idioma', 'estado', 'lectura',
-  'iva_a_pagar', 'isr_a_pagar', 'saldo_favor', 'ventas_base', 'creado_por', 'creado_en', 'actualizado_en',
-  'carpeta_drive', 'json_file_id', 'html_es_id', 'html_en_id', 'html_zh_id', 'pdf_id', 'correcciones', 'version'];
-ALM_TABS.solicitudes_syntage = ['ts', 'rfc', 'nombre', 'solicitado_por', 'con_ciec', 'canal', 'estado'];
-ALM_TABS.credenciales_ciec_pendientes = ['token', 'rfc', 'nombre', 'ciec_cifrada', 'solicitado_por', 'solicitado_en', 'revelado_en', 'estado'];
-
-/* ── Documentos que ya viven en el ecosistema ──────────────────────────────────
-   El contador no debe bajar de AppSheet para volver a subir aquí. Estas son las
-   tablas donde el equipo ya carga los documentos fuente, con su columna de archivo.
-   NADA de esto se asume como fuente única: la lista dice de dónde viene cada
-   documento, se puede seguir arrastrando archivos a mano, y si una tabla no
-   responde se informa en lugar de fingir que no hay documentos. */
-var CALC_DOCS_FUENTES = [
-  { tabla: 'Retenciones_por_periodo', col: 'URLRetencion', tipo: 'certificado_retenciones' },
-  { tabla: 'Reportes_de_venta',       col: 'Archivo',      tipo: 'resumen_marketplace' },
-  { tabla: 'Estados_cuenta',          col: 'UrlVentas',    tipo: 'estado_cuenta' },
-  { tabla: 'declaracion_periodo',     col: 'Acuse',        tipo: 'acuse_declaracion' },
-  { tabla: 'Solicitud Docs Contabilidad', col: 'Archivo',  tipo: 'otro' }
-];
-function calcLeerTablaSistema_(tabla) {
-  const sh = hojaDeTabla(tabla);
-  if (sh) {
-    const data = sh.getDataRange().getValues();
-    if (!data.length) return { filas: [], via: 'hoja' };
-    const head = data[0].map(String);
-    const filas = [];
-    for (let i = 1; i < data.length; i++) { const o = {}; for (let j = 0; j < head.length; j++) o[head[j]] = data[i][j]; filas.push(o); }
-    return { filas: filas, via: 'hoja del DataModel' };
-  }
-  const r = appsheetApi_(tabla, 'Find', [], '');
-  if (r && r._error) return { filas: [], via: 'AppSheet', error: r._error };
-  return { filas: (r && r.length ? r : (r && r.Rows) || []), via: 'API de AppSheet' };
-}
-function calcDocsSistema_(body) {
-  const cid = String(body.company_id || '').trim();
-  if (!cid) return { ok: false, error: 'este cliente no tiene company_id en el padrón, así que no puedo buscar sus documentos en el sistema' };
-  const filtro = {}; let conFiltro = false;
-  (body.periodos || []).forEach(function (p) { filtro[Number(p.anio) + '-' + Number(p.mes)] = true; conFiltro = true; });
-  const docs = [], avisos = [];
-  CALC_DOCS_FUENTES.forEach(function (f) {
-    const t = calcLeerTablaSistema_(f.tabla);
-    if (t.error) { avisos.push(f.tabla + ': ' + t.error); return; }
-    t.filas.forEach(function (r) {
-      let clave = '';
-      ['Company_id', 'company_id', 'Company_Id'].forEach(function (k) { if (!clave && r[k]) clave = String(r[k]).trim(); });
-      if (!clave || clave.indexOf(cid) < 0) return;
-      const per = clave.split('_')[0];                             /* '2026-7' */
-      const par = per.split('-');
-      const anio = Number(par[0]) || null, mes = Number(par[1]) || null;
-      if (conFiltro && !filtro[anio + '-' + mes]) return;
-      let ruta = '';
-      [f.col, 'Archivo', 'URLRetencion', 'UrlVentas', 'Acuse', 'Documento'].forEach(function (k) { if (!ruta && r[k]) ruta = String(r[k]).trim(); });
-      if (!ruta) return;
-      const nombre = ruta.split('/').pop();
-      if (!nombre) return;
-      let fecha = '';
-      ['Fecha_carga', 'snapshot-date', 'FechaRecepción', 'Fecha de carga', 'Fecha'].forEach(function (k) { if (!fecha && r[k]) fecha = String(r[k]).slice(0, 10); });
-      docs.push({ tipo: f.tipo, tabla: f.tabla, via: t.via, periodo: per, anio: anio, mes: mes,
-        mes_nombre: String(r.MesPeriodo || ''), archivo: nombre, ruta: ruta, fecha: fecha,
-        extension: (nombre.split('.').pop() || '').toLowerCase() });
-    });
-  });
-  /* Resolución a Drive por nombre de archivo: es el puente entre la ruta que guarda
-     AppSheet y el archivo real, sin que nadie tenga que descargarlo. */
-  docs.forEach(function (d) {
-    try {
-      const it = DriveApp.getFilesByName(d.archivo);
-      if (it.hasNext()) { const f2 = it.next(); d.file_id = f2.getId(); d.bytes = f2.getSize(); }
-    } catch (e) {}
-  });
-  docs.sort(function (a, b) { return (b.anio - a.anio) || (b.mes - a.mes) || String(a.tipo).localeCompare(String(b.tipo)); });
-  return { ok: true, documentos: docs, sin_archivo: docs.filter(function (d) { return !d.file_id; }).length, avisos: avisos };
-}
-
-function calcDispatch_(body) {
-  const u = checkUser(body.auth); if (!u.ok) return { ok: false, error: 'no autenticado' };
-  u.admin = checkAdmin(body.auth);
-  switch (body.action) {
-    case 'calc_clientes':          return calcClientes_(body);
-    case 'calc_upload':            return calcUpload_(body, u);
-    case 'calc_extraer':           return calcExtraer_(body);
-    case 'calc_docs_sistema':      return calcDocsSistema_(body);
-    case 'calc_syntage':           return calcSyntage_(body);
-    case 'calc_generar':           return calcGenerar_(body, u);
-    case 'calc_listar':            return calcListar_(body, u);
-    case 'calc_get':               return calcGet_(body);
-    case 'calc_correccion':        return calcCorreccion_(body, u);
-    case 'calc_estado':            return calcEstado_(body, u);
-    case 'calc_correo':            return calcCorreo_(body);
-    case 'calc_descargar':         return calcDescargar_(body);
-    case 'calc_appsheet_push':     return calcAppsheetPush_(body, u);
-    case 'calc_solicitar_syntage': return calcSolicitarSyntage_(body, u);
-    case 'calc_revelar_ciec':      return calcRevelarCiec_(body, u);
-    default: return { ok: false, error: 'acción calc_ desconocida' };
-  }
-}
-function calcCfg_(key) { try { const cfg = SpreadsheetApp.openById(DB_ID).getSheetByName('Config'); const r = findRow(cfg, 1, key); return r ? String(cfg.getRange(r, 2).getValue()) : ''; } catch (e) { return ''; } }
-const calcR2_ = function (n) { return Math.round((Number(n) || 0) * 100) / 100; };
-
-/* ── 1. Cliente (padrón Clients_Load ∪ entidades Syntage del almacén) ── */
-/* Padrón cruzado con Syntage. Leer las dos hojas cuesta segundos, así que el cruce
-   se calcula una vez y se guarda en la caché del script (15 min, en trozos porque
-   cada llave admite 100 KB). El front lo pide completo una sola vez y filtra en el navegador. */
-function calcPadronCalcular_() {
-  const pad = almPadron_();
-  const synId = {}, synRfc = {};
-  almLeer_('entidades_syntage').forEach(function (e) { if (e.company_id) synId[String(e.company_id).trim()] = e; if (e.rfc) synRfc[String(e.rfc).toUpperCase()] = e; });
-  const rows = [], vistos = {};
-  Object.keys(pad.porId).forEach(function (id) {
-    const c = pad.porId[id]; const e = synId[id] || (c.rfc ? synRfc[c.rfc] : null);
-    const rfc = c.rfc || (e && e.rfc ? String(e.rfc).toUpperCase() : '');
-    vistos[id] = 1; if (rfc) vistos[rfc] = 1;
-    rows.push({ company_id: id, rfc: rfc, rfc_origen: c.rfc ? 'padron' : (e && e.rfc ? 'syntage' : 'sin RFC'),
-      nombre: c.nombre || (e && e.nombre_syntage) || id, nombre_syntage: (e && e.nombre_syntage) || '',
-      owner: c.owner, tipo: c.tipo, suspension: c.suspension, syntage: !!e, syntage_entity_id: e ? e.syntage_entity_id : null });
-  });
-  Object.keys(synRfc).forEach(function (rfc) {                 /* entidades en Syntage sin ficha en el padrón */
-    const e = synRfc[rfc]; if (vistos[rfc] || (e.company_id && vistos[String(e.company_id).trim()])) return;
-    rows.push({ company_id: e.company_id || '', rfc: rfc, rfc_origen: 'syntage', nombre: e.nombre_syntage || rfc, nombre_syntage: e.nombre_syntage || '',
-      owner: '', tipo: '', suspension: '', syntage: true, syntage_entity_id: e.syntage_entity_id });
-  });
-  rows.sort(function (a, b) { return String(a.nombre).localeCompare(String(b.nombre)); });
-  return rows;
-}
-function calcPadronCruzado_(refrescar) {
-  const cache = CacheService.getScriptCache(), K = 'calcpad1';
-  if (!refrescar) {
-    const meta = cache.get(K + '_n');
-    if (meta) {
-      const n = Number(meta), partes = []; let completo = true;
-      for (let i = 0; i < n; i++) { const t = cache.get(K + '_' + i); if (t == null) { completo = false; break; } partes.push(t); }
-      if (completo && n > 0) { try { return { rows: JSON.parse(partes.join('')), de: 'cache' }; } catch (e) {} }
-    }
-  }
-  const rows = calcPadronCalcular_();
-  try {
-    const s = JSON.stringify(rows), T = 90000, n = Math.ceil(s.length / T), obj = {};
-    for (let i = 0; i < n; i++) obj[K + '_' + i] = s.substring(i * T, (i + 1) * T);
-    obj[K + '_n'] = String(n);
-    cache.putAll(obj, 900);
-  } catch (e) {}
-  return { rows: rows, de: 'calculado' };
-}
-function calcClientes_(body) {
-  const q = String(body.q || '').toUpperCase().trim();
-  const qRfc = /^[A-Z&\u00d1]{3,4}\d{6}[A-Z0-9]{3}$/.test(q) ? q : '';
-  const cr = calcPadronCruzado_(!!body.refrescar);
-  const rows = cr.rows;
-  if (body.todos) return { ok: true, clientes: rows, padron_total: rows.length, fuente: cr.de };
-  const f = rows.filter(function (c) {
-    return !q || (c.rfc && c.rfc.indexOf(q) >= 0) || String(c.nombre).toUpperCase().indexOf(q) >= 0 ||
-      String(c.company_id).toUpperCase().indexOf(q) >= 0 || String(c.nombre_syntage || '').toUpperCase().indexOf(q) >= 0;
-  }).map(function (c) { return c.rfc ? c : Object.assign({}, c, { rfc: qRfc, rfc_origen: qRfc ? 'capturado' : c.rfc_origen }); });
-  return { ok: true, clientes: f.slice(0, 40), padron_total: rows.length, fuente: cr.de };
-}
-
-
-/* ── 2. Documentos ── */
-function calcFolder_(rfc, periodo) {
-  const rootId = PropertiesService.getScriptProperties().getProperty('CALC_DRIVE_ROOT');
-  const root = rootId ? DriveApp.getFolderById(rootId) : calcSubfolder_(DriveApp.getRootFolder(), 'Tally · Cálculos de impuestos');
-  return calcSubfolder_(calcSubfolder_(root, rfc), periodo);
-}
-function calcSubfolder_(parent, name) { const it = parent.getFoldersByName(name); return it.hasNext() ? it.next() : parent.createFolder(name); }
-function calcUpload_(body, u) {
-  if (!body.rfc || !body.periodo || !body.base64) return { ok: false, error: 'faltan rfc, periodo o archivo' };
-  const folder = calcFolder_(String(body.rfc).toUpperCase(), body.periodo);
-  const f = folder.createFile(Utilities.newBlob(Utilities.base64Decode(body.base64), body.mime || 'application/pdf', body.nombre || 'documento'));
-  f.setDescription(JSON.stringify({ tipo: body.tipo || '', subido_por: u.email, en: new Date().toISOString() }));
-  return { ok: true, file_id: f.getId(), nombre: f.getName(), carpeta: folder.getId() };
-}
-
-/* ── 3. Lectura de documentos: OCR de Drive (REST v3, sin servicio avanzado) + parsers deterministas ── */
-function calcTextoDeArchivo_(fileId) {
-  const f = DriveApp.getFileById(fileId); const mime = f.getMimeType();
-  if (/text\/(csv|plain)|json/.test(mime)) return f.getBlob().getDataAsString();
-  const tok = ScriptApp.getOAuthToken();
-  const meta = JSON.stringify({ name: 'ocr-' + f.getName(), mimeType: 'application/vnd.google-apps.document' });
-  const boundary = 'tallyocr' + Date.now();
-  const payload = Utilities.newBlob('--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + meta + '\r\n--' + boundary + '\r\nContent-Type: ' + mime + '\r\n\r\n').getBytes()
-    .concat(f.getBlob().getBytes()).concat(Utilities.newBlob('\r\n--' + boundary + '--').getBytes());
-  const up = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&ocrLanguage=es', { method: 'post', contentType: 'multipart/related; boundary=' + boundary, headers: { Authorization: 'Bearer ' + tok }, payload: payload, muteHttpExceptions: true });
-  if (up.getResponseCode() >= 300) return '';
-  const docId = JSON.parse(up.getContentText()).id;
-  const ex = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + docId + '/export?mimeType=text/plain', { headers: { Authorization: 'Bearer ' + tok }, muteHttpExceptions: true });
-  try { UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + docId, { method: 'delete', headers: { Authorization: 'Bearer ' + tok }, muteHttpExceptions: true }); } catch (e) {}
-  return ex.getResponseCode() < 300 ? ex.getContentText() : '';
-}
-function calcNum_(s) { if (s == null) return null; const n = parseFloat(String(s).replace(/[^\d.\-]/g, '')); return isNaN(n) ? null : n; }
-function calcGrab_(t, re) { const m = t.match(re); return m ? calcNum_(m[1]) : null; }
-/* Conceptos del bloque "Gastos" del resumen mensual de Amazon. Se buscan de la etiqueta
-   más larga a la más corta porque unas contienen a otras, y el importe es el primer número
-   que aparece DESPUÉS de la etiqueta: el reporte imprime dos columnas por renglón. */
-var CALC_GASTOS_AMZ = [
-  ['Tarifas de inventario y de servicios de Log[ií]stica de Amazon', 'Tarifas de inventario y servicios de logística'],
-  ['Reembolsos de tarifas de transacci[oó]n FBA', 'Reembolsos de tarifas de transacción FBA'],
-  ['Reembolsos de tarifas de otras transacciones', 'Reembolsos de otras tarifas de transacción'],
-  ['Tarifas de venta realizadas por el vendedor', 'Tarifas de venta (vendedor)'],
-  ['Ajustes en la etiqueta de env[ií]o del transportista', 'Ajustes de etiqueta de envío'],
-  ['Tarifas de administraci[oó]n de reembolso', 'Tarifas de administración de reembolsos'],
-  ['Reembolsos de tarifa de venta', 'Reembolsos de tarifa de venta'],
-  ['Tarifas de transacci[oó]n FBA', 'Tarifas de transacción FBA'],
-  ['Tarifas de otra transacci[oó]n', 'Otras tarifas de transacción'],
-  ['Compras de etiqueta de env[ií]o', 'Compras de etiqueta de envío'],
-  ['Reembolsos de etiqueta de env[ií]o', 'Reembolsos de etiqueta de envío'],
-  ['Reembolso para el promotor', 'Reembolso para el promotor'],
-  ['Costo de la publicidad', 'Publicidad'],
-  ['Tarifas de venta FBA', 'Tarifas de venta FBA'],
-  ['Tarifas de servicio', 'Tarifas de servicio'],
-  ['Ajustes', 'Ajustes']
-];
-function calcGastosAmazon_(t) {
-  const out = [];
-  String(t || '').split(/\r?\n/).forEach(function (l0) {
-    const l = l0.replace(/\s+/g, ' ').replace(/^ +/, '');
-    if (/Tarifas netas|incluidas tarifas|subtotales/i.test(l)) return;
-    for (let i = 0; i < CALC_GASTOS_AMZ.length; i++) {
-      const re = new RegExp(CALC_GASTOS_AMZ[i][0], 'i');
-      const pos = l.search(re);
-      if (pos < 0) continue;
-      const enc = (l.match(re) || [''])[0];
-      const resto = l.slice(pos + enc.length);
-      const m = resto.match(/(-?[\d,]+\.\d\d)|(?:^|\s)(-?0)(?:\s|$)/);
-      const v = m ? calcNum_(m[1] != null ? m[1] : m[2]) : 0;
-      out.push({ concepto: CALC_GASTOS_AMZ[i][1], importe: v || 0 });
-      return;
-    }
-  });
-  return out;
-}
-function calcParseResumenAmazon_(t) {
-  const per = t.match(/desde\s+([A-Za-z]{3})\s+\d+,\s*(\d{4})/); const M = { Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6, Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12 };
-  return { mes: per ? M[per[1]] || null : null, anio: per ? Number(per[2]) : null,
-    ingreso_neto: calcGrab_(t, /Ingresos\s+Ventas netas[^\d\-]*(-?[\d,]+\.\d\d)/), gastos_netos: calcGrab_(t, /Gastos\s+Tarifas netas[^\d\-]*(-?[\d,]+\.\d\d)/),
-    transferencias: Math.abs(calcGrab_(t, /Transferencias a cuenta bancaria\s+(-?[\d,]+\.\d\d)/) || 0),
-    iva_retenido: Math.abs(calcGrab_(t, /\(IVA\) obligatorio de Amazon retenido\s+(-?[\d,]+\.\d\d)/) || 0),
-    isr_retenido: Math.abs(calcGrab_(t, /Impuesto sobre la Renta retenido\s+(-?[\d,]+\.\d\d)/) || 0),
-    ventas_fba: calcGrab_(t, /Ventas de producto FBA\s+([\d,]+\.\d\d)/),
-    gastos_detalle: calcGastosAmazon_(t), impuesto_neto: calcGrab_(t, /Impuesto\s+Impuestos netos[^\d\-]*(-?[\d,]+\.\d\d)/) };
-}
-
-/* ── 4. Syntage en vivo por RFC ── */
-
-/* ══════════════════════════════════════════════════════════════════════════════
-   Lectura de documentos v2 · 4-sep-2026
-   Ruta A: capa de texto del propio PDF (inflate + extracción, sin dependencias).
-   Ruta B: OCR de Drive (la de antes), solo si la ruta A no deja un dato usable.
-   Se agrega el parser de estados de cuenta WorldFirst (verificado con el saldo).
-   ══════════════════════════════════════════════════════════════════════════════ */
-
-/* ── A.1 inflate crudo (RFC 1951), ES5 puro ── */
-function calcInflateRaw_(src, off) {
-  var pos = off || 0, bitbuf = 0, bitcnt = 0, out = [];
-  var LB = [3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258];
-  var LX = [0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0];
-  var DB = [1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577];
-  var DX = [0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13];
-  var CLC = [16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15];
-  function bit() { if (bitcnt === 0) { bitbuf = src[pos++]; if (bitbuf === undefined) throw new Error('eof'); bitcnt = 8; } var b = bitbuf & 1; bitbuf >>= 1; bitcnt--; return b; }
-  function bits(n) { var v = 0; for (var i = 0; i < n; i++) v |= bit() << i; return v; }
-  function tree(lengths, num) {
-    var counts = [], i; for (i = 0; i < 16; i++) counts[i] = 0;
-    for (i = 0; i < num; i++) counts[lengths[i]]++;
-    counts[0] = 0; var offs = [0, 0], s = 0;
-    for (i = 1; i < 16; i++) { offs[i] = s; s += counts[i]; }
-    var symbols = []; for (i = 0; i < num; i++) if (lengths[i]) symbols[offs[lengths[i]]++] = i;
-    return { c: counts, s: symbols };
-  }
-  function sym(t) { var sum = 0, cur = 0, len = 0; do { cur = 2 * cur + bit(); len++; if (len > 15) throw new Error('huffman'); sum += t.c[len]; cur -= t.c[len]; } while (cur >= 0); return t.s[sum + cur]; }
-  var fixL = null, fixD = null;
-  function fixed() { if (fixL) return; var l = [], i; for (i = 0; i < 144; i++) l[i] = 8; for (; i < 256; i++) l[i] = 9; for (; i < 280; i++) l[i] = 7; for (; i < 288; i++) l[i] = 8; fixL = tree(l, 288); var d = []; for (i = 0; i < 30; i++) d[i] = 5; fixD = tree(d, 30); }
-  function dynamic() {
-    var hlit = bits(5) + 257, hdist = bits(5) + 1, hclen = bits(4) + 4, i, l = [];
-    for (i = 0; i < 19; i++) l[i] = 0;
-    for (i = 0; i < hclen; i++) l[CLC[i]] = bits(3);
-    var ct = tree(l, 19), lengths = [], n = 0;
-    while (n < hlit + hdist) {
-      var s = sym(ct);
-      if (s < 16) lengths[n++] = s;
-      else if (s === 16) { var p = lengths[n - 1], r = bits(2) + 3; while (r--) lengths[n++] = p; }
-      else if (s === 17) { var r2 = bits(3) + 3; while (r2--) lengths[n++] = 0; }
-      else { var r3 = bits(7) + 11; while (r3--) lengths[n++] = 0; }
-    }
-    return [tree(lengths.slice(0, hlit), hlit), tree(lengths.slice(hlit), hdist)];
-  }
-  function block(lt, dt) {
-    for (;;) {
-      var s = sym(lt);
-      if (s === 256) return;
-      if (s < 256) out.push(s);
-      else { s -= 257; var len = LB[s] + bits(LX[s]); var ds = sym(dt); var dist = DB[ds] + bits(DX[ds]); var start = out.length - dist; for (var i = 0; i < len; i++) out.push(out[start + i]); }
-    }
-  }
-  var last;
-  do {
-    last = bit(); var type = bits(2);
-    if (type === 0) { bitcnt = 0; var len = src[pos] | (src[pos + 1] << 8); pos += 4; for (var i = 0; i < len; i++) out.push(src[pos++]); }
-    else if (type === 1) { fixed(); block(fixL, fixD); }
-    else if (type === 2) { var t = dynamic(); block(t[0], t[1]); }
-    else throw new Error('tipo de bloque ' + type);
-  } while (!last);
-  return out;
-}
-function calcInflate_(src) {                       /* zlib o crudo */
-  var off = 0;
-  if (src.length > 2 && (src[0] & 0x0f) === 8 && ((src[0] << 8 | src[1]) % 31) === 0) off = 2;
-  try { return calcInflateRaw_(src, off); } catch (e) { if (off === 2) { try { return calcInflateRaw_(src, 0); } catch (e2) {} } throw e; }
-}
-
-function calcPdfLatin1_(bytes) { var out = [], i, n = bytes.length; for (i = 0; i < n; i += 8192) { out.push(String.fromCharCode.apply(null, bytes.slice(i, Math.min(i + 8192, n)))); } return out.join(''); }
-
-function calcPdfObjetos_(raw) {                                    /* nº de objeto → {dict, streamIni, streamFin} */
-  var objs = {}, re = /(\d+)\s+(\d+)\s+obj\b/g, m;
-  while ((m = re.exec(raw))) {
-    var ini = m.index + m[0].length, fin = raw.indexOf('endobj', ini); if (fin < 0) fin = Math.min(raw.length, ini + 200000);
-    var cuerpo = raw.slice(ini, fin), sPos = cuerpo.indexOf('stream');
-    var o = { dict: sPos >= 0 ? cuerpo.slice(0, sPos) : cuerpo, ini: ini };
-    if (sPos >= 0) { var d = cuerpo.charAt(sPos + 6) === '\r' ? (cuerpo.charAt(sPos + 7) === '\n' ? 8 : 7) : (cuerpo.charAt(sPos + 6) === '\n' ? 7 : 6); o.sIni = ini + sPos + d; o.sFin = ini + (cuerpo.indexOf('endstream') >= 0 ? cuerpo.indexOf('endstream') : cuerpo.length); }
-    objs[m[1]] = o;
-  }
-  return objs;
-}
-function calcPdfA85_(arr) {
-  var out = [], t = 0, n = 0, i, c, ini = 0;
-  if (arr.length > 1 && arr[0] === 60 && arr[1] === 126) ini = 2;
-  for (i = ini; i < arr.length; i++) {
-    c = arr[i];
-    if (c === 126) break;
-    if (c === 32 || c === 10 || c === 13 || c === 9 || c === 12 || c === 0) continue;
-    if (c === 122 && n === 0) { out.push(0, 0, 0, 0); continue; }
-    if (c < 33 || c > 117) continue;
-    t = t * 85 + (c - 33); n++;
-    if (n === 5) { out.push(Math.floor(t / 16777216) & 255, Math.floor(t / 65536) & 255, Math.floor(t / 256) & 255, t & 255); t = 0; n = 0; }
-  }
-  if (n > 0) {
-    for (i = n; i < 5; i++) t = t * 85 + 84;
-    var b4 = [Math.floor(t / 16777216) & 255, Math.floor(t / 65536) & 255, Math.floor(t / 256) & 255, t & 255];
-    for (i = 0; i < n - 1; i++) out.push(b4[i]);
-  }
-  return out;
-}
-function calcPdfHex_(arr) { var out = [], hi = -1, i; for (i = 0; i < arr.length; i++) { var c = String.fromCharCode(arr[i]); if (c === '>') break; if (!/[0-9A-Fa-f]/.test(c)) continue; var v = parseInt(c, 16); if (hi < 0) hi = v; else { out.push((hi << 4) | v); hi = -1; } } if (hi >= 0) out.push(hi << 4); return out; }
-function calcPdfFiltros_(dict) { var m = dict.match(/\/Filter\s*(\[[^\]]*\]|\/[A-Za-z0-9]+)/); if (!m) return []; return (m[1].match(/\/[A-Za-z0-9]+/g) || []).map(function (f) { return f.slice(1); }); }
-function calcPdfStream_(raw, o) {
-  if (o.sIni == null) return null;
-  var lm = o.dict.match(/\/Length\s+(\d+)(\s+\d+\s+R)?/), fin = (lm && !lm[2]) ? Math.min(o.sIni + Number(lm[1]), o.sFin) : o.sFin;
-  if (fin - o.sIni > 1200000) return null;
-  var body = raw.slice(o.sIni, fin), arr = [], i;
-  for (i = 0; i < body.length; i++) arr.push(body.charCodeAt(i) & 0xff);
-  var fs = calcPdfFiltros_(o.dict);
-  for (i = 0; i < fs.length; i++) {
-    try {
-      if (fs[i] === 'FlateDecode') arr = calcInflate_(arr);
-      else if (fs[i] === 'ASCII85Decode') arr = calcPdfA85_(arr);
-      else if (fs[i] === 'ASCIIHexDecode') arr = calcPdfHex_(arr);
-      else return null;
-    } catch (e) { return null; }
-  }
-  return arr;
-}
-function calcPdfToUnicode_(txt) {                                  /* CMap → {código: carácter} */
-  var map = {}, m, re = /beginbfchar([\s\S]*?)endbfchar/g, r2 = /beginbfrange([\s\S]*?)endbfrange/g;
-  function uni(h) { var out = '', i; for (i = 0; i + 4 <= h.length; i += 4) { var c = parseInt(h.substr(i, 4), 16); if (c >= 0xd800 && c < 0xdc00 && i + 8 <= h.length) { var lo = parseInt(h.substr(i + 4, 4), 16); out += String.fromCharCode(c, lo); i += 4; } else out += String.fromCharCode(c); } return out; }
-  while ((m = re.exec(txt))) { var p = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]*)>/g, q; while ((q = p.exec(m[1]))) map[parseInt(q[1], 16)] = uni(q[2]); }
-  while ((m = r2.exec(txt))) {
-    var p2 = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*(<[0-9A-Fa-f]*>|\[[\s\S]*?\])/g, q2;
-    while ((q2 = p2.exec(m[1]))) {
-      var a = parseInt(q2[1], 16), b = parseInt(q2[2], 16), v = q2[3];
-      if (v.charAt(0) === '[') { var lst = v.match(/<([0-9A-Fa-f]*)>/g) || [], k; for (k = 0; k < lst.length && a + k <= b; k++) map[a + k] = uni(lst[k].replace(/[<>]/g, '')); }
-      else { var base = v.replace(/[<>]/g, ''); for (var c = a; c <= b && c - a < 70000; c++) { var h = (parseInt(base, 16) + (c - a)).toString(16); while (h.length < base.length) h = '0' + h; map[c] = uni(h); } }
-    }
-  }
-  return map;
-}
-function calcPdfFuentes_(raw, objs) {                              /* nombre de recurso → {uni, dosBytes} */
-  var fuentes = {}, m, re = /\/Font\s*<<([\s\S]{0,4000}?)>>/g;
-  while ((m = re.exec(raw))) {
-    var p = /\/([A-Za-z0-9#+._-]+)\s+(\d+)\s+\d+\s+R/g, q;
-    while ((q = p.exec(m[1]))) {
-      var o = objs[q[2]]; if (!o) continue;
-      var f = { uni: null, dosBytes: /\/Identity-H|\/Type0/.test(o.dict) };
-      var tu = o.dict.match(/\/ToUnicode\s+(\d+)\s+\d+\s+R/);
-      if (tu && objs[tu[1]]) { var st = calcPdfStream_(raw, objs[tu[1]]); if (st) { var t = [], i; for (i = 0; i < st.length; i++) t.push(String.fromCharCode(st[i])); var mp = calcPdfToUnicode_(t.join('')); if (Object.keys(mp).length) f.uni = mp; } }
-      if (!f.uni && /\/DescendantFonts/.test(o.dict)) {
-        var df = o.dict.match(/\/DescendantFonts\s*\[\s*(\d+)\s+\d+\s+R/);
-        if (df && objs[df[1]]) f.dosBytes = true;
-      }
-      fuentes[q[1]] = f;
-    }
-  }
-  return fuentes;
-}
-/* Tokeniza un flujo de contenido y devuelve segmentos {x, y, partes:[{codigos, fuente}]} */
-function calcPdfMul_(m, n) {                                   /* m × n, matrices 3x2 del PDF */
-  return [m[0] * n[0] + m[1] * n[2], m[0] * n[1] + m[1] * n[3],
-          m[2] * n[0] + m[3] * n[2], m[2] * n[1] + m[3] * n[3],
-          m[4] * n[0] + m[5] * n[2] + n[4], m[4] * n[1] + m[5] * n[3] + n[5]];
-}
-/* Recorre un flujo de contenido con las matrices reales del PDF (CTM y matriz de texto),
-   así funcionan también las páginas escaladas o rotadas y los XObjects colocados con cm. */
-function calcPdfSegmentos_(cs, fuentes, xobjs, raw, objs, prof, ctmBase) {
-  prof = prof || 0;
-  var IDENT = [1, 0, 0, 1, 0, 0];
-  var segs = [], i = 0, n = cs.length, ops = [], tm = null, tlm = null, TL = 0, fAct = null;
-  var ctm = ctmBase ? ctmBase.slice(0) : IDENT.slice(0), pila = [];
-  var DELIM = ' \t\r\n\f()<>[]{}/%';
-  function poner(partes) {
-    if (!tm) return;
-    var M = calcPdfMul_(tm, ctm);
-    segs.push({ x: M[4], y: M[5], rot: Math.abs(M[1]) > Math.abs(M[0]), partes: partes });
-  }
-  function literal() {
-    var out = [], esc = false, depth = 1; i++;
-    while (i < n) {
-      var ch = cs.charAt(i);
-      if (esc) {
-        if (ch === 'n') out.push(10); else if (ch === 'r') out.push(13); else if (ch === 't') out.push(9); else if (ch === 'b') out.push(8); else if (ch === 'f') out.push(12);
-        else if (ch >= '0' && ch <= '7') { var o = ch; while (i + 1 < n && cs.charAt(i + 1) >= '0' && cs.charAt(i + 1) <= '7' && o.length < 3) { i++; o += cs.charAt(i); } out.push(parseInt(o, 8)); }
-        else if (ch.charCodeAt(0) !== 10) out.push(ch.charCodeAt(0));
-        esc = false;
-      } else if (ch === '\\') esc = true;
-      else if (ch === '(') { depth++; out.push(40); }
-      else if (ch === ')') { depth--; if (!depth) { i++; return out; } out.push(41); }
-      else out.push(ch.charCodeAt(0) & 0xff);
-      i++;
-    }
-    return out;
-  }
-  function hexa() { var fin = cs.indexOf('>', i); if (fin < 0) { i = n; return { hex: '' }; } var h = cs.slice(i + 1, fin).replace(/[^0-9A-Fa-f]/g, ''); i = fin + 1; return { hex: h }; }
-  function nums(cant) { var r = [], k; for (k = ops.length - 1; k >= 0 && r.length < cant; k--) if (typeof ops[k] === 'number') r.unshift(ops[k]); return r; }
-  while (i < n) {
-    var c = cs.charAt(i);
-    if (c === '(') { ops.push({ s: literal(), f: fAct }); continue; }
-    if (c === '<' && cs.charAt(i + 1) !== '<') { ops.push({ s: hexa(), f: fAct }); continue; }
-    if (c === '<' || c === '>') { i += 2; continue; }
-    if (c === '[' || c === ']' || c === '{' || c === '}') { i++; continue; }
-    if (c === '%') { while (i < n && cs.charCodeAt(i) !== 10) i++; continue; }
-    if (' \t\r\n\f'.indexOf(c) >= 0) { i++; continue; }
-    var t = '', j = i;
-    if (c === '/') { j = i + 1; t = '/'; while (j < n && DELIM.indexOf(cs.charAt(j)) < 0) { t += cs.charAt(j); j++; } }
-    else { while (j < n && DELIM.indexOf(cs.charAt(j)) < 0) { t += cs.charAt(j); j++; } }
-    if (!t.length) { i++; continue; }
-    i = j;
-    if (/^-?[\d.]+$/.test(t)) { ops.push(parseFloat(t)); continue; }
-    if (t.charAt(0) === '/') { ops.push(t); continue; }
-    if (t === 'q') pila.push(ctm.slice(0));
-    else if (t === 'Q') { if (pila.length) ctm = pila.pop(); }
-    else if (t === 'cm') { var c6 = nums(6); if (c6.length === 6) ctm = calcPdfMul_(c6, ctm); }
-    else if (t === 'BT') { tm = IDENT.slice(0); tlm = IDENT.slice(0); }
-    else if (t === 'Tf') { var nm = null, k1; for (k1 = ops.length - 1; k1 >= 0; k1--) if (typeof ops[k1] === 'string' && ops[k1].charAt(0) === '/') { nm = ops[k1].slice(1); break; } fAct = nm; }
-    else if (t === 'Tm') { var m6 = nums(6); if (m6.length === 6) { tlm = m6.slice(0); tm = m6.slice(0); } }
-    else if (t === 'Td' || t === 'TD') { var a2 = nums(2); if (a2.length === 2 && tlm) { if (t === 'TD') TL = -a2[1]; tlm = calcPdfMul_([1, 0, 0, 1, a2[0], a2[1]], tlm); tm = tlm.slice(0); } }
-    else if (t === 'TL') { var a1 = nums(1); if (a1.length) TL = a1[0]; }
-    else if (t === 'T*') { if (tlm) { tlm = calcPdfMul_([1, 0, 0, 1, 0, -TL], tlm); tm = tlm.slice(0); } }
-    else if (t === 'Tj' || t === "'" || t === '"') {
-      if (t !== 'Tj' && tlm) { tlm = calcPdfMul_([1, 0, 0, 1, 0, -TL], tlm); tm = tlm.slice(0); }
-      var s1 = null, k2; for (k2 = ops.length - 1; k2 >= 0; k2--) if (ops[k2] && typeof ops[k2] === 'object' && ops[k2].s !== undefined) { s1 = ops[k2]; break; }
-      if (s1) poner([s1]);
-    }
-    else if (t === 'TJ') { var partes = [], k3; for (k3 = 0; k3 < ops.length; k3++) if (ops[k3] && typeof ops[k3] === 'object' && ops[k3].s !== undefined) partes.push(ops[k3]); if (partes.length) poner(partes); }
-    else if (t === 'Do' && xobjs && prof < 3) {
-      var nmx = null, kd;
-      for (kd = ops.length - 1; kd >= 0; kd--) if (typeof ops[kd] === 'string' && ops[kd].charAt(0) === '/') { nmx = ops[kd].slice(1); break; }
-      var refx = nmx && xobjs[nmx], ox = (refx && objs) ? objs[refx] : null;
-      if (ox && ox.sIni != null && !/\/Subtype\s*\/Image/.test(ox.dict)) {
-        var stx = calcPdfStream_(raw, ox);
-        if (stx && stx.length) {
-          var mx = ox.dict.match(/\/Matrix\s*\[\s*(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)/);
-          var base = mx ? calcPdfMul_([+mx[1], +mx[2], +mx[3], +mx[4], +mx[5], +mx[6]], ctm) : ctm;
-          segs = segs.concat(calcPdfSegmentos_(calcPdfLatin1_(stx), fuentes, calcPdfXObjs_(ox.dict), raw, objs, prof + 1, base));
-        }
-      }
-    }
-    ops = [];
-  }
-  return segs;
-}
-
-function calcPdfDecodifica_(parte, fuentes, offset) {
-  var f = (parte.f && fuentes[parte.f]) || null, s = parte.s, out = [], i;
-  var codigos = [];
-  if (s && s.hex !== undefined) {
-    var h = s.hex, dos = (f && f.dosBytes) || (h.length >= 4 && /^(00..)+$/.test(h));
-    if (dos) { for (i = 0; i + 4 <= h.length; i += 4) codigos.push(parseInt(h.substr(i, 4), 16)); }
-    else { for (i = 0; i + 2 <= h.length; i += 2) codigos.push(parseInt(h.substr(i, 2), 16)); }
-  } else if (s && s.length !== undefined) {
-    if (f && f.dosBytes) { for (i = 0; i + 1 < s.length; i += 2) codigos.push((s[i] << 8) | s[i + 1]); }
-    else codigos = s;
-  }
-  for (i = 0; i < codigos.length; i++) {
-    var c = codigos[i];
-    if (f && f.uni && f.uni[c] !== undefined) { out.push(f.uni[c]); continue; }
-    if (offset) { var v = c + offset; out.push(v >= 32 && v < 127 ? String.fromCharCode(v) : (c === 3 ? ' ' : '?')); }
-    else out.push(c >= 32 && c < 127 ? String.fromCharCode(c) : (c === 9 || c === 10 ? ' ' : (c > 160 && c < 256 ? String.fromCharCode(c) : '?')));
-  }
-  return out.join('');
-}
-function calcPdfLineas_(segs, fuentes, offset) {
-  /* Renglones por cercanía (2 puntos). Si el texto está girado 90° (páginas rotadas), los
-     renglones corren en vertical: se agrupa por x y se ordena por y. */
-  var rot = 0, i, j;
-  for (i = 0; i < segs.length; i++) if (segs[i].rot) rot++;
-  var girado = rot > segs.length / 2;
-  var arr = segs.slice(0).sort(girado
-    ? function (a, b) { return (b.x - a.x) || (a.y - b.y); }
-    : function (a, b) { return (b.y - a.y) || (a.x - b.x); });
-  var eje = function (s) { return girado ? s.x : s.y; };
-  var grupos = [], cur = [], curK = null;
-  for (i = 0; i < arr.length; i++) {
-    if (curK === null) { curK = eje(arr[i]); cur.push(arr[i]); }
-    else if (Math.abs(eje(arr[i]) - curK) <= 2) cur.push(arr[i]);
-    else { grupos.push(cur); cur = [arr[i]]; curK = eje(arr[i]); }
-  }
-  if (cur.length) grupos.push(cur);
-  var lineas = [];
-  for (i = 0; i < grupos.length; i++) {
-    var fila = grupos[i].sort(girado ? function (a, b) { return a.y - b.y; } : function (a, b) { return a.x - b.x; }), txt = [];
-    for (j = 0; j < fila.length; j++) { var t = '', q; for (q = 0; q < fila[j].partes.length; q++) t += calcPdfDecodifica_(fila[j].partes[q], fuentes, offset); if (t.length) txt.push(t); }
-    var l = txt.join(' ').replace(/\s+/g, ' ').replace(/^ | $/g, '');
-    if (l.length) lineas.push(l);
-  }
-  return lineas.join('\n');
-}
-var CALC_DICC = ['MXN','Collection','Statement','BALANCE','DATE','Transfer','Amazon','Payment','Total','Account','Saldo','Ingresos','Gastos','retenido','Folio','fiscal','Description','currency','Ventas','Tarifas','IVA','ISR','RFC','Periodo','Payoneer','Balance','Impuesto'];
-function calcPuntuaTexto_(t) { var s = 0, i; for (i = 0; i < CALC_DICC.length; i++) { var re = new RegExp(CALC_DICC[i], 'g'), m = t.match(re); if (m) s += m.length; } return s; }
-/* Un PDF de formulario (AcroForm) guarda las etiquetas en el contenido de la página y los
-   VALORES en el appearance stream de cada campo, cada uno en su objeto y con su propio
-   sistema de coordenadas. Leídos por separado se pierde qué valor va con qué etiqueta:
-   aquí cada apariencia se coloca en el punto que indica el /Rect del campo. */
-function calcPdfXObjs_(dict) {
-  var out = {}, m = dict.match(/\/XObject\s*<<([\s\S]{0,40000}?)>>/);
-  if (!m) return out;
-  var re = /\/([A-Za-z0-9#+._-]+)\s+(\d+)\s+\d+\s+R/g, q;
-  while ((q = re.exec(m[1]))) out[q[1]] = q[2];
-  return out;
-}
-function calcPdfRefs_(txt) { var r = [], m, re = /(\d+)\s+\d+\s+R/g; while ((m = re.exec(txt))) r.push(m[1]); return r; }
-function calcPdfArrayDe_(raw, objs, dict, llave) {
-  var m = dict.match(new RegExp('\\/' + llave + '\\s*(\\[[^\\]]*\\]|\\d+\\s+\\d+\\s+R)'));
-  if (!m) return [];
-  var v = m[1];
-  if (v.charAt(0) === '[') return calcPdfRefs_(v);
-  var ref = calcPdfRefs_(v)[0], o = objs[ref];
-  if (o && /^\s*\[/.test(o.dict)) return calcPdfRefs_(o.dict);
-  return ref ? [ref] : [];
-}
-function calcPdfPaginasSegs_(raw, objs, fuentes, tope) {
-  var claves = Object.keys(objs).sort(function (a, b) { return objs[a].ini - objs[b].ini; });
-  var pags = [], i, j, q, total = 0, truncado = false, esPagina = [];
-  for (i = 0; i < claves.length; i++) if (/\/Type\s*\/Page[^s]/.test(objs[claves[i]].dict)) esPagina.push(claves[i]);
-  if (!esPagina.length) return null;
-  for (i = 0; i < esPagina.length; i++) {
-    var pg = objs[esPagina[i]], segs = [];
-    var conts = calcPdfArrayDe_(raw, objs, pg.dict, 'Contents');
-    for (j = 0; j < conts.length; j++) {
-      var oc = objs[conts[j]]; if (!oc || oc.sIni == null) continue;
-      var stc = calcPdfStream_(raw, oc); if (!stc || !stc.length) continue;
-      segs = segs.concat(calcPdfSegmentos_(calcPdfLatin1_(stc), fuentes, calcPdfXObjs_(pg.dict), raw, objs, 0));
-    }
-    var annots = calcPdfArrayDe_(raw, objs, pg.dict, 'Annots');
-    for (j = 0; j < annots.length; j++) {
-      var oa = objs[annots[j]]; if (!oa) continue;
-      var mr = oa.dict.match(/\/Rect\s*\[\s*(-?[\d.]+)\s+(-?[\d.]+)/);
-      var ap = oa.dict.match(/\/AP\s*<<[\s\S]{0,200}?\/N\s+(\d+)\s+\d+\s+R/);
-      if (!mr || !ap) continue;
-      var oap = objs[ap[1]]; if (!oap || oap.sIni == null) continue;
-      var sta = calcPdfStream_(raw, oap); if (!sta || !sta.length) continue;
-      var x0 = parseFloat(mr[1]), y0 = parseFloat(mr[2]);
-      segs = segs.concat(calcPdfSegmentos_(calcPdfLatin1_(sta), fuentes, calcPdfXObjs_(oa.dict), raw, objs, 1, [1, 0, 0, 1, x0, y0]));
-    }
-    if (segs.length) { pags.push(segs); total += segs.length; }
-    if (total > tope) { truncado = true; break; }
-  }
-  return { paginas: pags, truncado: truncado };
-}
-function calcPdfTexto_(bytes) {
-  var raw = calcPdfLatin1_(bytes), objs = calcPdfObjetos_(raw), fuentes = calcPdfFuentes_(raw, objs);
-  var paginas = [], k, truncado = false, segsTot = 0;
-  var porPag = calcPdfPaginasSegs_(raw, objs, fuentes, 20000);
-  if (porPag && porPag.paginas.length) { paginas = porPag.paginas; truncado = porPag.truncado; }
-  if (!paginas.length) {                                   /* respaldo: cada flujo con texto como una página */
-    var claves = Object.keys(objs).sort(function (a, b) { return objs[a].ini - objs[b].ini; });
-    for (k = 0; k < claves.length; k++) {
-      var o = objs[claves[k]]; if (o.sIni == null) continue;
-      if (/\/Subtype\s*\/Image|\/DCTDecode|\/JPXDecode|\/CCITT|\/ObjStm|\/XRef|\/FontFile|\/Metadata/.test(o.dict)) continue;
-      var st = calcPdfStream_(raw, o); if (!st || !st.length) continue;
-      var cs = calcPdfLatin1_(st); if (cs.indexOf('Tj') < 0 && cs.indexOf('TJ') < 0) continue;
-      var sg = calcPdfSegmentos_(cs, fuentes); if (sg.length) { paginas.push(sg); segsTot += sg.length; }
-      if (segsTot > 20000) { truncado = true; break; }
-    }
-  }
-  if (!paginas.length) return '';
-  function todo(off) { var r = [], q; for (q = 0; q < paginas.length; q++) r.push(calcPdfLineas_(paginas[q], fuentes, off)); return r.join('\n'); }
-  var mejor = todo(0), mejorP = calcPuntuaTexto_(mejor);
-  var offs = [29, 31, -29, 28, 30], i3;
-  for (i3 = 0; i3 < offs.length; i3++) { var cand = todo(offs[i3]), p = calcPuntuaTexto_(cand); if (p > mejorP) { mejor = cand; mejorP = p; } }
-  return truncado ? mejor + '\n[texto truncado: solo se leyeron las primeras paginas]' : mejor;
-}
-function calcTextoNativo_(fileId) {
-  try {
-    var f = DriveApp.getFileById(fileId);
-    if (!/pdf/i.test(f.getMimeType())) return '';
-    var t = calcPdfTexto_(f.getBlob().getBytes());
-    return (t && t.replace(/[^A-Za-z0-9]/g, '').length > 40) ? t : '';
-  } catch (e) { return ''; }
-}
-function calcDetectarTipo_(t) {
-  if (/Clave de la retenci/i.test(t) && /Plataformas Tecnol/i.test(t)) return 'certificado_retenciones';
-  if (/Total ISR retenido/i.test(t) && /Total IVA retenido/i.test(t)) return 'certificado_retenciones';
-  if (/Actividad de la cuenta desde/i.test(t) || /Transferencias a cuenta bancaria/i.test(t)) return 'resumen_marketplace';
-  if (/STATEMENT ACTIVITY/i.test(t) || /Statement for\s+[A-Z]{3}\s+currency account/i.test(t) || /worldfirst/i.test(t)) return 'estado_cuenta';
-  if (/\bIN\b\s+\bOUT\b\s+BALANCE/i.test(t)) return 'estado_cuenta';
-  if (/Beginning balance|Ending balance|Statement period activity summary|Deposits\s*\/?\s*Credits|Withdrawals\s*\/?\s*Debits/i.test(t)) return 'estado_cuenta';
-  if (/Payoneer|Estado de cuenta|Account statement|Running Balance|Saldo anterior|Saldo inicial|Dep[oó]sitos\b/i.test(t)) return 'estado_cuenta';
-  return 'otro';
-}
-
-/* Estado de cuenta. Reconoce dos familias:
-   a) tabla con columnas FECHA · descripción · monto · saldo (WorldFirst, y cualquier banco con esa forma):
-      el signo de cada movimiento NO se adivina, se deduce del salto del saldo y se cuadra al final.
-   b) Payoneer ("Payment from Amazon … MXN").                                                       */
-
-/* Estados de cuenta con bloque de resumen (Wells Fargo, Chase, BBVA, Banorte, Santander…).
-   Cuando el estado de cuenta declara sus propios totales —saldo inicial, depósitos, retiros
-   y saldo final— esa es la fuente: no se suman renglones, se leen los cuatro números y se
-   cuadran entre sí. Los depósitos del marketplace se identifican por concepto y se cotejan
-   contra el total de depósitos, para que la conciliación sea comparable con lo que reportó
-   el marketplace. */
-function calcParseResumenBanco_(t) {
-  function n(re) { const m = t.match(re); return m ? calcNum_(m[1]) : null; }
-  const ini = n(/(?:Beginning balance|Balance forward|Saldo (?:anterior|inicial))[^\n]{0,40}?\$?\s*(-?[\d,]+\.\d{2})(?!\d)/i);
-  const dep = n(/(?:Deposits\s*\/?\s*Credits|Total deposits|Dep[oó]sitos y abonos|Total de dep[oó]sitos|Dep[oó]sitos|Abonos)[^\n]{0,40}?\+?\s*\$?\s*(-?[\d,]+\.\d{2})(?!\d)/i);
-  const ret = n(/(?:Withdrawals\s*\/?\s*Debits|Total withdrawals|Retiros y cargos|Total de retiros|Retiros|Cargos)[^\n]{0,40}?-?\s*\$?\s*(-?[\d,]+\.\d{2})(?!\d)/i);
-  const fin = n(/(?:Ending balance|Saldo (?:final|actual|al cierre))[^\n]{0,40}?\$?\s*(-?[\d,]+\.\d{2})(?!\d)/i);
-  if (dep == null && ret == null) return null;
-
-  const abonos = dep != null ? Math.abs(dep) : null, cargos = ret != null ? Math.abs(ret) : null;
-  const cuadra = (ini != null && fin != null && abonos != null && cargos != null) ? Math.abs(calcR2_(ini + abonos - cargos) - fin) < 0.05 : false;
-
-  const MK = /amazon|mercado\s?libre|mercadolibre|walmart|payoneer|worldfirst/i;
-  const NO = /transfer to|transferencia a|debit|d[eé]bito|fee|comisi[oó]n|charge|cargo|withdrawal|retiro|reversal|devoluci[oó]n/i;
-  let mkTotal = 0, mkN = 0;
-  String(t || '').split(/\r?\n/).forEach(function (l) {
-    if (!MK.test(l) || NO.test(l)) return;
-    const m = l.match(/([\d,]+\.\d\d)/); if (!m) return;
-    const v = calcNum_(m[1]); if (v == null || v <= 0) return;
-    mkTotal += v; mkN++;
-  });
-
-  const cta = (t.match(/(?:Account number|N[uú]mero de cuenta|Cuenta)[:\s]{1,4}([\d\s-]{6,25})/i) || [])[1] || '';
-  const digitos = cta.replace(/\D/g, '');
-  const BANCOS = ['Wells Fargo', 'Chase', 'Bank of America', 'Mercury', 'Brex', 'BBVA', 'Banorte', 'Santander', 'HSBC', 'Citibanamex', 'Banamex', 'Scotiabank', 'Payoneer', 'WorldFirst'];
-  let banco = '';
-  for (let i = 0; i < BANCOS.length; i++) if (new RegExp(BANCOS[i].replace(/ /g, '\\s?'), 'i').test(t)) { banco = BANCOS[i]; break; }
-  const moneda = /\bMXN\b|pesos mexicanos|moneda nacional/i.test(t) ? 'MXN' : (/\bUSD\b|Routing Number|\bRTN\b/i.test(t) ? 'USD' : '');
-  const per = t.match(/(?:Beginning balance|Saldo (?:anterior|inicial))\s+(?:on|al)?\s*(\d{1,2})[\/\-](\d{1,2})/i);
-  const anio = (t.slice(0, 3000).match(/\b(20\d\d)\b/) || [])[1] || '';
-  const movs = (String(t || '').match(/(?:^|\n)\s*\d{1,2}\/\d{1,2}\s+\S/g) || []).length;
-
-  return { abonos: abonos != null ? calcR2_(abonos) : null, cargos: cargos != null ? calcR2_(cargos) : null,
-    saldo_inicial: ini, saldo_final: fin, cuadra: cuadra, movimientos: movs,
-    abonos_marketplace: mkN ? calcR2_(mkTotal) : null, movimientos_marketplace: mkN,
-    cuenta: (banco || 'Cuenta') + (digitos ? ' ····' + digitos.slice(-4) : ''), moneda: moneda,
-    periodo: per ? (anio ? anio + '-' + ('0' + per[1]).slice(-2) : per[1] + '/' + per[2]) : '',
-    fuente: 'resumen del estado de cuenta',
-    nota: cuadra ? '' : 'los totales declarados por el banco no cierran contra los saldos; revisar el PDF' };
-}
-function calcParseEstadoCuenta_(t) {
-  const res = calcParseResumenBanco_(t);            /* 1º: los totales que declara el propio banco */
-  if (res) return res;
-  var wf = calcParseTablaSaldo_(t);
-  if (wf && wf.movimientos) return wf;
-  var total = 0, n = 0, re = /Payment from (Amazon|Mercado ?Libre|Walmart)[^\n]*?([\d,]+\.\d\d)\s*MXN/gi, m;
-  while ((m = re.exec(t))) { total += calcNum_(m[2]); n++; }
-  var cta = (t.match(/Account MXN[\s\S]{0,160}?(\d{8,})/) || [])[1] || '';
-  return { abonos: n ? calcR2_(total) : null, movimientos: n, cuenta: cta ? 'Payoneer MXN ····' + cta.slice(-4) : '' };
-}
-function calcParseTablaSaldo_(t) {
-  var lineas = String(t || '').split(/\r?\n/), filas = [], i;
-  var re = /(\d{4})[\/\-](\d{2})[\/\-](\d{2})\s+(.*?)\s+(-?[\d,]+\.\d{2})\s*([A-Z]{3})?\s+(-?[\d,]+\.\d{2})\s*([A-Z]{3})?\s*$/;
-  for (i = 0; i < lineas.length; i++) {
-    var m = lineas[i].replace(/\s+/g, ' ').match(re);
-    if (!m) continue;
-    filas.push({ fecha: m[1] + '-' + m[2] + '-' + m[3], desc: String(m[4] || '').replace(/[?]+/g, '').replace(/\s+/g, ' ').replace(/^[ -]+|[ -]+$/g, ''), monto: Math.abs(calcNum_(m[5]) || 0), saldo: calcNum_(m[7]), moneda: m[6] || m[8] || '' });
-  }
-  if (filas.length < 2) return null;
-  var ENT = /collection|deposit|credit|payment from|abono|dep[oó]sito|received|incoming|venta/i;
-  var SAL = /transfer|fee|withdraw|charge|debit|cargo|comisi[oó]n|retiro|pago a|env[ií]o/i;
-  function evaluar(desc) {                                   /* desc=true → más reciente primero */
-    var ok = 0, j;
-    for (j = 0; j < filas.length; j++) {
-      var vec = desc ? filas[j + 1] : filas[j - 1];
-      if (!vec) continue;
-      var d = calcR2_(filas[j].saldo - vec.saldo);
-      if (Math.abs(d - filas[j].monto) < 0.02 || Math.abs(d + filas[j].monto) < 0.02) ok++;
-    }
-    return ok;
-  }
-  var okDesc = evaluar(true), okAsc = evaluar(false);
-  var desc = okDesc >= okAsc, mejor = Math.max(okDesc, okAsc);
-  if (mejor < Math.max(1, Math.floor((filas.length - 1) * 0.6))) {   /* la tabla no cuadra por saldo: se clasifica por concepto */
-    var e0 = 0, s0 = 0, c0 = 0, k;
-    for (k = 0; k < filas.length; k++) { if (SAL.test(filas[k].desc)) { s0 += filas[k].monto; c0++; } else if (ENT.test(filas[k].desc)) { e0 += filas[k].monto; c0++; } }
-    if (!c0) return null;
-    return { abonos: calcR2_(e0), cargos: calcR2_(s0), movimientos: filas.length, entradas: null, cuenta: calcCuentaDe_(t), moneda: filas[0].moneda, periodo: filas[filas.length - 1].fecha + ' → ' + filas[0].fecha, saldo_inicial: null, saldo_final: null, cuadra: false, nota: 'signos deducidos por concepto: el saldo del estado de cuenta no cuadra renglón por renglón' };
-  }
-  var entradas = 0, salidas = 0, nEnt = 0, nSal = 0, dudosas = 0;
-  for (i = 0; i < filas.length; i++) {
-    var vec = desc ? filas[i + 1] : filas[i - 1], signo = 0;
-    if (vec) { var d = calcR2_(filas[i].saldo - vec.saldo); if (Math.abs(d - filas[i].monto) < 0.02) signo = 1; else if (Math.abs(d + filas[i].monto) < 0.02) signo = -1; }
-    if (!signo) { if (SAL.test(filas[i].desc)) signo = -1; else if (ENT.test(filas[i].desc)) signo = 1; else { dudosas++; continue; } }
-    if (signo > 0) { entradas += filas[i].monto; nEnt++; } else { salidas += filas[i].monto; nSal++; }
-  }
-  var ord = filas.slice(0).sort(function (a, b) { return a.fecha < b.fecha ? -1 : 1; });
-  var primera = desc ? filas[filas.length - 1] : filas[0], ultima = desc ? filas[0] : filas[filas.length - 1];
-  var sIni = null, sFin = ultima.saldo;
-  if (primera) { var sg = 0; if (SAL.test(primera.desc)) sg = -1; else sg = 1; sIni = calcR2_(primera.saldo - sg * primera.monto); }
-  var cuadra = (sIni != null && sFin != null) ? Math.abs(calcR2_(sIni + entradas - salidas) - sFin) < 0.05 : false;
-  return { abonos: calcR2_(entradas), cargos: calcR2_(salidas), movimientos: filas.length, entradas: nEnt, salidas: nSal, dudosas: dudosas,
-    cuenta: calcCuentaDe_(t), moneda: filas[0].moneda || '', periodo: ord[0].fecha + ' → ' + ord[ord.length - 1].fecha,
-    saldo_inicial: sIni, saldo_final: sFin, cuadra: cuadra, nota: cuadra ? '' : 'el arrastre de saldos no cierra; revisar el PDF' };
-}
-function calcCuentaDe_(t) {
-  var wf = t.match(/Statement for\s+([A-Z]{3})\s+currency account/i);
-  if (wf) return 'WorldFirst ' + wf[1].toUpperCase();
-  var py = (t.match(/Account MXN[\s\S]{0,160}?(\d{8,})/) || [])[1];
-  if (py) return 'Payoneer MXN ····' + py.slice(-4);
-  var clabe = (t.match(/CLABE[^\d]{0,20}(\d{18})/i) || [])[1];
-  if (clabe) return 'CLABE ····' + clabe.slice(-4);
-  var cta = (t.match(/(?:Cuenta|No\.? de cuenta)[^\d]{0,20}(\d{6,})/i) || [])[1];
-  return cta ? 'Cuenta ····' + cta.slice(-4) : '';
-}
-
-/* Certificado de retenciones: se conservan los patrones del OCR y se añaden
-   respaldos que funcionan con la capa de texto del PDF (folio suelto y RFC del receptor). */
-/* Certificado de retenciones (CFDI clave 26). La fuente de verdad son los renglones del
-   bloque "Impuestos retenidos", uno por impuesto:
-     Base del impuesto <IVA trasladado>   Tipo de impuesto IVA   Importe del impuesto <IVA retenido>   Tipo de pago 01
-     Base del impuesto <monto operación>  Tipo de impuesto ISR   Importe del impuesto <ISR retenido>   Tipo de pago 04
-   Los "Total IVA / Total ISR retenido" del pie ya no son la fuente primaria: en los
-   certificados grandes esas cifras se parten en dos renglones ("413,221." + "90") y se
-   perdían. El tipo de impuesto puede venir en el mismo renglón o en el de arriba; si no
-   viene, se deduce del tipo de pago (01 = pago definitivo IVA, 04 = provisional ISR). */
-function calcRetBloque_(t) {
-  const out = {};
-  const re = /Base del impuesto\s+([\d,]+(?:\.\d+)?)\s+Tipo de impuesto\s*(IVA|ISR)?\s*Importe del impuesto\s+([\d,]+(?:\.\d+)?)([^\n]{0,70})/g;
-  let m;
-  while ((m = re.exec(t))) {
-    const base = calcNum_(m[1]), imp = calcNum_(m[3]), cola = m[4] || '';
-    let tipo = m[2] || '';
-    if (!tipo) {
-      if (/definitivo\s*IVA/i.test(cola) || /Tipo de pago\s*0?1\b/.test(cola)) tipo = 'IVA';
-      else if (/provisional\s*ISR/i.test(cola) || /Tipo de pago\s*0?4\b/.test(cola)) tipo = 'ISR';
-    }
-    if (tipo === 'IVA' && base != null) { out.iva_trasladado = base; out.iva_retenido = imp; }
-    else if (tipo === 'ISR' && base != null) { out.base_isr = base; out.isr_retenido = imp; }
-  }
-  return out;
-}
-function calcParseCertificado_(t) {
-  const bloque = calcRetBloque_(t);
-  const rows = []; const re = /(?:^|\n)\s*\d+\s+([\d,]+\.\d\d)\s+\d\d\/\d\d\/\d{4}\s+\d\d\s+([\d,]+\.\d\d)\s+([\d,]+\.\d\d)/g; let m;
-  while ((m = re.exec(t))) rows.push({ base: calcNum_(m[1]), iva: calcNum_(m[2]) });
-
-  let folio = (t.match(/Folio fiscal\s+([0-9A-Fa-f-]{36})/) || [])[1] || '';
-  if (!folio) folio = (t.match(/\b([0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})\b/i) || [])[1] || '';
-  let rfcRec = (t.match(/Receptor[\s\S]{0,300}?RFC\s+([A-Z&Ñ0-9]{12,13})/) || [])[1] || '';
-  const par = t.match(/RFC\s+([A-Z&Ñ0-9]{12,13})\s+RFC\s+([A-Z&Ñ0-9]{12,13})/);
-  if (par) rfcRec = par[2];
-
-  const montoOp = calcGrab_(t, /Monto operaci[oó]n\s+([\d,]+\.\d\d)/);
-  const base = montoOp != null ? montoOp : (bloque.base_isr != null ? bloque.base_isr : null);
-  const ivaTras = bloque.iva_trasladado != null ? bloque.iva_trasladado : calcGrab_(t, /Total IVA\s+([\d,]+\.\d\d)/);
-  const ivaRet = bloque.iva_retenido != null ? bloque.iva_retenido : calcGrab_(t, /Total IVA retenido\s+([\d,]+\.\d\d)/);
-  const isrRet = bloque.isr_retenido != null ? bloque.isr_retenido : calcGrab_(t, /Total ISR retenido\s+([\d,]+\.\d\d)/);
-  const truncado = /texto truncado/i.test(t);
-  const declaradas = calcGrab_(t, /N[uú]mero\s+(\d+)\s+Periodicidad/) || calcGrab_(t, /N[uú]mero\s+servicios\s+(\d+)/) ||
-    calcGrab_(t, /N[uú]mero\s+de\s+servicios\s+(\d+)/) || calcGrab_(t, /servicios\s+(\d{2,6})\s+Periodicidad/) || calcGrab_(t, /Periodicidad[\s\S]{0,40}?N[uú]mero\s+(\d+)/);
-  /* Si el detalle se truncó, contar renglones daría un número menor al real: se deja sin dato. */
-  const ordenes = declaradas || (truncado ? null : (rows.length || null));
-
-  /* Órdenes con IVA 16%: se cuentan del detalle cuando el detalle se leyó completo; si no,
-     y si todo el monto de operación coincide con la base al 16% (trasladado / 0.16), son
-     todas. En cualquier otro caso se deja sin dato y el documento lo declara. */
-  let ord16 = null, ord16Origen = 'sin dato';
-  const contadas = rows.filter(function (r) { return r.iva > 0; }).length;
-  if (rows.length && !truncado && (!ordenes || rows.length >= ordenes * 0.95)) { ord16 = contadas; ord16Origen = 'contado del detalle'; }
-  else if (ivaTras != null && base) {
-    const b16 = ivaTras / 0.16;
-    if (Math.abs(b16 - base) <= Math.max(1, base * 0.005)) { ord16 = ordenes; ord16Origen = 'derivado: todo el monto de operación está gravado al 16%'; }
-  }
-
-  return { mes: calcGrab_(t, /Mes inicial\s+(\d\d)/), anio: calcGrab_(t, /Ejercicio fiscal\s+(\d{4})/), folio: folio, rfc_receptor: rfcRec,
-    base: base, isr_retenido: isrRet, iva_retenido: ivaRet, iva_trasladado: ivaTras,
-    base_16: ivaTras != null ? calcR2_(ivaTras / 0.16) : null, base_isr: bloque.base_isr != null ? bloque.base_isr : null,
-    ordenes: ordenes, ordenes_16: ord16, ordenes_16_origen: ord16Origen, renglones_leidos: rows.length,
-    fuente_importes: (bloque.iva_trasladado != null || bloque.isr_retenido != null) ? 'bloque Impuestos retenidos' : 'totales del pie' };
-}
-
-
-function calcRiqueza_(r) {
-  if (!r || !r.datos) return 0;
-  var n = 0, k;
-  for (k in r.datos) if (Object.prototype.hasOwnProperty.call(r.datos, k)) { var v = r.datos[k]; if (v !== null && v !== 0 && v !== '' && v !== false) n++; }
-  return n;
-}
-function calcParseTexto_(tipoForzado, txt) {
-  var tipo = tipoForzado || calcDetectarTipo_(txt), datos = null;
-  if (tipo === 'resumen_marketplace') datos = calcParseResumenAmazon_(txt);
-  else if (tipo === 'certificado_retenciones') datos = calcParseCertificado_(txt);
-  else if (tipo === 'estado_cuenta') datos = calcParseEstadoCuenta_(txt);
-  var r = { tipo: tipo, datos: datos, chars: txt.length };
-  r.ok = calcRiqueza_(r) > 0;
-  return r;
-}
-/* Dos rutas de lectura: primero la capa de texto del PDF (instantánea y exacta);
-   si de ahí no sale ningún dato, el OCR de Drive. Se informa por dónde se leyó. */
-function calcExtraer_(body) {
-  const out = [];
-  (body.file_ids || []).forEach(function (id) {
-    let meta = {}; const f = DriveApp.getFileById(id); try { meta = JSON.parse(f.getDescription() || '{}'); } catch (e) {}
-    let mejor = null, via = '';
-    const nat = calcTextoNativo_(id);
-    if (nat) { mejor = calcParseTexto_(meta.tipo, nat); via = 'texto del PDF'; }
-    if (!mejor || !mejor.ok) {
-      const ocr = calcTextoDeArchivo_(id) || '';
-      if (ocr) { const r2 = calcParseTexto_(meta.tipo, ocr); if (!mejor || r2.ok || calcRiqueza_(r2) > calcRiqueza_(mejor)) { mejor = r2; via = 'OCR'; } }
-    }
-    if (!mejor) mejor = { tipo: meta.tipo || 'otro', datos: null, chars: 0, ok: false };
-    out.push({ file_id: id, nombre: f.getName(), tipo: mejor.tipo, datos: mejor.datos, chars: mejor.chars, via: via, ok: mejor.ok });
-  });
-  return { ok: true, documentos: out };
-}
-/* Resolución de la entidad en Syntage. El RFC NO es la única llave: hay entidades
-   cuyo catálogo no lo trae (se conectaron por CIEC y el nombre es lo único fiable).
-   Orden: 1) entity_id que ya trae el front o el almacén · 2) RFC en vivo · 3) nombre normalizado. */
-function calcSynEntidad_(body) {
-  const rfc = String(body.rfc || '').toUpperCase().replace(/\s+/g, '');
-  const cid = String(body.company_id || '').trim();
-  const nombre = String(body.nombre || '');
-  let eid = String(body.syntage_entity_id || '').trim();
-  if (!eid && (cid || rfc)) {
-    almLeer_('entidades_syntage').forEach(function (e) {
-      if (eid) return;
-      if (cid && String(e.company_id || '').trim() === cid) eid = String(e.syntage_entity_id || '');
-      else if (rfc && String(e.rfc || '').toUpperCase() === rfc) eid = String(e.syntage_entity_id || '');
-    });
-  }
-  if (eid) {
-    const uno = synGet_('/entities/' + eid);
-    if (uno && !uno._error && (uno.id || uno['@id'])) return { ent: uno, via: 'entity_id' };
-  }
-  const ents = synTodos_('/entities', { itemsPerPage: 200 }, 20);
-  if (ents._error) return { error: ents._error };
-  let i;
-  if (rfc) for (i = 0; i < ents.length; i++) if (String(ents[i].rfc || '').toUpperCase() === rfc) return { ent: ents[i], via: 'rfc' };
-  if (nombre) {
-    const nn = almNorm_(nombre);
-    if (nn) {
-      for (i = 0; i < ents.length; i++) if (almNorm_(ents[i].name || ents[i].legalName || '') === nn) return { ent: ents[i], via: 'nombre' };
-      if (nn.replace(/ /g, '').length >= 6) {                 /* razón social abreviada en un lado u otro */
-        const nc = nn.replace(/ /g, '');
-        for (i = 0; i < ents.length; i++) {
-          const ne = almNorm_(ents[i].name || ents[i].legalName || '').replace(/ /g, '');
-          if (ne.length >= 6 && (ne.indexOf(nc) === 0 || nc.indexOf(ne) === 0)) return { ent: ents[i], via: 'nombre' };
-        }
-      }
-    }
-  }
-  return { ent: null, total: ents.length };
-}
-function calcSyntage_(body) {
-  const rfc = String(body.rfc || '').toUpperCase(); const anio = Number(body.anio) || new Date().getFullYear();
-  const res = calcSynEntidad_(body);
-  if (res.error) return { ok: false, error: 'Syntage: ' + res.error };
-  const ent = res.ent;
-  if (!ent) return { ok: true, conectado: false, rfc: rfc, entidades_revisadas: res.total || 0 };
-  const eid = String(ent.id || String(ent['@id'] || '').split('/').pop());
-  /* CFDI del ejercicio. No se filtra por status en la consulta (si el catálogo espera otro
-     valor, el filtro devolvería cero en silencio): se filtra aquí. Si la consulta con filtro
-     de fecha viene vacía, se reintenta sin filtro y se recorta al año. */
-  let inv = synTodos_('/entities/' + eid + '/invoices', { itemsPerPage: 200, 'issuedAt[after]': anio + '-01-01' }, 40);
-  if (inv._error) return { ok: false, error: 'Syntage CFDI: ' + inv._error };
-  if (!inv.length) {
-    const alt = synTodos_('/entities/' + eid + '/invoices', { itemsPerPage: 200 }, 40);
-    if (!alt._error && alt.length) inv = alt.filter(function (x) { return String(x.issuedAt || '').slice(0, 4) === String(anio); });
-  }
-  inv = inv.filter(function (x) { return !x.status || String(x.status).toUpperCase().indexOf('VIGENTE') === 0; });
-  let nEmi = 0, nRec = 0;
-  const ret = synTodos_('/entities/' + eid + '/tax-retentions', { itemsPerPage: 200 }, 3);
-  const dec = synTodos_('/entities/' + eid + '/tax-returns', { itemsPerPage: 100 }, 3);
-  const rfcEnt = String(ent.rfc || '').toUpperCase();
-  const rfcUso = rfcEnt || rfc;                       /* para clasificar emitidos/recibidos */
-  const porMes = {};
-  inv.forEach(function (i) {
-    const d = String(i.issuedAt || '').slice(0, 7); porMes[d] = porMes[d] || { emitidos: [], recibidos: [], iva_acreditable_pue: 0, iva_ppd_pendiente: 0, iva_99: 0, n_99: 0 };
-    /* `issuedAt` es la fecha de EMISIÓN del CFDI, no la de timbrado: la fecha
-       de timbrado no se usa nunca como fecha de flujo. Para un PUE la emisión
-       sí es la fecha de cobro o pago. Para un PPD no lo es —la que manda es la
-       del complemento de pago— y esa fecha no viene en esta fuente, así que
-       cada renglón declara con qué fecha quedó clasificado en vez de aparentar
-       una precisión que no tiene. */
-    const esPPD = (i.paymentType === 'PPD') || String(i.paymentMethod || '') === '99';
-    const row = { fecha: String(i.issuedAt || '').slice(0, 10), quien: (i.issuerName || i.issuerRfc) + ' → ' + (i.receiverName || i.receiverRfc), subtotal: Number(i.subtotal) || 0, iva: Number(i.tax) || 0, total: Number(i.total) || 0, tipo: i.type, pago: i.paymentType, metodo: String(i.paymentMethod || ''), uuid: i.uuid,
-      fecha_base: esPPD ? 'emisión del CFDI — la fecha de flujo es la del complemento de pago y no viene en la fuente' : 'emisión del CFDI (PUE: coincide con la fecha de pago)',
-      fecha_flujo_confiable: !esPPD };
-    /* Emisor o receptor: se usan las banderas del catálogo y, si no vienen, el RFC.
-       Hay entidades cuyo registro en Syntage no trae RFC y ahí la comparación fallaba. */
-    const esEmisor = i.isIssuer === true || i.isIssuer === 1 || i.isIssuer === '1' || String(i.issuerRfc || '').toUpperCase() === rfcUso;
-    const esReceptor = i.isReceiver === true || i.isReceiver === 1 || i.isReceiver === '1' || String(i.receiverRfc || '').toUpperCase() === rfcUso;
-    if (esEmisor) { if (i.type === 'I' || i.type === 'E') { porMes[d].emitidos.push(row); nEmi++; } }
-    else if (esReceptor) {
-      if (i.type === 'I' || i.type === 'E') { porMes[d].recibidos.push(row); nRec++; }
-      /* Criterio del contador (y de la ley): solo se acredita el IVA efectivamente pagado.
-         Las facturas con método de pago 99 ("por definir") no se pagaron en el mes: se
-         excluyen del acreditable y se reportan aparte para que el documento lo declare. */
-      const m99 = String(i.paymentMethod || '') === '99';
-      if (m99) { porMes[d].iva_99 += row.iva; porMes[d].n_99++; }
-      if (i.type === 'I' && i.paymentType === 'PUE' && !m99) porMes[d].iva_acreditable_pue += row.iva;
-      if (i.type === 'I' && (i.paymentType === 'PPD' || m99) && Number(i.dueAmount) > 0) porMes[d].iva_ppd_pendiente += row.iva;
-      if (i.type === 'E' && i.paymentType === 'PUE' && !m99) porMes[d].iva_acreditable_pue -= row.iva;
-    }
-  });
-  Object.keys(porMes).forEach(function (k) { porMes[k].iva_acreditable_pue = calcR2_(porMes[k].iva_acreditable_pue); porMes[k].iva_ppd_pendiente = calcR2_(porMes[k].iva_ppd_pendiente); porMes[k].iva_99 = calcR2_(porMes[k].iva_99); });
-  return { ok: true, conectado: true, entity_id: eid, nombre: ent.name || ent.legalName || '', rfc_syntage: rfcEnt, ligado_por: res.via, cfdi_por_mes: porMes,
-    cfdi_del_anio: inv.length, cfdi_emitidos_anio: nEmi, cfdi_recibidos_anio: nRec,
-    retenciones: (ret._error ? [] : ret).map(function (r) { return { periodo: String(r.periodFrom || '').slice(0, 7), base: Number(r.totalTaxableAmount), retenido: Number(r.totalRetainedAmount), uuid: r.uuid }; }),
-    declaraciones: (dec._error ? [] : dec).map(function (d) { return { tipo: d.type, periodicidad: d.intervalUnit, periodo: d.period, ejercicio: d.fiscalYear, presentada: String(d.presentedAt || '').slice(0, 10), operacion: d.operationNumber }; }) };
-}
-
-/* ── 5. Generar / guardar / listar ── */
-function calcCompletarSerie_(input) {
-  const rfc = String(input.cliente.rfc).toUpperCase(), anio = Number(input.periodo.anio), mes = Number(input.periodo.mes);
-  const ya = {}; input.meses.forEach(function (m) { ya[m.anio + '-' + m.mes] = true; });
-  almLeer_('calculos_impuestos').filter(function (r) { return r.rfc === rfc && Number(r.anio) === anio && Number(r.mes) < mes && !ya[anio + '-' + Number(r.mes)]; }).forEach(function (r) {
-    try {
-      const c = JSON.parse(DriveApp.getFileById(r.json_file_id).getBlob().getDataAsString());
-      const d = (c.detalle_meses || []).filter(function (x) { return x.mes === Number(r.mes); })[0]; const b = (c.banco || []).filter(function (x) { return x.mes === Number(r.mes); })[0];
-      if (!d) return;
-      input.meses.push({ mes: Number(r.mes), anio: anio, cert: { ordenes: d.ordenes, base: d.base, ordenes_16: c.resumen.ordenes_16, iva_trasladado: d.iva, isr_retenido: d.isr_ret, iva_retenido: d.iva_ret },
-        liq: { transferencias: b ? b.esperado : null, iva_retenido: d.iva_ret }, cfdi: { iva_acreditable_pue: c.iva.acreditable, iva_ppd_pendiente: c.iva.ppd_pendiente || 0, emitidos: [], recibidos: [] },
-        banco: (b && b.real != null) ? { abonos: b.real, nota: b.nota } : null });
-    } catch (e) {}
-  });
-  input.meses.sort(function (a, b) { return (a.anio - b.anio) || (a.mes - b.mes); });
-}
-function calcReplaceFile_(folder, name, content, mime) { const it = folder.getFilesByName(name); while (it.hasNext()) it.next().setTrashed(true); return folder.createFile(Utilities.newBlob(content, mime, name)).getId(); }
-function calcGenerar_(body, u) {
-  const input = body.input; if (!input || !input.cliente || !input.periodo || !input.meses) return { ok: false, error: 'input incompleto' };
-  if (input.completar_serie) calcCompletarSerie_(input);
-  const calc = TallyCalculoEngine.calcular(input);
-  const rfc = String(input.cliente.rfc).toUpperCase();
-  /* Un cálculo por período, y si vienen varios, además el consolidado del rango con su
-     propio identificador para que no se pisen entre ellos. */
-  const periodo = input.rango ? (input.rango.desde + '_a_' + input.rango.hasta) : (input.periodo.anio + '-' + ('0' + input.periodo.mes).slice(-2));
-  if (input.contexto && !input.contexto_autor) input.contexto_autor = u.email;
-  const folder = calcFolder_(rfc, periodo); const calc_id = 'CALC-' + periodo + '-' + rfc;
-  const ids = {}; ['es', 'en', 'zh'].forEach(function (l) { ids[l] = calcReplaceFile_(folder, 'Calculo_' + rfc + '_' + periodo + '_' + l + '.html', TallyCalculo.render(calc, l), 'text/html'); });
-  const jsonId = calcReplaceFile_(folder, 'calculo_' + rfc + '_' + periodo + '.json', JSON.stringify(calc), 'application/json');
-  // El entregable es Excel y se genera bajo demanda (calcXlsxAsegurar_): descarga, correo y 'Carga en Sistema'.
-  let pdfId = '';
-  almAsegurarCols_('calculos_impuestos', CALC_COLS_V2);
-  const prev = almLeer_('calculos_impuestos').filter(function (r) { return r.calc_id === calc_id; })[0];
-  const now = new Date().toISOString();
-  almUpsert_('calculos_impuestos', ['calc_id'], [{ calc_id: calc_id, company_id: input.cliente.company_id || '', rfc: rfc, nombre: input.cliente.nombre, periodo: periodo, anio: String(input.periodo.anio), mes: String(input.periodo.mes),
-    idioma: input.idioma || 'es', estado: 'draft', lectura: (input.lectura && input.lectura.es) || '', iva_a_pagar: String(calc.iva.a_pagar), isr_a_pagar: calc.isr.a_pagar == null ? '' : String(calc.isr.a_pagar),
-    saldo_favor: String(calc.iva.saldo_favor_arrastre), ventas_base: String(calc.resumen.ventas_base), creado_por: prev ? prev.creado_por : u.email, creado_en: prev ? prev.creado_en : now, actualizado_en: now,
-    contexto: String(input.contexto || ''), contexto_autor: String(input.contexto_autor || ''),
-    rango: input.rango ? (input.rango.desde + ' → ' + input.rango.hasta) : '',
-    periodos: (input.meses || []).map(function (m) { return m.anio + '-' + m.mes; }).join(' '),
-    carpeta_drive: folder.getId(), json_file_id: jsonId, html_es_id: ids.es, html_en_id: ids.en, html_zh_id: ids.zh, pdf_id: pdfId, correcciones: prev ? prev.correcciones : '', version: String(prev ? Number(prev.version || 1) + 1 : 1),
-    xlsx_es_id: '', xlsx_en_id: '', xlsx_zh_id: '' }]);   /* se invalida el Excel cacheado: al regenerar debe rehacerse */
-  if (prev) ['xlsx_es_id', 'xlsx_en_id', 'xlsx_zh_id'].forEach(function (c) { if (prev[c]) { try { DriveApp.getFileById(prev[c]).setTrashed(true); } catch (e) {} } });
-  try { almUpsert_('aprobaciones_calculo', ['company_id', 'periodo'], [{ company_id: input.cliente.company_id || '', periodo: periodo, fecha_envio: '', canal: 'tally-ops', evidencia: calc_id, registrado_por: u.email, ts: now }]); } catch (e) {}
-  return { ok: true, calc_id: calc_id, calculo: calc, archivos: { json: jsonId, html: ids, pdf: pdfId, carpeta: folder.getId() } };
-}
-function calcListar_(body, u) {
-  const f = body || {}; const pad = u.admin ? null : almPadron_();
-  const rows = almLeer_('calculos_impuestos').filter(function (r) {
-    if (pad && pad.porId[r.company_id] && almNorm_(pad.porId[r.company_id].owner) !== almNorm_(u.nombre)) return false;
-    if (f.rfc && String(r.rfc).indexOf(String(f.rfc).toUpperCase()) < 0) return false;
-    if (f.nombre && String(r.nombre).toUpperCase().indexOf(String(f.nombre).toUpperCase()) < 0) return false;
-    if (f.anio && String(r.anio) !== String(f.anio)) return false;
-    if (f.mes && String(Number(r.mes)) !== String(Number(f.mes))) return false;
-    if (f.estado && r.estado !== f.estado) return false;
-    return true;
-  }).sort(function (a, b) { return String(b.actualizado_en).localeCompare(String(a.actualizado_en)); });
-  return { ok: true, calculos: rows };
-}
-function calcGet_(body) {
-  const r = almLeer_('calculos_impuestos').filter(function (x) { return x.calc_id === body.calc_id; })[0]; if (!r) return { ok: false, error: 'no existe' };
-  const calc = JSON.parse(DriveApp.getFileById(r.json_file_id).getBlob().getDataAsString());
-  return { ok: true, fila: r, calculo: calc };
-}
-function calcCorreccion_(body, u) {
-  const r = almLeer_('calculos_impuestos').filter(function (x) { return x.calc_id === body.calc_id; })[0]; if (!r) return { ok: false, error: 'no existe' };
-  const nota = new Date().toISOString().slice(0, 16) + ' · ' + u.email + ': ' + String(body.texto || '').trim();
-  almUpsert_('calculos_impuestos', ['calc_id'], [{ calc_id: body.calc_id, estado: 'correccion', correcciones: (r.correcciones ? r.correcciones + '\n' : '') + nota, actualizado_en: new Date().toISOString() }]);
-  calcAvisarJuan_('✏️ *Corrección solicitada en un cálculo de impuestos*\n' + nota + '\nCálculo: ' + body.calc_id + ' · ' + r.nombre);
-  return { ok: true };
-}
-function calcEstado_(body, u) {
-  const r = almLeer_('calculos_impuestos').filter(function (x) { return x.calc_id === body.calc_id; })[0]; if (!r) return { ok: false, error: 'no existe' };
-  const now = new Date().toISOString();
-  almUpsert_('calculos_impuestos', ['calc_id'], [{ calc_id: body.calc_id, estado: body.estado, actualizado_en: now }]);
-  if (body.estado === 'approved') { try { almUpsert_('aprobaciones_calculo', ['company_id', 'periodo'], [{ company_id: r.company_id, periodo: r.periodo, fecha_aprobacion: now.slice(0, 10), canal: body.canal || 'correo', evidencia: body.evidencia || body.calc_id, registrado_por: u.email, ts: now }]); } catch (e) {} }
-  return { ok: true };
-}
-
-/* ── 6. Bandeja: plantilla + adjunto ── */
-function calcCorreo_(body) {
-  const g = calcGet_(body); if (!g.ok) return g;
-  const l = body.idioma || g.fila.idioma || 'es'; const e = TallyCalculo.emailSummary(g.calculo, l);
-  const x = calcXlsxAsegurar_(g.fila, g.calculo, l);
-  return { ok: true, asunto: e.subject, cuerpo: e.body, adjunto_id: x.id, adjunto_nombre: x.nombre, idioma: l, company_id: g.fila.company_id, cliente: g.fila.nombre };
-}
-/* En send_direct: body.adjuntos puede traer {calc_id, idioma} → se adjunta el EXCEL del cálculo (ver calcAdjuntoDoc_). */
-function calcAdjuntoDoc_(a) {
-  const g = calcGet_({ calc_id: a.calc_id }); if (!g.ok) return null;
-  try { const x = calcXlsxAsegurar_(g.fila, g.calculo, a.idioma || g.fila.idioma || 'es'); const b = x.blob || DriveApp.getFileById(x.id).getBlob(); return { blob: b.copyBlob().setName(x.nombre), nombre: x.nombre }; }
-  catch (e) { const id = g.fila['html_' + (a.idioma || g.fila.idioma || 'es') + '_id']; if (!id) return null; const f = DriveApp.getFileById(id); return { blob: f.getBlob(), nombre: f.getName() }; }
-}
-
-/* ── 7. Cliente sin Syntage → solicitud a Juan ── */
-function calcAvisarJuan_(texto) {
-  const props = PropertiesService.getScriptProperties(); const tok = props.getProperty('SLACK_BOT_TOKEN');
-  if (tok) {
-    const r = UrlFetchApp.fetch('https://slack.com/api/chat.postMessage', { method: 'post', contentType: 'application/json', headers: { Authorization: 'Bearer ' + tok }, payload: JSON.stringify({ channel: props.getProperty('JUAN_SLACK_ID') || 'U08095WJXTR', text: texto, mrkdwn: true }), muteHttpExceptions: true });
-    const j = JSON.parse(r.getContentText()); if (j.ok) return { ok: true, canal: 'slack' };
-  }
-  // Sin bot de Slack: correo a Juan con el mismo texto (llega a su bandeja y a su móvil).
-  GmailApp.sendEmail('juan@tally.legal', texto.split('\n')[0].replace(/\*/g, ''), texto.replace(/\*/g, ''), { name: 'Tally Ops' });
-  return { ok: true, canal: 'correo' };
-}
-function calcCifrar_(txt, key) { const k = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, key); const b = Utilities.newBlob(txt).getBytes(); return Utilities.base64Encode(b.map(function (x, i) { return (x ^ k[i % k.length]) & 0xff; })); }
-function calcDescifrar_(b64, key) { const k = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, key); const b = Utilities.base64Decode(b64); return Utilities.newBlob(b.map(function (x, i) { return (x ^ k[i % k.length]) & 0xff; })).getDataAsString(); }
-function calcSolicitarSyntage_(body, u) {
-  const props = PropertiesService.getScriptProperties(); const rfc = String(body.rfc || '').toUpperCase(); if (!rfc) return { ok: false, error: 'falta RFC' };
-  const ciec = String(body.ciec || '').trim(); const enClaro = String(calcCfg_('ciec_en_slack') || 'no').toLowerCase() === 'si';
-  let lineaCiec;
-  if (!ciec) lineaCiec = 'CIEC: (no proporcionada — pedirla al cliente)';
-  else if (enClaro) lineaCiec = 'CIEC: ' + ciec;
-  else {
-    const token = Utilities.getUuid().replace(/-/g, '');
-    almUpsert_('credenciales_ciec_pendientes', ['token'], [{ token: token, rfc: rfc, nombre: body.nombre || '', ciec_cifrada: calcCifrar_(ciec, props.getProperty('CIEC_SECRET') || TOKEN), solicitado_por: u.email, solicitado_en: new Date().toISOString(), revelado_en: '', estado: 'pendiente' }]);
-    lineaCiec = 'CIEC: 🔒 ver una sola vez → https://tally-accounting-ops.netlify.app/#ciec=' + token;
-  }
-  const msg = '🔌 *Solicitud de conexión de cliente a Syntage*\n' + (u.nombre || u.email) + ' ha pedido que agregues a *' + (body.nombre || rfc) + '* en Syntage.\nRFC: ' + rfc + '\n' + lineaCiec;
-  const r = calcAvisarJuan_(msg);
-  try { almUpsert_('solicitudes_syntage', ['ts'], [{ ts: new Date().toISOString(), rfc: rfc, nombre: body.nombre || '', solicitado_por: u.email, con_ciec: ciec ? 'si' : 'no', canal: r.canal, estado: 'enviada' }]); } catch (e) {}
-  return { ok: true, enviado: true, canal: r.canal };
-}
-function calcRevelarCiec_(body, u) {
-  if (!u.admin) return { ok: false, error: 'solo administrador' };
-  const fila = almLeer_('credenciales_ciec_pendientes').filter(function (x) { return x.token === body.token; })[0]; if (!fila) return { ok: false, error: 'liga inválida' };
-  if (fila.estado !== 'pendiente') return { ok: false, error: 'esta liga ya se usó' };
-  const ciec = calcDescifrar_(fila.ciec_cifrada, PropertiesService.getScriptProperties().getProperty('CIEC_SECRET') || TOKEN);
-  almUpsert_('credenciales_ciec_pendientes', ['token'], [{ token: body.token, ciec_cifrada: '', revelado_en: new Date().toISOString(), estado: 'revelada' }]);
-  return { ok: true, rfc: fila.rfc, nombre: fila.nombre, ciec: ciec };
-}
-
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   🧮 CÁLCULO DE IMPUESTOS · v2 (4-sep-2026): entregable EXCEL + "Carga en Sistema"
-   - El documento final es .xlsx (antes PDF). Se genera bajo demanda y se cachea
-     por idioma en la carpeta del cliente. El HTML sigue siendo la vista previa.
-   - "Carga en Sistema" escribe en la tabla `calculo_impuestos` de AppSheet:
-     pestaña del spreadsheet accounting_reports_clients (REPORTES_ID) + archivo en
-     la carpeta calculo_impuestos_Files_, con la misma convención de nombre que usa
-     el equipo hoy: <calc_imp_id>.Documento.<HHMMSS>. <Cliente> - Tax Calculation <MMAAAA>.xlsx
-   ═══════════════════════════════════════════════════════════════════════════ */
-const CALC_APPSHEET_TABLA = 'calculo_impuestos';
-const CALC_APPSHEET_FILES = '1HNBxWPM0-TmioceSIIpqdcBkY7pnqGL1'; // carpeta calculo_impuestos_Files_
-const CALC_COLS_V2 = ['xlsx_es_id', 'xlsx_en_id', 'xlsx_zh_id', 'appsheet_calc_imp_id', 'appsheet_ruta', 'appsheet_cargado_en', 'contexto', 'contexto_autor', 'rango', 'periodos'];
-try { CALC_COLS_V2.forEach(function (c) { if (ALM_TABS.calculos_impuestos.indexOf(c) < 0) ALM_TABS.calculos_impuestos.push(c); }); } catch (e) {}
-
-/** Agrega al almacén las columnas que falten en una pestaña ya creada. */
-function almAsegurarCols_(nombre, cols) {
-  const sh = getOrCreate(almacenSS_(), nombre, ALM_TABS[nombre] || cols);
-  const nc = Math.max(1, sh.getLastColumn());
-  const head = sh.getRange(1, 1, 1, nc).getValues()[0].map(String);
-  const faltan = cols.filter(function (c) { return head.indexOf(c) < 0; });
-  if (faltan.length) sh.getRange(1, head.length + 1, 1, faltan.length).setValues([faltan]).setNumberFormat('@');
-  return sh;
-}
-
-/* ── Nombre comercial corto para el archivo (como lo nombra el equipo) ── */
-function calcNombreCorto_(n) {
-  return String(n || '').replace(/[,.]?\s*(S\.?\s?de\s?R\.?\s?L\.?|S\.?\s?A\.?\s?P\.?\s?I\.?|S\.?\s?A\.?|S\.?\s?C\.?)(\s?de\s?C\.?\s?V\.?)?\.?\s*$/i, '').trim() || String(n || '').trim();
-}
-
-/* ═══════════ EXCEL: el documento final ═══════════ */
-function calcXlsxBlob_(calc, lang, nombreArchivo) {
-  lang = TallyCalculo.I18N[lang] ? lang : 'es';
-  const t = TallyCalculo.I18N[lang];
-  const TABS = { es: ['Resumen', 'Cómo calculamos', 'IVA', 'ISR', 'Detalle', 'Costos y gastos', 'CFDI', 'Notas'],
-                 en: ['Summary', 'How we calculate', 'VAT', 'Income tax', 'Detail', 'Costs and expenses', 'Invoices', 'Notes'],
-                 zh: ['摘要', '计算方法', '增值税', '所得税', '明细', '成本与费用', '发票', '说明'] }[lang];
-  const VIO = '#6047ff', VIO100 = '#dcdcff', INK = '#212121', CREAM = '#fefcf8', MUT = '#6b6b6b', OKC = '#c8e8ce', WRN = '#fcddd6';
-  const N2 = '#,##0.00;(#,##0.00)';
-  const cl = calc.cliente || {}, p = calc.periodo || {}, iva = calc.iva || {}, isr = calc.isr || {}, rs = calc.resumen || {};
-  const per = (t.months[(p.mes || 1) - 1] || '') + ' ' + (p.anio || '');
-  const est = calc.estado === 'approved' ? t.status_approved : calc.estado === 'filed' ? t.status_filed : t.status_draft;
-  const ss = SpreadsheetApp.create('__tmp_calc_' + Date.now());
-
-  function hoja(i) {
-    const s = i === 0 ? ss.getSheets()[0] : ss.insertSheet();
-    s.setName(TABS[i]); s.setHiddenGridlines(true);
-    s.getRange('A1').setValue('Tally · ' + t.doc_title).setFontFamily('Arial').setFontSize(9).setFontColor(VIO).setFontWeight('bold');
-    s.getRange('A2').setValue(cl.nombre + ' · ' + cl.rfc + ' · ' + per).setFontFamily('Arial').setFontSize(14).setFontWeight('bold').setFontColor(INK);
-    return s;
-  }
-  function bloque(s, r, filas, ancho) {
-    if (!filas.length) return r;
-    const w = ancho || filas[0].length;
-    const vals = filas.map(function (f) { const o = f.slice(0, w); while (o.length < w) o.push(''); return o; });
-    s.getRange(r, 1, vals.length, w).setValues(vals).setFontFamily('Arial').setFontSize(10).setVerticalAlignment('top');
-    return r + vals.length;
-  }
-  function titulo(s, r, txt, sub) {
-    s.getRange(r, 1).setValue(txt).setFontFamily('Arial').setFontSize(12).setFontWeight('bold').setFontColor(INK);
-    if (sub) s.getRange(r + 1, 1).setValue(sub).setFontFamily('Arial').setFontSize(9).setFontColor(MUT).setWrap(true);
-    return r + (sub ? 2 : 1);
-  }
-  function encabezado(s, r, labels) {
-    s.getRange(r, 1, 1, labels.length).setValues([labels]).setFontFamily('Arial').setFontSize(9).setFontWeight('bold')
-      .setFontColor(CREAM).setBackground(VIO).setVerticalAlignment('middle').setWrap(true);
-    s.setFrozenRows(r);
-    return r + 1;
-  }
-  function anchos(s, ws) { ws.forEach(function (w, i) { s.setColumnWidth(i + 1, w); }); }
-  function money(s, a1) { s.getRange(a1).setNumberFormat(N2).setHorizontalAlignment('right'); }
-
-  try {
-    /* ── 1 · Resumen ejecutivo ── */
-    var s = hoja(0); var r = 4;
-    r = titulo(s, r, t.exec_title, t.exec_lead);
-    r = bloque(s, r + 1, [
-      [t.rfc, cl.rfc || ''], [t.regime, cl.regimen || '—'], [t.marketplace, cl.marketplace || '—'],
-      [t.period, per], [t.status, est], [t.issued, calc.emitido || '']
-    ], 3);
-    var kpi = r + 1;
-    const total = (iva.a_pagar || 0) + (typeof isr.a_pagar === 'number' ? isr.a_pagar : 0);
-    r = encabezado(s, kpi, [t.col_concept, t.col_amount, '']);
-    r = bloque(s, r, [
-      [t.kpi_total, total, 'MXN'],
-      [t.kpi_iva, iva.a_pagar || 0, ''],
-      [t.kpi_isr, typeof isr.a_pagar === 'number' ? isr.a_pagar : t.pending, ''],
-      [t.kpi_favor, iva.saldo_favor_arrastre || 0, ''],
-      [t.kpi_ret, (rs.isr_retenido_mes || 0) + (rs.iva_retenido_mes || 0), ''],
-      [t.exec_sales, rs.ventas_base || 0, ''],
-      [t.exec_orders, rs.ordenes == null ? '—' : rs.ordenes, ''],
-      [t.exec_domestic, rs.ordenes_16 == null ? '—' : rs.ordenes_16, ''],
-      [t.exec_cross, rs.ordenes_0 == null ? '—' : rs.ordenes_0, '']
-    ], 3);
-    money(s, 'B' + (kpi + 1) + ':B' + (kpi + 6));
-    s.getRange(kpi + 1, 1, 1, 3).setBackground(VIO100).setFontWeight('bold');
-    s.getRange(kpi + 1, 2).setFontSize(14);
-    if (rg) {
-      r = titulo(s, r + 1, t.rango_title, t.rango_lead);
-      var rr = r = encabezado(s, r, [t.col_concept, t.col_amount, '']);
-      r = bloque(s, r, [
-        [t.rango_meses, rg.meses, rg.desde + ' → ' + rg.hasta],
-        [t.kpi_iva, rg.iva_a_pagar || 0, ''],
-        [t.exec_sales, rg.ventas || 0, ''],
-        [t.exec_orders, rg.ordenes || 0, ''],
-        [t.iva_r3, rg.iva_trasladado || 0, ''],
-        [t.iva_r4, rg.iva_retenido || 0, ''],
-        [t.kpi_favor, rg.saldo_favor_final || 0, '']
-      ], 3);
-      money(s, 'B' + (rr + 1) + ':B' + (r - 1));
-    }
-    if (calc.contexto) { r = titulo(s, r + 1, t.ctx_title, t.ctx_lead); r = bloque(s, r, [[String(calc.contexto)]], 3); s.getRange(r - 1, 1).setWrap(true).setFontSize(10); }
-    if (calc.lectura && calc.lectura[lang]) { r = titulo(s, r + 1, t.reading, calc.lectura[lang]); }
-    r = titulo(s, r + 1, t.exec_next);
-    r = bloque(s, r, [['1. ' + t.exec_next_1], ['2. ' + t.exec_next_2], ['3. ' + t.exec_next_3]], 3);
-    if ((calc.alertas || []).length) {
-      var ra = titulo(s, r + 1, t.notes_title);
-      var rb = bloque(s, ra, (calc.alertas || []).map(function (a) { return [a[lang] || a.es || a]; }), 3);
-      s.getRange(ra, 1, rb - ra, 3).setBackground(WRN).setWrap(true); r = rb;
-    }
-    s.getRange(4, 1, r, 1).setWrap(true);
-    anchos(s, [62 * 7, 22 * 7, 14 * 7]);
-
-    /* ── 2 · Cómo calculamos ── */
-    s = hoja(1); r = titulo(s, 4, t.how_title, t.how_lead);
-    r = titulo(s, r + 1, t.how_steps_title);
-    r = bloque(s, r, [1, 2, 3, 4, 5].map(function (i) { return [i + '. ' + t['how_step_' + i]]; }), 3);
-    r = titulo(s, r + 1, t.src_title);
-    r = encabezado(s, r, [t.src_col_src, t.src_col_what, t.src_col_status]);
-    var r0 = r;
-    r = bloque(s, r, (calc.fuentes || []).map(function (f) {
-      return [f[lang] || f.nombre || '', f['que_' + lang] || f.que || '', f.estado === 'ok' ? t.src_ok : f.estado === 'partial' ? t.src_partial : t.src_missing];
-    }), 3);
-    for (var i = r0; i < r; i++) {
-      var v = String(s.getRange(i, 3).getValue());
-      s.getRange(i, 3).setBackground(v === t.src_ok ? OKC : v === t.src_partial ? '#dcf8ff' : WRN);
-    }
-    s.getRange(4, 1, r, 2).setWrap(true); anchos(s, [58 * 7, 52 * 7, 16 * 7]);
-
-    /* ── 3 · IVA ── */
-    s = hoja(2); r = titulo(s, 4, t.iva_title, t.iva_lead);
-    r = encabezado(s, r + 1, [t.col_concept, t.col_amount, t.col_source]);
-    var f0 = r;
-    r = bloque(s, r, [
-      [t.iva_r1, iva.base_16 || 0, iva.src_16 || ''],
-      [t.iva_r2, iva.base_0 || 0, iva.src_0 || ''],
-      [t.iva_r3, iva.trasladado || 0, iva.src_trasladado || ''],
-      [t.iva_r4, -(iva.retenido || 0), iva.src_retenido || ''],
-      [t.iva_r4b, -(iva.retenido_anterior || 0), iva.retenido_anterior ? (iva.src_retenido_anterior || '') : ''],
-      [t.iva_r5, -(iva.acreditable || 0), iva.src_acreditable || ''],
-      [t.iva_r6, -(iva.saldo_favor_anterior || 0), ''],
-      [t.iva_r7, '=SUM(B' + (f0 + 2) + ':B' + (f0 + 5) + ')', ''],
-      [t.iva_r8, '=MAX(0,B' + (f0 + 7) + '+B' + (f0 + 6) + ')', ''],
-      [t.iva_r9, '=MAX(0,-(B' + (f0 + 7) + '+B' + (f0 + 6) + '))', '']
-    ], 3);
-    money(s, 'B' + f0 + ':B' + (r - 1));
-    s.getRange(f0 + 8, 1, 1, 3).setBackground(VIO100).setFontWeight('bold');
-    if (iva.ppd_pendiente) r = bloque(s, r + 1, [['(i) ' + (lang === 'es' ? 'IVA de facturas por pagar (PPD), no acreditable este mes' : lang === 'en' ? 'VAT on unpaid invoices (PPD), not creditable this month' : '未付款发票的增值税（PPD），本月不可抵扣'), iva.ppd_pendiente, '']], 3);
-    s.getRange(4, 1, r, 1).setWrap(true); s.getRange(4, 3, r, 1).setWrap(true).setFontSize(9).setFontColor(MUT);
-    anchos(s, [58 * 7, 20 * 7, 44 * 7]);
-
-    /* ── 4 · ISR ── */
-    s = hoja(3); r = titulo(s, 4, t.isr_title, t.isr_lead);
-    if (isr.cu == null) { s.getRange(r, 1).setValue('⚠ ' + t.isr_no_cu).setBackground(WRN).setWrap(true).setFontFamily('Arial').setFontSize(10); r += 1; }
-    r = encabezado(s, r + 1, [t.col_concept, t.col_amount, '']);
-    var g0 = r;
-    const cuTxt = isr.cu == null ? t.pending : isr.cu;
-    r = bloque(s, r, [
-      [t.isr_r1, isr.ingresos_mes || 0, ''],
-      [t.isr_r2, isr.ingresos_acum || 0, ''],
-      [t.isr_r3, cuTxt, ''],
-      [t.isr_r4, isr.cu == null ? t.pending : '=B' + (g0 + 1) + '*B' + (g0 + 2), ''],
-      [t.isr_r5, isr.cu == null ? t.pending : -(isr.perdidas || 0), ''],
-      [t.isr_r6, isr.cu == null ? t.pending : '=MAX(0,B' + (g0 + 3) + '+B' + (g0 + 4) + ')', ''],
-      [t.isr_r7, isr.cu == null ? t.pending : '=B' + (g0 + 5) + '*0.3', ''],
-      [t.isr_r8, -(isr.retenido_acum || 0), ''],
-      [t.isr_r9, -(isr.pagos_previos || 0), ''],
-      [t.isr_r10, isr.cu == null ? t.pending : '=MAX(0,B' + (g0 + 6) + '+B' + (g0 + 7) + '+B' + (g0 + 8) + ')', '']
-    ], 3);
-    money(s, 'B' + g0 + ':B' + (r - 1));
-    s.getRange(g0 + 2, 2).setNumberFormat('0.0000');
-    s.getRange(g0 + 9, 1, 1, 3).setBackground(VIO100).setFontWeight('bold');
-    s.getRange(4, 1, r, 1).setWrap(true); anchos(s, [58 * 7, 20 * 7, 14 * 7]);
-
-    /* ── 5 · Detalle mensual + banco ── */
-    s = hoja(4); r = titulo(s, 4, t.detail_title, t.detail_lead);
-    r = encabezado(s, r + 1, [t.col_month, t.col_orders, t.col_base, t.col_iva, t.col_iva_ret, t.col_isr_ret]);
-    var d0 = r;
-    r = bloque(s, r, (calc.detalle_meses || []).map(function (d) {
-      return [t.months[d.mes - 1], d.ordenes == null ? '' : d.ordenes, d.base || 0, d.iva || 0, d.iva_ret || 0, d.isr_ret || 0];
-    }), 6);
-    if (r > d0) { s.getRange(r, 1).setValue(t.col_total).setFontWeight('bold');
-      s.getRange(r, 3, 1, 4).setFormulas([['=SUM(C' + d0 + ':C' + (r - 1) + ')', '=SUM(D' + d0 + ':D' + (r - 1) + ')', '=SUM(E' + d0 + ':E' + (r - 1) + ')', '=SUM(F' + d0 + ':F' + (r - 1) + ')']]);
-      s.getRange(r, 1, 1, 6).setFontWeight('bold').setBackground(VIO100); r += 1; }
-    money(s, 'C' + d0 + ':F' + (r - 1));
-    r = titulo(s, r + 1, t.bank_title, t.bank_lead);
-    r = encabezado(s, r, [t.col_month, t.col_bank_expected, t.col_bank_actual, t.col_diff, '', '']);
-    var b0 = r;
-    r = bloque(s, r, (calc.banco || []).map(function (b) {
-      return [t.months[b.mes - 1], b.esperado || 0, b.real == null ? t.bank_missing : b.real, b.real == null ? '' : (b.esperado || 0) - b.real, b.nota || '', ''];
-    }), 6);
-    money(s, 'B' + b0 + ':D' + (r - 1));
-    anchos(s, [16 * 7, 18 * 7, 18 * 7, 16 * 7, 16 * 7, 40 * 7]);
-
-    /* ── 6 · Costos y gastos ── */
-    s = hoja(5); r = titulo(s, 4, t.cost_title, t.cost_lead);
-    var cs = calc.costos || {};
-    r = titulo(s, r + 1, t.cost_mk);
-    var cg0 = r = encabezado(s, r, [t.col_concept, t.col_amount, '', '']);
-    var det = (cs.marketplace_detalle || []).map(function (x) { return [x.concepto, Number(x.importe) || 0, '', '']; });
-    if (det.length) {
-      r = bloque(s, r, det, 4);
-      s.getRange(r, 1).setValue(t.col_total).setFontFamily('Arial').setFontSize(10).setFontWeight('bold');
-      s.getRange(r, 2).setFormula('=SUM(B' + (cg0 + 1) + ':B' + (r - 1) + ')').setFontWeight('bold');
-      r++;
-      if (cs.marketplace_declarado != null) {
-        r = bloque(s, r, [[t.cost_ctrl, cs.marketplace_declarado, cs.marketplace_control === false ? t.cost_bad : t.cost_ok, '']], 4);
-        s.getRange(r - 1, 3).setBackground(cs.marketplace_control === false ? WRN : OKC);
-      }
-    } else r = bloque(s, r, [['', t.cost_none, '', '']], 4);
-    money(s, 'B' + (cg0 + 1) + ':B' + (r - 1));
-
-    r = titulo(s, r + 1, t.cost_cfdi);
-    var cc0 = r = encabezado(s, r, [t.col_concept, t.col_amount, '', '']);
-    r = bloque(s, r, [[t.col_subtotal, cs.cfdi_subtotal || 0, cs.cfdi_n ? cs.cfdi_n + ' CFDI' : t.col_none, ''],
-                      ['IVA', cs.cfdi_iva || 0, '', ''], [t.col_total, cs.cfdi_total || 0, '', '']], 4);
-    money(s, 'B' + (cc0 + 1) + ':B' + (r - 1));
-
-    r = titulo(s, r + 1, t.cost_total);
-    var ct0 = r = encabezado(s, r, [t.col_concept, t.col_amount, '', '']);
-    r = bloque(s, r, [[t.exec_sales, rs.ventas_base || 0, '', ''],
-                      [t.cost_mk, Math.abs(cs.marketplace_total || 0), '', ''],
-                      [t.cost_cfdi, cs.cfdi_subtotal || 0, '', ''],
-                      [t.cost_total, cs.total || 0, '', ''],
-                      [t.cost_profit, cs.utilidad_estimada || 0, '', '']], 4);
-    money(s, 'B' + (ct0 + 1) + ':B' + (r - 1));
-    s.getRange(r - 1, 1, 1, 2).setFontWeight('bold');
-    r = bloque(s, r + 1, [[t.cost_note, '', '', '']], 4);
-    s.getRange(r - 1, 1).setWrap(true).setFontSize(9).setFontColor(MUT);
-    s.getRange(4, 1, r, 1).setWrap(true); anchos(s, [52 * 7, 20 * 7, 22 * 7, 10 * 7]);
-
-    /* ── 7 · CFDI ── */
-    s = hoja(6); r = titulo(s, 4, t.cfdi_title, t.cfdi_lead);
-    [[t.cfdi_issued, calc.cfdi_emitidos], [t.cfdi_received, calc.cfdi_recibidos]].forEach(function (par) {
-      r = titulo(s, r + 1, par[0]);
-      r = encabezado(s, r, [t.col_date, t.col_who, t.col_subtotal, 'IVA', t.col_total, '']);
-      var c0 = r;
-      var filas = (par[1] || []).map(function (x) { return [x.fecha || '', x.quien || '', x.subtotal || 0, x.iva || 0, x.total || 0, '']; });
-      if (filas.length) {                                   /* cierre auditable del bloque */
-        var f0 = c0 + 1, f1 = c0 + filas.length;
-        filas.push(['', t.col_total, '=SUM(C' + f0 + ':C' + f1 + ')', '=SUM(D' + f0 + ':D' + f1 + ')', '=SUM(E' + f0 + ':E' + f1 + ')', '']);
-      }
-      r = bloque(s, r, filas.length ? filas : [['', t.col_none, '', '', '', '']], 6);
-      money(s, 'C' + c0 + ':E' + (r - 1));
-    });
-    s.getRange(4, 2, r, 1).setWrap(true); anchos(s, [14 * 7, 62 * 7, 18 * 7, 16 * 7, 18 * 7, 10 * 7]);
-
-    /* ── 8 · Notas y glosario ── */
-    s = hoja(7); r = titulo(s, 4, t.notes_title, t.notes_lead);
-    if (calc.contexto) { r = titulo(s, r + 1, t.ctx_title, t.ctx_lead); r = bloque(s, r, [[String(calc.contexto) + (calc.contexto_autor ? '  — ' + calc.contexto_autor : '')]], 2); s.getRange(r - 1, 1).setWrap(true); }
-    r = bloque(s, r, (calc.notas || []).map(function (n) { return ['• ' + (n[lang] || n.es || n)]; }), 2);
-    r = titulo(s, r + 1, t.glossary_title);
-    r = encabezado(s, r, [t.col_concept, '']);
-    r = bloque(s, r, ['iva', 'isr', 'cfdi', 'ret', 'favor', 'cu'].map(function (k) { return [t['gl_' + k], t['gl_' + k + '_d']]; }), 2);
-    r = bloque(s, r + 1, [[t.footer]], 2);
-    s.getRange(4, 1, r, 2).setWrap(true); anchos(s, [30 * 7, 90 * 7]);
-
-    SpreadsheetApp.flush();
-    const resp = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + ss.getId() + '/export?format=xlsx',
-      { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
-    if (resp.getResponseCode() >= 300) throw new Error('export xlsx ' + resp.getResponseCode());
-    return resp.getBlob().setName(nombreArchivo);
-  } finally {
-    try { DriveApp.getFileById(ss.getId()).setTrashed(true); } catch (e) {}
-  }
-}
-
-/** Devuelve {id, nombre} del xlsx del cálculo en el idioma pedido; lo genera y cachea si falta. */
-function calcXlsxAsegurar_(fila, calc, lang) {
-  lang = TallyCalculo.I18N[lang] ? lang : (fila.idioma || 'es');
-  const col = 'xlsx_' + lang + '_id';
-  if (fila[col]) { try { const f = DriveApp.getFileById(fila[col]); if (!f.isTrashed()) return { id: f.getId(), nombre: f.getName(), blob: f.getBlob() }; } catch (e) {} }
-  const nombre = 'Calculo_' + fila.rfc + '_' + fila.periodo + '_' + lang + '.xlsx';
-  const blob = calcXlsxBlob_(calc, lang, nombre);
-  const folder = fila.carpeta_drive ? DriveApp.getFolderById(fila.carpeta_drive) : calcFolder_(fila.rfc, fila.periodo);
-  const it = folder.getFilesByName(nombre); while (it.hasNext()) it.next().setTrashed(true);
-  const file = folder.createFile(blob);
-  const set = {}; set.calc_id = fila.calc_id; set[col] = file.getId(); set.actualizado_en = new Date().toISOString();
-  almAsegurarCols_('calculos_impuestos', CALC_COLS_V2);
-  almUpsert_('calculos_impuestos', ['calc_id'], [set]);
-  fila[col] = file.getId();
-  return { id: file.getId(), nombre: nombre, blob: blob };
-}
-
-/* ═══════════ Descarga desde la interfaz (base64 por JSONP) ═══════════ */
-function calcDescargar_(body) {
-  const g = calcGet_(body); if (!g.ok) return g;
-  const x = calcXlsxAsegurar_(g.fila, g.calculo, body.idioma || g.fila.idioma);
-  const blob = x.blob || DriveApp.getFileById(x.id).getBlob();
-  return { ok: true, nombre: x.nombre, mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', b64: Utilities.base64Encode(blob.getBytes()) };
-}
-
-/* ═══════════ "Carga en Sistema" → tabla calculo_impuestos vía API de AppSheet ═══════════
-   Se escribe SIEMPRE por la API de AppSheet (nunca sobre el Google Sheet) para que la app
-   aplique su propia estructura: Ref a Clientes_por_periodo, Enum de MesPeriodo, columna File
-   y sus automatizaciones. El PeriodID NO se construye: se resuelve consultando la app, porque
-   el formato cambió con el tiempo (2025-07_AZ005337 con cero · 2026-4_AZ006552 sin cero).
-   Requiere en Propiedades del script: APPSHEET_ACCESS_KEY (AppSheet → Settings → Integrations
-   → Enable API → Application Access Key). APPSHEET_APP_ID ya viene por defecto.            */
-const CALC_APPSHEET_APP = 'b70ebc3a-1a74-4e28-895a-0fd786727110';   // app "Accounting Team"
-
+/* ═══ AppSheet REST (helper compartido; antes vivía en el módulo de cálculo retirado el 13-oct-2026) ═══
+const APPSHEET_APP_DEFAULT_ = 'b70ebc3a-1a74-4e28-895a-0fd786727110';   // app "Accounting Team"
 function appsheetApi_(tabla, accion, rows, selector) {
   const props = PropertiesService.getScriptProperties();
   const key = props.getProperty('APPSHEET_ACCESS_KEY');
   if (!key) return { _error: 'Falta APPSHEET_ACCESS_KEY en Propiedades del script (AppSheet → Settings → Integrations → Enable API → Application Access Key).' };
-  const app = props.getProperty('APPSHEET_APP_ID') || CALC_APPSHEET_APP;
+  const app = props.getProperty('APPSHEET_APP_ID') || APPSHEET_APP_DEFAULT_;
   const propsApi = { Locale: 'es-MX', Timezone: 'Central Standard Time (Mexico)' };
   if (selector) propsApi.Selector = selector;
   const r = UrlFetchApp.fetch('https://api.appsheet.com/api/v2/apps/' + app + '/tables/' + encodeURIComponent(tabla) + '/Action',
@@ -5042,56 +2975,6 @@ function appsheetApi_(tabla, accion, rows, selector) {
   try { return JSON.parse(txt); } catch (e) { return { _raw: String(txt).slice(0, 300) }; }
 }
 function appsheetFilas_(resp) { return (resp && (resp.Rows || (resp.Response && resp.Response.Rows))) || []; }
-
-function calcAppsheetPush_(body, u) {
-  const g = calcGet_(body); if (!g.ok) return g;
-  const fila = g.fila;
-  if (!fila.company_id) return { ok: false, error: 'Este cálculo no tiene Company_Id del sistema (cliente capturado a mano). Vincúlalo a su ficha del padrón antes de cargarlo.' };
-  const anio = Number(fila.anio), mes = Number(fila.mes);
-  const MES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-
-  // 1 · Resolver el período real del cliente en la app (llave del Ref). Sin él no se escribe nada.
-  const per = appsheetApi_('Clientes_por_periodo', 'Find', [],
-    'Filter("Clientes_por_periodo", AND([Company_id] = "' + fila.company_id + '", [Mes_num] = ' + mes + ', [AñoPeríodo] = ' + anio + '))');
-  if (per._error) return { ok: false, error: per._error };
-  const filasPer = appsheetFilas_(per);
-  if (!filasPer.length) return { ok: false, error: 'En el sistema no existe el período ' + MES_ES[mes - 1] + ' ' + anio + ' para ' + fila.company_id + '. Ábrelo en AppSheet (Clientes_por_periodo) y vuelve a intentar; no creo el registro para no dejar la referencia colgando.' };
-  const periodId = String(filasPer[0].PeriodID || '').trim();
-  const nombreCliente = String(filasPer[0].NombreCliente || '').trim() || calcNombreCorto_(fila.nombre);
-  if (!periodId) return { ok: false, error: 'El período existe pero sin PeriodID legible; revísalo en AppSheet.' };
-
-  // 2 · ¿Ya hay cálculo cargado para ese período? (el botón es idempotente)
-  const ex = appsheetApi_('calculo_impuestos', 'Find', [], 'Filter("calculo_impuestos", [company_id] = "' + periodId + '")');
-  if (ex._error) return { ok: false, error: ex._error };
-  const filasEx = appsheetFilas_(ex);
-  const calcImpId = filasEx.length ? String(filasEx[0].calc_imp_id || '').trim() : Utilities.getUuid().replace(/-/g, '').slice(0, 8);
-
-  // 3 · El Excel va a la carpeta de archivos de la tabla, con la convención del equipo
-  const x = calcXlsxAsegurar_(fila, g.calculo, body.idioma || fila.idioma);
-  const nombreBonito = nombreCliente + ' - Tax Calculation ' + ('0' + mes).slice(-2) + anio + '.xlsx';
-  const nombreAppsheet = calcImpId + '.Documento.' + Utilities.formatDate(new Date(), 'America/Mexico_City', 'HHmmss') + '. ' + nombreBonito;
-  const carpeta = DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty('CALC_APPSHEET_FILES') || CALC_APPSHEET_FILES);
-  const archivo = carpeta.createFile((x.blob || DriveApp.getFileById(x.id).getBlob()).copyBlob().setName(nombreAppsheet));
-  const ruta = CALC_APPSHEET_TABLA + '_Files_/' + nombreAppsheet;
-
-  // 4 · Alta o edición por la API (solo las columnas existentes; id_prov se deja a la app)
-  const row = { calc_imp_id: calcImpId, company_id: periodId, Company_period_id: anio + '-' + MES_ES[mes - 1],
-                MesPeriodo: MES_ES[mes - 1], 'AñoPeríodo': anio, Documento: ruta,
-                'Fecha de carga': Utilities.formatDate(new Date(), 'America/Mexico_City', 'yyyy-MM-dd') };
-  const res = appsheetApi_('calculo_impuestos', filasEx.length ? 'Edit' : 'Add', [row]);
-  if (res._error) { try { archivo.setTrashed(true); } catch (e) {} return { ok: false, error: res._error }; }
-  const creada = appsheetFilas_(res)[0] || {};
-  const docOk = String(creada.Documento || '').indexOf(nombreAppsheet) >= 0 || String(creada.Documento || '') === ruta;
-
-  almAsegurarCols_('calculos_impuestos', CALC_COLS_V2);
-  almUpsert_('calculos_impuestos', ['calc_id'], [{ calc_id: fila.calc_id, appsheet_calc_imp_id: calcImpId, appsheet_ruta: ruta,
-    appsheet_cargado_en: new Date().toISOString(), actualizado_en: new Date().toISOString() }]);
-  try { almLog_('calc_appsheet_push', 'ok', fila.calc_id + ' → ' + periodId + ' (' + (filasEx.length ? 'editada' : 'nueva') + ', doc ' + (docOk ? 'ok' : 'revisar') + ') por ' + (u && u.email)); } catch (e) {}
-  return { ok: true, calc_imp_id: calcImpId, company_id: periodId, cliente_appsheet: nombreCliente, ruta: ruta,
-           actualizada: !!filasEx.length, doc_vinculado: docOk, archivo_url: archivo.getUrl(),
-           nombre: nombreBonito, mes: MES_ES[mes - 1], anio: String(anio) };
-}
-
 
 /* ═══════════════════════ 📊 REPORTES DE CLIENTE — backend portado de la versión alterna (13-ago-2026) ═══════════════════════ */
 const _ssCache = {};
@@ -5315,28 +3198,8 @@ function buildClientData(companyId) {
       };
     });
 
-  // Pendientes del equipo para este cliente — desde la pestaña `Tareas` de este
-  // Sheet (tracking operativo propio del equipo), NO desde WeeklyPlan de AppSheet.
+  // 13-oct-2026: la sección Tareas de Tally Ops se retiró; el reporte ya no lista pendientes internos.
   out.tareas = [];
-  try {
-    const shT = SpreadsheetApp.openById(DB_ID).getSheetByName('Tareas');
-    if (shT && shT.getLastRow() > 1) {
-      const H = shT.getRange(1, 1, 1, shT.getLastColumn()).getValues()[0].map(normKey);
-      const iId = H.indexOf('tareaid'), iResp = H.indexOf('responsable'), iTit = H.indexOf('titulo'),
-            iCli = H.indexOf('cliente'), iEst = H.indexOf('estado'), iOri = H.indexOf('origen'),
-            iEnt = H.indexOf('fechaentrega');
-      const nombreCli = String(out.ficha.nombre || '').toLowerCase();
-      shT.getRange(2, 1, shT.getLastRow() - 1, shT.getLastColumn()).getValues().forEach(function(r) {
-        if (!String(r[iId] || '').trim()) return;
-        if (/finaliz/i.test(String(r[iEst] || ''))) return;
-        const c = String(r[iCli] || '').toLowerCase();
-        if (!c) return;
-        if (c.indexOf(companyId.toLowerCase()) < 0 && (!nombreCli || c.indexOf(nombreCli.slice(0, 12)) < 0)) return;
-        out.tareas.push({ tarea: r[iTit], categoria: r[iOri], owner: r[iResp], status: r[iEst], due: r[iEnt] });
-      });
-    }
-  } catch (e) { out.avisos.push('Tareas: ' + String(e).slice(0, 80)); }
-  out.tareas = out.tareas.slice(0, 25);
 
   const bk = clientRows('Bancos', ['Bancos'], companyId, out);
   out.bancos = bk.length ? {
@@ -6012,4 +3875,470 @@ function _forzarScopeDrive_NO_EJECUTAR_() {
   f.setTrashed(true);
   DriveApp.getRootFolder().createFolder('tmp');
   DriveApp.getFileById('x').makeCopy('y');
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   🗂️ CLIENTES MARKETPLACE — Kanban por estado de declaración (13-oct-2026, Talia)
+   Acciones `cm_*`. Enganchado en handle() antes de `default:`.
+
+   PRINCIPIO (orden de Juan): backend estable, sin IA en el camino crítico. Todo lo que
+   se puede calcular con reglas se calcula con reglas y queda guardado en el Almacén
+   (pestañas cm_*). La IA solo entra bajo demanda (`cm_clasificar_ia`) para clasificar
+   emisores de facturas que las reglas no reconocen, y su veredicto se cachea.
+
+   FUENTES (lectura, en orden de costo):
+     1. Tally 360 (API externa de Tally Ops, firmada): roster/list, owner-audit,
+        zero-filing/candidates (cuenta de banco), global/periods (ventas/costos por mes),
+        syntage/overview (facturas por mes), syntage/cfdis (emisores de facturas recibidas).
+     2. AppSheet (Accounting_DataModel, lectura directa de la hoja): Clientes_por_periodo
+        (ventas declaradas por mes) y Clients_Load (First Shipment / suscripción de respaldo).
+   El 360 no tiene bitácora en el apartado de Tally Ops (contrato 29-sep-2026, §15):
+   la card muestra «S/D (sin ruta en el 360)» hasta que exista la ruta.
+
+   CICLO (máquina de estados en ScriptProperties CM_CYCLE, avanza con cronSync cada 15 min):
+     padron → audit → banco → periodos360 → syntage → cfdis → appsheet → calcular → listo
+   Cada tick tiene presupuesto de tiempo y respeta 60 peticiones/minuto del 360.
+   Arranca solo una vez al día (≥ 04:00 CDMX) en modo «reciente» (solo refresca los últimos
+   2 meses de facturas) o bajo demanda desde la interfaz (`cm_refresh`, modo completo o reciente).
+
+   ESTADOS DEL KANBAN (reglas exactas, de mayor a menor; gana el primero que se cumple):
+     4 Declaraciones con operación: ingresos y costos visibles (AppSheet + 360 + Syntage) en
+       2 o más meses cada uno.
+     3 Declaraciones con banco: cuenta de banco registrada en el 360 + facturas recibidas en
+       Syntage que NO son solo fees normales (hay pauta/marketing u otros proveedores).
+     2 Declaraciones en ceros con banco: cuenta de banco en el 360 + facturas recibidas que son
+       únicamente fees de Amazon o Tally + registro de ventas/costos presente (no S/D).
+     1 Declaraciones en ceros sin banco: todo lo demás (sin facturas visibles o sin registro).
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+ALM_TABS.cm_clientes = ['company_id', 'friendly_id', 'rfc', 'nombre', 'owner', 'owner_email', 'kam', 'perfil',
+  'estado_kanban', 'estado_num', 'motivo', 'suscripcion', 'suscripcion_detalle', 'ciclo_vida', 'syntage', 'banco_360',
+  'first_shipment', 'first_shipment_fecha', 'bitacora',
+  'ventas_rep', 'ventas_rep_periodo', 'ventas_rep_fuente', 'costos_rep', 'costos_rep_periodo', 'costos_rep_fuente',
+  'ventas_acum', 'costos_acum', 'meses_ingresos', 'meses_costos',
+  'cfdi_emitidas_n', 'cfdi_recibidas_n', 'fees_n', 'marketing_n', 'otros_n', 'actualizado'];
+ALM_TABS.cm_periodos = ['company_id', 'periodo', 'ventas_appsheet', 'ventas_360', 'costos_360', 'ventas_syntage', 'costos_syntage',
+  'emitidas_n', 'recibidas_n', 'fees_n', 'marketing_n', 'otros_n', 'emisores', 'cfdis_ts', 'fuente_ts'];
+ALM_TABS.cm_emisores = ['rfc', 'nombre', 'clasificacion', 'origen', 'n_facturas', 'n_empresas', 'ultima'];
+ALM_TABS.cm_meta = ['key', 'value'];
+
+const CM_PRESUPUESTO_MS = 230000;   // 3.8 min por tick (cronSync corre cada 15 min; cabe junto con el almacén)
+const CM_MESES = 13;                // 12 meses cerrados + el mes en curso
+const CM_LOTE_360 = 40;             // llamadas al 360 por tick (límite del servidor: 60/min)
+const CM_ESTADOS = {
+  1: 'Declaraciones en ceros sin banco',
+  2: 'Declaraciones en ceros con banco',
+  3: 'Declaraciones con banco',
+  4: 'Declaraciones con operación'
+};
+const CM_RX_MARKETING = /publicidad|advertis|sponsored|pauta|marketing|\bads\b|campa[ñn]a|promoci[oó]n/i;
+const CM_RX_FEE_NOMBRE = /amazon|tally/i;
+
+/* ── Cliente firmado del 360 (contrato 29-sep-2026, §3.6; canonización idéntica al servidor) ── */
+function cm360Base_() {
+  const p = PropertiesService.getScriptProperties();
+  const env = String(p.getProperty('TALLY_360_ENV') || 'staging').toLowerCase();
+  if (p.getProperty('TALLY_360_BASE')) return String(p.getProperty('TALLY_360_BASE')).replace(/\/+$/, '');
+  return env === 'production' || env === 'prod'
+    ? 'https://tally-360-backend-production-732d010d8a83.herokuapp.com/api/external/tally-ops'
+    : 'https://tally-360-backend-staging-aa4f25c342cc.herokuapp.com/api/external/tally-ops';
+}
+function cm360Secret_() {
+  const p = PropertiesService.getScriptProperties();
+  // Nombre del contrato primero; la llave de staging quedó guardada con otro nombre (nota de Juan, 6-oct-2026).
+  const v = p.getProperty('TALLY_OPS_SECRET') || (cm360Base_().indexOf('staging') >= 0 ? p.getProperty('STAGING_SCRIPT_API_KEY') : '');
+  if (!v) throw new Error('Falta TALLY_OPS_SECRET en Propiedades del script (una persona lo guarda; el agente nunca lo pide).');
+  return String(v).trim();
+}
+function cmStringifySorted_(v) {
+  if (v === null || v === undefined) return 'null';
+  if (typeof v === 'boolean') return v ? 'true' : 'false';
+  if (typeof v === 'number') { if (!isFinite(v)) throw new Error('número no finito'); return JSON.stringify(v); }
+  if (typeof v === 'string') return JSON.stringify(v);
+  if (Object.prototype.toString.call(v) === '[object Array]') return '[' + v.map(cmStringifySorted_).join(',') + ']';
+  const keys = Object.keys(v).filter(function (k) { return v[k] !== undefined; });
+  if (!keys.length) throw new Error('objeto vacío {} en el cuerpo: omite la clave');
+  if (keys.every(function (k) { return /^\d+$/.test(k); })) throw new Error('objeto con claves numéricas: PHP lo vuelve lista');
+  keys.sort();
+  return '{' + keys.map(function (k) { return JSON.stringify(k) + ':' + cmStringifySorted_(v[k]); }).join(',') + '}';
+}
+function cmEscapeNonAscii_(s) {
+  let out = '';
+  for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); out += c < 0x80 ? s.charAt(i) : '\\u' + ('0000' + c.toString(16)).slice(-4); }
+  return out;
+}
+let CM_LLAMADAS_ = [];
+function cmRespetarLimite_() {
+  // 60 peticiones por minuto para toda la API: dormir si en los últimos 60 s ya van 55.
+  const ahora = Date.now();
+  CM_LLAMADAS_ = CM_LLAMADAS_.filter(function (t) { return ahora - t < 60000; });
+  if (CM_LLAMADAS_.length >= 55) Utilities.sleep(60000 - (ahora - CM_LLAMADAS_[0]) + 200);
+  CM_LLAMADAS_.push(Date.now());
+}
+function cm360Post_(path, payload) {
+  const body = {};
+  Object.keys(payload || {}).forEach(function (k) { body[k] = payload[k]; });
+  body.timestamp = Math.floor(Date.now() / 1000);
+  const canonical = cmEscapeNonAscii_(cmStringifySorted_(body));
+  const sig = Utilities.base64Encode(Utilities.computeHmacSha256Signature(canonical, cm360Secret_()));
+  cmRespetarLimite_();
+  const r = UrlFetchApp.fetch(cm360Base_() + '/' + path, {
+    method: 'post', contentType: 'application/json', payload: canonical,
+    headers: { 'X-Signature': sig }, muteHttpExceptions: true, followRedirects: true
+  });
+  const code = r.getResponseCode(), txt = r.getContentText();
+  if (code === 429) { Utilities.sleep(15000); return cm360Post_(path, payload); }
+  if (code < 200 || code >= 300) throw new Error('360 ' + code + ' en ' + path + ': ' + String(txt).slice(0, 200));
+  return JSON.parse(txt);
+}
+
+/* ── Ciclo ── */
+function cmCiclo_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('CM_CYCLE') || 'null'); } catch (e) { return null; } }
+function cmGuardarCiclo_(c) { c.ts = new Date().toISOString(); PropertiesService.getScriptProperties().setProperty('CM_CYCLE', JSON.stringify(c)); }
+function cmNuevoCiclo_(modo, origen) {
+  const c = { fecha: almHoy_(), etapa: 'padron', modo: modo === 'completo' ? 'completo' : 'reciente', origen: origen || 'cron',
+              pagina: 1, cola: [], hecho: 0, total: 0, errores: 0, llamadas: 0, inicio: new Date().toISOString(), notas: [] };
+  cmGuardarCiclo_(c); return c;
+}
+function cmPeriodos_() {
+  const out = []; const d = new Date();
+  for (let i = 0; i < CM_MESES; i++) { const x = new Date(d.getFullYear(), d.getMonth() - i, 1); out.push(Utilities.formatDate(x, 'America/Mexico_City', 'yyyy-MM')); }
+  return out.reverse(); // del más antiguo al más reciente
+}
+function cmMeta_(key, value) {
+  if (value === undefined) { const f = almLeer_('cm_meta').filter(function (r) { return r.key === key; }); return f.length ? f[0].value : ''; }
+  almUpsert_('cm_meta', ['key'], [{ key: key, value: value }]);
+}
+function cmNum_(v) { if (v === null || v === undefined || v === '') return null; const n = Number(String(v).replace(/[^\d.\-]/g, '')); return isNaN(n) ? null : n; }
+function cmVacio_(v) { return v === null || v === undefined || String(v).trim() === ''; }
+
+/** Avanza el ciclo. Lo llama cronSync; también `cm_refresh` lo arranca a mano. */
+function cmTick_(forzar, presupuestoMs) {
+  const t0 = Date.now(); const presupuesto = presupuestoMs || CM_PRESUPUESTO_MS;
+  let c = cmCiclo_();
+  const hoy = almHoy_();
+  if (!c || (c.fecha !== hoy && (almHora_() >= 4 || c.etapa === 'listo' || c.etapa === 'error'))) {
+    if (c && c.fecha === hoy && !forzar) return { ok: true, etapa: c.etapa, nota: 'sin cambios' };
+    c = cmNuevoCiclo_('reciente', 'cron');
+  }
+  if (c.etapa === 'listo') return { ok: true, etapa: 'listo', fecha: c.fecha };
+  const quedaTiempo = function () { return Date.now() - t0 < presupuesto; };
+  try {
+    while (quedaTiempo() && c.etapa !== 'listo') {
+      const antes = c.etapa;
+      if (c.etapa === 'padron') cmEtapaPadron_(c, quedaTiempo);
+      else if (c.etapa === 'audit') cmEtapaAudit_(c);
+      else if (c.etapa === 'banco') cmEtapaBanco_(c, quedaTiempo);
+      else if (c.etapa === 'periodos360') cmEtapaPeriodos360_(c, quedaTiempo);
+      else if (c.etapa === 'syntage') cmEtapaSyntage_(c, quedaTiempo);
+      else if (c.etapa === 'cfdis') cmEtapaCfdis_(c, quedaTiempo);
+      else if (c.etapa === 'appsheet') cmEtapaAppsheet_(c);
+      else if (c.etapa === 'calcular') cmEtapaCalcular_(c);
+      cmGuardarCiclo_(c);
+      if (c.etapa === antes && !quedaTiempo()) break; // la etapa sigue, pero se acabó el presupuesto de este tick
+    }
+    if (c.etapa === 'listo') almLog_('cm', 'listo', 'ciclo ' + c.modo + ' terminado · llamadas 360: ' + c.llamadas + ' · errores: ' + c.errores);
+    return { ok: true, etapa: c.etapa, hecho: c.hecho, total: c.total, llamadas: c.llamadas, errores: c.errores, segundos: Math.round((Date.now() - t0) / 1000) };
+  } catch (e) {
+    c.errores++; c.notas.push(String(e).slice(0, 200)); c.notas = c.notas.slice(-8); cmGuardarCiclo_(c);
+    almLog_('cm.' + c.etapa, 'error', String(e).slice(0, 500));
+    return { ok: false, etapa: c.etapa, error: String(e) };
+  }
+}
+
+/* Etapa 1 · Padrón del 360 (roster/list, páginas de 500). Es la lista de clientes del Kanban. */
+function cmEtapaPadron_(c, quedaTiempo) {
+  while (quedaTiempo()) {
+    const r = cm360Post_('accounting/roster/list', { page: c.pagina, per_page: 500 }); c.llamadas++;
+    const filas = (r.data || []).map(function (e) {
+      const fs = e.first_shipment || {};
+      const syn = e.syntage || {};
+      return {
+        company_id: String(e.company_id || '').toLowerCase(), friendly_id: e.friendly_id || '',
+        rfc: (e.rfc || '').toString().trim().toUpperCase(), nombre: (e.name || e.legal_name || '') || '',
+        owner: e.owner && e.owner.name ? e.owner.name : '', owner_email: e.owner && e.owner.email ? e.owner.email : '',
+        perfil: e.customer_profile_label || '',
+        syntage: syn.connected ? 'Sí' : 'No',
+        first_shipment: fs.status === 'done' ? 'Finalizado' : fs.status === 'in_progress' ? 'En proceso' : fs.status === 'not_started' ? 'Sin iniciar' : 'S/D',
+        first_shipment_fecha: fs.at ? String(fs.at).slice(0, 10) : '',
+        ciclo_vida: e.suspension_status && String(e.suspension_status).toLowerCase() !== 'no' ? 'Suspensión' : '',
+        bitacora: 'S/D (sin ruta en el 360)',
+        actualizado: new Date().toISOString()
+      };
+    });
+    if (filas.length) almUpsert_('cm_clientes', ['company_id'], filas);
+    c.hecho += filas.length; c.total = (r.meta && r.meta.total) || c.total;
+    const last = (r.meta && r.meta.last_page) || 1;
+    if (c.pagina >= last) { c.etapa = 'audit'; c.pagina = 1; return; }
+    c.pagina++;
+  }
+}
+
+/* Etapa 2 · Auditoría de cartera (owner-audit): Stripe, KAM, ciclo de vida. Una sola llamada, todo el padrón. */
+function cmEtapaAudit_(c) {
+  const r = cm360Post_('accounting/owner-audit', {}); c.llamadas++;
+  const filas = (r.rows || []).map(function (e) {
+    const st = e.stripe || {}, bz = e.business || {};
+    let sus = 'S/D', det = '';
+    if (st.paying === true) { sus = 'Al día'; det = st.last_paid_month ? 'último pago ' + st.last_paid_month : ''; }
+    else if (st.sub_status === 'past_due' || (st.paying === false && st.sub_status)) { sus = 'Con deuda'; det = (st.months_unpaid ? st.months_unpaid + ' mes(es) sin pago' : '') + (st.sub_status ? ' · ' + st.sub_status : ''); }
+    else if (st.sub_status === null && st.paying === false && st.source) { sus = 'Con deuda'; det = 'sin suscripción activa'; }
+    const lc = String(bz.lifecycle_status || '').toLowerCase();
+    const ciclo = lc === 'churn' ? 'Churn' : lc === 'suspension' ? 'Suspensión' : lc === 'completada' ? 'Completada' : lc === 'activa' ? 'Activa' : '';
+    const o = { company_id: String(e.company_id || '').toLowerCase(), kam: bz.kam || '', suscripcion: sus, suscripcion_detalle: det.replace(/^ · /, '') };
+    if (ciclo) o.ciclo_vida = bz.offboarding_reason && ciclo === 'Activa' ? 'En proceso (' + bz.offboarding_reason + ')' : ciclo;
+    if (e.friendly_id && !o.friendly_id) o.friendly_id = e.friendly_id;
+    return o;
+  });
+  if (filas.length) almUpsert_('cm_clientes', ['company_id'], filas);
+  c.etapa = 'banco'; c.pagina = 1;
+}
+
+/* Etapa 3 · Cuenta de banco registrada en el 360 (zero-filing/candidates trae has_bank por empresa; páginas de 100). */
+function cmEtapaBanco_(c, quedaTiempo) {
+  while (quedaTiempo()) {
+    const r = cm360Post_('accounting/zero-filing/candidates', { page: c.pagina, per_page: 100, months: 1 }); c.llamadas++;
+    const filas = (r.data || []).map(function (e) { return { company_id: String(e.company_id || '').toLowerCase(), banco_360: e.has_bank ? 'Sí' : 'No' }; });
+    if (filas.length) almUpsert_('cm_clientes', ['company_id'], filas);
+    const last = (r.meta && r.meta.last_page) || 1;
+    if (c.pagina >= last) { c.etapa = 'periodos360'; c.pagina = 1; c.cola = cmPeriodos_(); return; }
+    c.pagina++;
+  }
+}
+
+/* Etapa 4 · Ventas y costos del 360 por mes (global/periods: una llamada por mes, payload pesado).
+   En modo «reciente» solo los últimos 2 meses; los demás ya están en cm_periodos. */
+function cmEtapaPeriodos360_(c, quedaTiempo) {
+  if (c.modo === 'reciente' && c.cola.length > 2) c.cola = c.cola.slice(-2);
+  while (c.cola.length && quedaTiempo()) {
+    const per = c.cola[0];
+    const r = cm360Post_('accounting/global/periods', { period: per }); c.llamadas++;
+    const filas = [];
+    (r.rows || []).forEach(function (e) {
+      if (!e.period_row_exists) return;
+      filas.push({ company_id: String(e.company_id || '').toLowerCase(), periodo: per,
+        ventas_360: e.sales_last_period === null || e.sales_last_period === undefined ? '' : e.sales_last_period,
+        costos_360: e.costs === null || e.costs === undefined ? '' : e.costs, fuente_ts: new Date().toISOString() });
+    });
+    if (filas.length) almUpsert_('cm_periodos', ['company_id', 'periodo'], filas);
+    c.cola.shift();
+  }
+  if (!c.cola.length) {
+    c.etapa = 'syntage';
+    c.cola = almLeer_('cm_clientes').filter(function (r) { return r.syntage === 'Sí'; }).map(function (r) { return r.company_id; });
+    c.total = c.cola.length; c.hecho = 0;
+  }
+}
+
+/* Etapa 5 · Syntage por empresa conectada (syntage/overview → cfdi_monthly: 12 meses de emitidas/recibidas). */
+function cmEtapaSyntage_(c, quedaTiempo) {
+  let n = 0;
+  while (c.cola.length && quedaTiempo() && n < CM_LOTE_360) {
+    const cid = c.cola[0];
+    try {
+      const r = cm360Post_('accounting/syntage/overview', { company_id: cid }); c.llamadas++; n++;
+      const filas = (r.cfdi_monthly || []).map(function (m) {
+        const em = m.emitidas || {}, re = m.recibidas || {};
+        return { company_id: cid, periodo: m.period, ventas_syntage: em.subtotal === undefined ? '' : em.subtotal, costos_syntage: re.subtotal === undefined ? '' : re.subtotal,
+                 emitidas_n: em.count || 0, recibidas_n: re.count || 0, fuente_ts: new Date().toISOString() };
+      });
+      if (filas.length) almUpsert_('cm_periodos', ['company_id', 'periodo'], filas);
+    } catch (e) { c.errores++; c.notas.push(cid + ': ' + String(e).slice(0, 120)); c.notas = c.notas.slice(-8); }
+    c.cola.shift(); c.hecho++;
+  }
+  if (!c.cola.length) {
+    // Cola de facturas recibidas por (empresa, mes): solo meses con recibidas y sin clasificar (o los 2 últimos en modo reciente).
+    const pers = cmPeriodos_(); const recientes = pers.slice(-2);
+    const cola = [];
+    almLeer_('cm_periodos').forEach(function (p) {
+      if (pers.indexOf(p.periodo) < 0) return;
+      if (!(Number(p.recibidas_n) > 0)) return;
+      if (p.cfdis_ts && recientes.indexOf(p.periodo) < 0) return;         // mes cerrado ya clasificado: no se vuelve a pedir
+      cola.push(p.company_id + '|' + p.periodo);
+    });
+    c.etapa = 'cfdis'; c.cola = cola; c.total = cola.length; c.hecho = 0;
+  }
+}
+
+/* Etapa 6 · Clasificación de facturas recibidas por emisor (syntage/cfdis, direction recibida). Reglas, sin IA. */
+function cmClasificarEmisor_(rfc, nombre, mapa) {
+  const k = String(rfc || '').toUpperCase();
+  if (mapa[k] && mapa[k].clasificacion) return mapa[k].clasificacion;
+  return CM_RX_FEE_NOMBRE.test(String(nombre || '')) ? 'fee' : 'otro';
+}
+function cmEtapaCfdis_(c, quedaTiempo) {
+  const emisores = {}; almLeer_('cm_emisores').forEach(function (e) { emisores[String(e.rfc).toUpperCase()] = e; });
+  const feesCfg = String((function () { try { const cfg = SpreadsheetApp.openById(DB_ID).getSheetByName('Config'); const r = findRow(cfg, 1, 'cm_rfc_fees'); return r ? cfg.getRange(r, 2).getValue() : ''; } catch (e) { return ''; } })() || '');
+  feesCfg.split(',').map(function (s) { return s.trim().toUpperCase(); }).filter(Boolean).forEach(function (rfc) { if (!emisores[rfc]) emisores[rfc] = { rfc: rfc, clasificacion: 'fee', origen: 'config' }; else if (emisores[rfc].origen !== 'manual') emisores[rfc].clasificacion = 'fee'; });
+  const nuevosEmisores = {}; let n = 0;
+  while (c.cola.length && quedaTiempo() && n < CM_LOTE_360) {
+    const par = c.cola[0].split('|'); const cid = par[0], per = par[1];
+    try {
+      const r = cm360Post_('accounting/syntage/cfdis', { company_id: cid, period: per, direction: 'recibida' }); c.llamadas++; n++;
+      let fees = 0, mkt = 0, otros = 0; const porEmisor = {};
+      (r.cfdis || []).forEach(function (f) {
+        if (f.cfdi_type === 'P') return;                                   // complementos de pago: no son gasto
+        if (String(f.status || '').toUpperCase() === 'CANCELADO') return;
+        const rfc = String(f.issuer_rfc || '').toUpperCase(), nom = f.issuer_name || '';
+        let cl = cmClasificarEmisor_(rfc, nom, emisores);
+        if (CM_RX_MARKETING.test(String(f.description || ''))) cl = 'marketing';
+        if (cl === 'fee') fees++; else if (cl === 'marketing') mkt++; else otros++;
+        porEmisor[rfc] = porEmisor[rfc] || { rfc: rfc, nombre: nom, n: 0, cl: cl }; porEmisor[rfc].n++;
+        const ne = nuevosEmisores[rfc] || (nuevosEmisores[rfc] = { rfc: rfc, nombre: nom, clasificacion: cl, n_facturas: 0, empresas: {} });
+        ne.n_facturas++; ne.empresas[cid] = 1;
+      });
+      const resumen = Object.keys(porEmisor).map(function (k) { const e = porEmisor[k]; return (e.nombre || e.rfc) + ' (' + e.n + ', ' + e.cl + ')'; }).join('; ').slice(0, 900);
+      almUpsert_('cm_periodos', ['company_id', 'periodo'], [{ company_id: cid, periodo: per, fees_n: fees, marketing_n: mkt, otros_n: otros, emisores: resumen, cfdis_ts: new Date().toISOString() }]);
+    } catch (e) { c.errores++; c.notas.push(cid + ' ' + per + ': ' + String(e).slice(0, 120)); c.notas = c.notas.slice(-8); }
+    c.cola.shift(); c.hecho++;
+  }
+  const filasEm = Object.keys(nuevosEmisores).map(function (k) {
+    const e = nuevosEmisores[k]; const prev = emisores[k];
+    const o = { rfc: k, nombre: e.nombre, n_facturas: (prev && Number(prev.n_facturas) || 0) + e.n_facturas, n_empresas: Math.max(prev && Number(prev.n_empresas) || 0, Object.keys(e.empresas).length), ultima: almHoy_() };
+    if (!prev) { o.clasificacion = e.clasificacion; o.origen = 'regla'; }   // nunca pisar una clasificación manual/IA/config
+    return o;
+  });
+  if (filasEm.length) almUpsert_('cm_emisores', ['rfc'], filasEm);
+  if (!c.cola.length) { c.etapa = 'appsheet'; }
+}
+
+/* Etapa 7 · AppSheet: ventas declaradas por mes (Clientes_por_periodo.SalesLastPeriod) y respaldo de First Shipment / suscripción. */
+function cmEtapaAppsheet_(c) {
+  const pers = cmPeriodos_();
+  const porFriendly = {}; almLeer_('cm_clientes').forEach(function (r) { if (r.friendly_id) porFriendly[String(r.friendly_id).toUpperCase()] = r; });
+  const filasP = [];
+  readDataModelRows(['Clientes_por_periodo']).forEach(function (r) {
+    const pid = String(r.periodid || ''); const m = pid.match(/^(\d{4}-\d{1,2})_(.+)$/); if (!m) return;
+    const per = m[1].length === 6 ? m[1].slice(0, 5) + '0' + m[1].slice(5) : m[1];
+    if (pers.indexOf(per) < 0) return;
+    const cli = porFriendly[String(m[2]).toUpperCase()]; if (!cli) return;
+    const v = cmNum_(r.saleslastperiod);
+    if (v === null && cmVacio_(r.declaraciontipo)) return;
+    filasP.push({ company_id: cli.company_id, periodo: per, ventas_appsheet: v === null ? (String(r.declaraciontipo || '').toLowerCase() === 'ceros' ? 0 : '') : v, fuente_ts: new Date().toISOString() });
+  });
+  if (filasP.length) almUpsert_('cm_periodos', ['company_id', 'periodo'], filasP);
+  // Respaldo: lo que el 360 no trae lo completa AppSheet (solo rellena huecos, nunca pisa).
+  const filasC = [];
+  readDataModelRows(['Clients_Load']).forEach(function (r) {
+    const cli = porFriendly[String(r.companyid || r.company_id || '').toUpperCase()]; if (!cli) return;
+    const o = { company_id: cli.company_id };
+    if ((!cli.first_shipment || cli.first_shipment === 'S/D') && !cmVacio_(r.firstshipment)) { o.first_shipment = String(r.firstshipment); if (!cmVacio_(r.fechafs)) o.first_shipment_fecha = r.fechafs instanceof Date ? Utilities.formatDate(r.fechafs, 'America/Mexico_City', 'yyyy-MM-dd') : String(r.fechafs); }
+    if ((!cli.suscripcion || cli.suscripcion === 'S/D') && !cmVacio_(r.subscriptiontype)) { const st = String(r.subscriptiontype).toLowerCase(); o.suscripcion = st === 'active' ? 'Al día' : st === 'past_due' ? 'Con deuda' : 'S/D'; o.suscripcion_detalle = 'AppSheet: ' + st; }
+    if (!cli.ciclo_vida && String(r.suspension || '').toLowerCase().indexOf('s') === 0) o.ciclo_vida = 'Suspensión (AppSheet)';
+    if (!cli.owner && !cmVacio_(r.owner)) o.owner = String(r.owner);
+    if (Object.keys(o).length > 1) filasC.push(o);
+  });
+  if (filasC.length) almUpsert_('cm_clientes', ['company_id'], filasC);
+  c.etapa = 'calcular';
+}
+
+/* Etapa 8 · Reglas del Kanban y cifras de la card/popup. Todo en memoria, una sola escritura. */
+function cmEtapaCalcular_(c) {
+  const pers = cmPeriodos_();
+  const porCia = {}; almLeer_('cm_periodos').forEach(function (p) { if (pers.indexOf(p.periodo) < 0) return; (porCia[p.company_id] = porCia[p.company_id] || []).push(p); });
+  const salida = [];
+  almLeer_('cm_clientes').forEach(function (cli) {
+    const ps = (porCia[cli.company_id] || []).sort(function (a, b) { return a.periodo < b.periodo ? -1 : 1; });
+    let mesesIng = 0, mesesCos = 0, registro = false, emitidas = 0, recibidas = 0, fees = 0, mkt = 0, otros = 0, vAcum = 0, cAcum = 0, vAcumHay = false, cAcumHay = false;
+    let vRep = null, cRep = null;
+    ps.forEach(function (p) {
+      const va = cmNum_(p.ventas_appsheet), v3 = cmNum_(p.ventas_360), vs = cmNum_(p.ventas_syntage), c3 = cmNum_(p.costos_360), cs = cmNum_(p.costos_syntage);
+      if (va !== null || v3 !== null || c3 !== null) registro = true;
+      if ((va || 0) > 0 || (v3 || 0) > 0 || (vs || 0) > 0) mesesIng++;
+      if ((c3 || 0) > 0 || (cs || 0) > 0) mesesCos++;
+      emitidas += Number(p.emitidas_n) || 0; recibidas += Number(p.recibidas_n) || 0; fees += Number(p.fees_n) || 0; mkt += Number(p.marketing_n) || 0; otros += Number(p.otros_n) || 0;
+      // Ventas del mes: declarado (AppSheet) > 360 > SAT (Syntage). Costos: 360 > SAT.
+      const v = va !== null ? { v: va, f: 'AppSheet' } : v3 !== null ? { v: v3, f: '360' } : vs !== null ? { v: vs, f: 'Syntage' } : null;
+      const co = c3 !== null ? { v: c3, f: '360' } : cs !== null ? { v: cs, f: 'Syntage' } : null;
+      if (v) { vRep = { v: v.v, f: v.f, p: p.periodo }; vAcum += v.v; vAcumHay = true; }
+      if (co) { cRep = { v: co.v, f: co.f, p: p.periodo }; cAcum += co.v; cAcumHay = true; }
+    });
+    const banco = cli.banco_360 === 'Sí';
+    const egresos = recibidas > 0, soloFees = egresos && (mkt + otros) === 0;
+    let num, motivo;
+    if (mesesIng >= 2 && mesesCos >= 2) { num = 4; motivo = 'Ingresos en ' + mesesIng + ' meses y costos en ' + mesesCos + ' meses (AppSheet + 360 + SAT).'; }
+    else if (banco && egresos && !soloFees) { num = 3; motivo = 'Banco en el 360 y facturas recibidas con pauta/marketing u otros proveedores (' + mkt + ' marketing, ' + otros + ' otros, ' + fees + ' fees).'; }
+    else if (banco && egresos && soloFees && registro) { num = 2; motivo = 'Banco en el 360 y solo fees de Amazon/Tally en las facturas recibidas (' + fees + '); hay registro de ventas/costos.'; }
+    else {
+      num = 1;
+      motivo = !egresos && emitidas === 0 ? (cli.syntage === 'Sí' ? 'Conectado a Syntage sin facturas visibles en los últimos ' + CM_MESES + ' meses.' : 'Sin conexión a Syntage: no hay facturas visibles.')
+             : !banco ? 'Sin cuenta de banco registrada en el 360.' : !registro ? 'Sin registro de ventas/costos (S/D).' : 'Facturas visibles pero sin cumplir las reglas de los otros estados.';
+    }
+    salida.push({
+      company_id: cli.company_id, estado_kanban: CM_ESTADOS[num], estado_num: num, motivo: motivo,
+      ventas_rep: vRep ? vRep.v : '', ventas_rep_periodo: vRep ? vRep.p : '', ventas_rep_fuente: vRep ? vRep.f : '',
+      costos_rep: cRep ? cRep.v : '', costos_rep_periodo: cRep ? cRep.p : '', costos_rep_fuente: cRep ? cRep.f : '',
+      ventas_acum: vAcumHay ? Math.round(vAcum * 100) / 100 : '', costos_acum: cAcumHay ? Math.round(cAcum * 100) / 100 : '',
+      meses_ingresos: mesesIng, meses_costos: mesesCos, cfdi_emitidas_n: emitidas, cfdi_recibidas_n: recibidas, fees_n: fees, marketing_n: mkt, otros_n: otros,
+      suscripcion: cli.suscripcion || 'S/D', first_shipment: cli.first_shipment || 'S/D', banco_360: cli.banco_360 || 'S/D', ciclo_vida: cli.ciclo_vida || 'Activa',
+      actualizado: new Date().toISOString()
+    });
+  });
+  if (salida.length) almUpsert_('cm_clientes', ['company_id'], salida);
+  cmMeta_('ultimo_calculo', new Date().toISOString());
+  cmMeta_('entorno_360', cm360Base_().indexOf('staging') >= 0 ? 'staging' : 'producción');
+  c.etapa = 'listo'; c.fin = new Date().toISOString();
+}
+
+/* ── IA bajo demanda: clasificar emisores que las reglas dejaron en «otro» (una llamada por lote) ── */
+function cmClasificarIA_(body, u) {
+  const key = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
+  if (!key) return { ok: false, error: 'Falta ANTHROPIC_API_KEY en Propiedades del script' };
+  const pend = almLeer_('cm_emisores').filter(function (e) { return e.origen === 'regla' && e.clasificacion === 'otro'; }).slice(0, 80);
+  if (!pend.length) return { ok: true, clasificados: 0, nota: 'no hay emisores pendientes' };
+  const lista = pend.map(function (e, i) { return (i + 1) + '. ' + e.rfc + ' · ' + e.nombre; }).join('\n');
+  const sys = 'Clasificas emisores de facturas (CFDI recibidos) de empresas que venden en Amazon México. Devuelve SOLO un JSON array [{"rfc":"...","clasificacion":"fee|marketing|otro"}]. fee = comisiones/servicios normales del marketplace (Amazon, Mercado Libre, Walmart) o del despacho Tally; marketing = publicidad, pauta, agencias, Amazon Ads, influencers; otro = cualquier otro proveedor (logística, producto, bancos, software, etc.).';
+  const r = claudeCall(key, 'claude-haiku-4-5-20251001', sys, lista, 4000);
+  if (!r || r.error) return { ok: false, error: (r && r.error) || 'sin respuesta de la IA' };
+  let arr = [];
+  try { arr = JSON.parse(String(r.texto || '').replace(/^[\s\S]*?(\[[\s\S]*\])[\s\S]*$/, '$1')); } catch (e) { return { ok: false, error: 'respuesta de IA no parseable: ' + String(r.texto).slice(0, 200) }; }
+  const filas = arr.filter(function (x) { return x && x.rfc && /^(fee|marketing|otro)$/.test(x.clasificacion); })
+                   .map(function (x) { return { rfc: String(x.rfc).toUpperCase(), clasificacion: x.clasificacion, origen: 'ia' }; });
+  if (filas.length) almUpsert_('cm_emisores', ['rfc'], filas);
+  // Hay que reclasificar las facturas: se encola un ciclo completo de cfdis en el siguiente tick.
+  const sh = almacenSS_().getSheetByName('cm_periodos');
+  if (sh && sh.getLastRow() > 1) { const head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String); const col = head.indexOf('cfdis_ts') + 1; if (col > 0) sh.getRange(2, col, sh.getLastRow() - 1, 1).clearContent(); }
+  const c = cmNuevoCiclo_('reciente', 'ia:' + (u && u.email || '')); c.etapa = 'syntage'; c.cola = []; cmGuardarCiclo_(c);
+  return { ok: true, clasificados: filas.length, pendientes: pend.length - filas.length, nota: 'las facturas se reclasifican en la siguiente corrida (≤15 min)' };
+}
+
+/* ── Acciones de la interfaz ── */
+function cmDispatch_(body) {
+  switch (body.action) {
+    case 'cm_tabla': {
+      const rows = almLeer_('cm_clientes').map(function (r) { delete r._fila; return r; });
+      const c = cmCiclo_();
+      return { ok: true, clientes: rows, meta: { ultimo_calculo: cmMeta_('ultimo_calculo'), entorno_360: cmMeta_('entorno_360'), ciclo: c ? { etapa: c.etapa, modo: c.modo, hecho: c.hecho, total: c.total, errores: c.errores, ts: c.ts, notas: c.notas } : null, estados: CM_ESTADOS } };
+    }
+    case 'cm_estado': {
+      const c = cmCiclo_(); return { ok: true, ciclo: c, ultimo_calculo: cmMeta_('ultimo_calculo'), entorno_360: cmMeta_('entorno_360') };
+    }
+    case 'cm_refresh': {
+      const u = checkUser(body.auth); if (!u.ok) return u;
+      const c = cmNuevoCiclo_(body.modo === 'completo' ? 'completo' : 'reciente', 'manual:' + u.email);
+      almLog_('cm', 'inicio', 'ciclo ' + c.modo + ' pedido por ' + u.email);
+      const r = cmTick_(true, 60000); // primer tramo corto para responderle a la interfaz; el cron sigue cada 15 min
+      return { ok: true, ciclo: cmCiclo_(), tick: r };
+    }
+    case 'cm_tick': { return cmTick_(true); }
+    case 'cm_clasificar_ia': { const u = checkUser(body.auth); if (!u.ok) return u; return cmClasificarIA_(body, u); }
+    case 'cm_emisores': { return { ok: true, emisores: almLeer_('cm_emisores').map(function (r) { delete r._fila; return r; }) }; }
+    case 'cm_periodos': {
+      const cid = String(body.company_id || '').toLowerCase(); if (!cid) return { ok: false, error: 'falta company_id' };
+      return { ok: true, periodos: almLeer_('cm_periodos').filter(function (p) { return p.company_id === cid; }).map(function (r) { delete r._fila; return r; }) };
+    }
+    case 'cm_probar_360': {
+      const u = checkUser(body.auth); if (!u.ok) return u;
+      try { const r = cm360Post_('accounting/roster/list', { page: 1, per_page: 1 }); return { ok: true, entorno: cm360Base_(), total_padron: r.meta && r.meta.total }; }
+      catch (e) { return { ok: false, entorno: cm360Base_(), error: String(e) }; }
+    }
+    default: return { ok: false, error: 'acción cm desconocida: ' + body.action };
+  }
+}
+
+/** Ejecutar una vez desde el editor para probar la firma contra el 360 (no toca datos). */
+function cmProbarConexion360() {
+  const r = cm360Post_('accounting/roster/list', { page: 1, per_page: 2 });
+  console.log('✅ 360 responde · entorno ' + cm360Base_() + ' · padrón: ' + (r.meta && r.meta.total));
 }
