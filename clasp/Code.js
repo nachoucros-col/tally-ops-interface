@@ -4010,6 +4010,7 @@ function cmMeta_(key, value) {
   if (value === undefined) { const f = almLeer_('cm_meta').filter(function (r) { return r.key === key; }); return f.length ? f[0].value : ''; }
   almUpsert_('cm_meta', ['key'], [{ key: key, value: value }]);
 }
+function cmPadronIds_() { const m = {}; almLeer_('cm_clientes').forEach(function (r) { if (r.friendly_id) m[String(r.company_id).toLowerCase()] = 1; }); return m; }
 function cmNum_(v) { if (v === null || v === undefined || v === '') return null; const n = Number(String(v).replace(/[^\d.\-]/g, '')); return isNaN(n) ? null : n; }
 function cmVacio_(v) { return v === null || v === undefined || String(v).trim() === ''; }
 
@@ -4078,7 +4079,8 @@ function cmEtapaPadron_(c, quedaTiempo) {
 /* Etapa 2 · Auditoría de cartera (owner-audit): Stripe, KAM, ciclo de vida. Una sola llamada, todo el padrón. */
 function cmEtapaAudit_(c) {
   const r = cm360Post_('accounting/owner-audit', {}); c.llamadas++;
-  const filas = (r.rows || []).map(function (e) {
+  const conocidos = cmPadronIds_();
+  const filas = (r.rows || []).filter(function (e) { return conocidos[String(e.company_id || '').toLowerCase()]; }).map(function (e) {
     const st = e.stripe || {}, bz = e.business || {};
     let sus = 'S/D', det = '';
     if (st.paying === true) { sus = 'Al día'; det = st.last_paid_month ? 'último pago ' + st.last_paid_month : ''; }
@@ -4097,9 +4099,10 @@ function cmEtapaAudit_(c) {
 
 /* Etapa 3 · Cuenta de banco registrada en el 360 (zero-filing/candidates trae has_bank por empresa; páginas de 100). */
 function cmEtapaBanco_(c, quedaTiempo) {
+  const conocidos = cmPadronIds_();
   while (quedaTiempo()) {
     const r = cm360Post_('accounting/zero-filing/candidates', { page: c.pagina, per_page: 100, months: 1 }); c.llamadas++;
-    const filas = (r.data || []).map(function (e) { return { company_id: String(e.company_id || '').toLowerCase(), banco_360: e.has_bank ? 'Sí' : 'No' }; });
+    const filas = (r.data || []).filter(function (e) { return conocidos[String(e.company_id || '').toLowerCase()]; }).map(function (e) { return { company_id: String(e.company_id || '').toLowerCase(), banco_360: e.has_bank ? 'Sí' : 'No' }; });
     if (filas.length) almUpsert_('cm_clientes', ['company_id'], filas);
     const last = (r.meta && r.meta.last_page) || 1;
     if (c.pagina >= last) { c.etapa = 'periodos360'; c.pagina = 1; c.cola = cmPeriodos_(); return; }
@@ -4237,8 +4240,9 @@ function cmEtapaAppsheet_(c) {
 function cmEtapaCalcular_(c) {
   const pers = cmPeriodos_();
   const porCia = {}; almLeer_('cm_periodos').forEach(function (p) { if (pers.indexOf(p.periodo) < 0) return; (porCia[p.company_id] = porCia[p.company_id] || []).push(p); });
-  const salida = [];
+  const salida = []; const fantasmas = [];
   almLeer_('cm_clientes').forEach(function (cli) {
+    if (!cli.friendly_id) { fantasmas.push(cli._fila); return; }   // filas que no son del padrón (p. ej. ids del universo de ceros)
     const ps = (porCia[cli.company_id] || []).sort(function (a, b) { return a.periodo < b.periodo ? -1 : 1; });
     let mesesIng = 0, mesesCos = 0, registro = false, emitidas = 0, recibidas = 0, fees = 0, mkt = 0, otros = 0, vAcum = 0, cAcum = 0, vAcumHay = false, cAcumHay = false;
     let vRep = null, cRep = null;
@@ -4276,6 +4280,7 @@ function cmEtapaCalcular_(c) {
     });
   });
   if (salida.length) almUpsert_('cm_clientes', ['company_id'], salida);
+  if (fantasmas.length) { const sh = almacenSS_().getSheetByName('cm_clientes'); fantasmas.sort(function (a, b) { return b - a; }).forEach(function (f) { sh.deleteRow(f); }); }
   cmMeta_('ultimo_calculo', new Date().toISOString());
   cmMeta_('entorno_360', cm360Base_().indexOf('staging') >= 0 ? 'staging' : 'producción');
   c.etapa = 'listo'; c.fin = new Date().toISOString();
@@ -4307,7 +4312,7 @@ function cmClasificarIA_(body, u) {
 function cmDispatch_(body) {
   switch (body.action) {
     case 'cm_tabla': {
-      const rows = almLeer_('cm_clientes').map(function (r) { delete r._fila; return r; });
+      const rows = almLeer_('cm_clientes').filter(function (r) { return r.friendly_id; }).map(function (r) { delete r._fila; return r; });
       const c = cmCiclo_();
       return { ok: true, clientes: rows, meta: { ultimo_calculo: cmMeta_('ultimo_calculo'), entorno_360: cmMeta_('entorno_360'), ciclo: c ? { etapa: c.etapa, modo: c.modo, hecho: c.hecho, total: c.total, errores: c.errores, ts: c.ts, notas: c.notas } : null, estados: CM_ESTADOS } };
     }
