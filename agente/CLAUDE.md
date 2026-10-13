@@ -72,9 +72,9 @@ Cuando la interfaz o cualquier comunicación mencione estas tablas, usar SIEMPRE
 
 **Cuentas a leer**: TODAS las de Config.cuentas_monitoreadas.
 
-**⛔ REGLA DURA DE PROFUNDIDAD (22-jul-2026 — corrige el hallazgo de los logs "buzones personales no triados a fondo"):** las bandejas de **triage PROFUNDO obligatorio** son `accounting@`, `contabilidad@`, `elizabeth@` y **`juan@`** — juan@ recibe correo directo de clientes que NO pasa por las compartidas; asumir "espejo por CC" fue un error que dejó fuera sus correos. Las demás cuentas personales (edgar/eduardo/cristina/etc.) se revisan con scan ligero: triage solo de lo que no aparezca ya en las 4 profundas.
+**⛔ REGLA DURA DE PROFUNDIDAD (22-jul-2026 — corrige el hallazgo de los logs "buzones personales no triados a fondo"):** las bandejas de **triage PROFUNDO obligatorio** son `accounting@`, `contabilidad@`, **`juan@`** y **`cristian@`** (cristian@ entra el 13-oct-2026 por orden de Juan: su cartera —la que fue de Cristina— le escribe directo; elizabeth@ salió el 29-jul-2026 y deja de leerse a fondo). juan@ recibe correo directo de clientes que NO pasa por las compartidas; asumir "espejo por CC" fue un error que dejó fuera sus correos. Las demás cuentas personales (edgar/eduardo/ivette/etc.) se revisan con scan ligero: triage solo de lo que no aparezca ya en las 4 profundas. En la interfaz, el filtro de owner de la Bandeja incluye «📬 cristian@tally.legal» para ver lo que llegó a su bandeja (columna `cuenta` = `cristian`).
 
-**Dedupe de espejos:** un mismo mensaje presente en varias bandejas se triage UNA vez, desde la primera cuenta donde se encuentre (prioridad: accounting > contabilidad > elizabeth > juan > resto); las demás copias se excluyen como espejo. Los salientes propios y los [TALLY-OPS-SYNC] se excluyen siempre.
+**Dedupe de espejos:** un mismo mensaje presente en varias bandejas se triage UNA vez, desde la primera cuenta donde se encuentre (prioridad: accounting > contabilidad > juan > cristian > resto); las demás copias se excluyen como espejo. Los salientes propios y los [TALLY-OPS-SYNC] se excluyen siempre.
 
 **CATCH-UP juan@ (una sola vez):** en la primera corrida posterior a esta regla, triagear juan@ con ventana de 7 días hacia atrás (para recuperar lo nunca triado); registrar en Log "catch-up juan@ ejecutado" y a partir de ahí usar la ventana normal. Si esa línea ya aparece en un Log previo, NO repetir el catch-up.
 
@@ -168,6 +168,11 @@ Fuente: SOP Notion "Seguimiento Customer Support a Clientes" (379325ede0a3803094
 
 ## FASE 5 — Cierre de corrida
 Append en `Log`: timestamp, corrida ("horaria"), correos_revisados, correos_filtrados_fuera, nuevos_triaged, drafts_generados, enviados, sc_actualizados, errores, notas.
+
+## Secciones retiradas de la interfaz (13-oct-2026, orden de Juan)
+- **Cálculo de impuestos**, **Auditoría** y **Tareas** ya no existen en Tally Ops (ni interfaz ni backend). No crees tareas en la pestaña `Tareas` ni uses acciones `tarea_*`, `calc_*`, `tareas_auto_bloqueo` o `syntage_activar_solicitud`: el backend responde «acción desconocida». El cálculo mensual vive en Drive → 360 (SOP de Cálculo v2.0) y la auditoría interna en MoM › Auditoría del 360.
+- La sección «Clientes» (directorio de correos) se llama ahora **«Bases correos»**; la pestaña del Sheet sigue siendo `Clientes` y la acción `sync_clientes` no cambia.
+- Nueva sección **«Clientes Marketplace»**: Kanban por estado de declaración calculado por código en el Apps Script (acciones `cm_*`), sin intervención del agente. No la alimentes a mano.
 
 ## Escalamiento futuro (no implementar sin instrucción de Juan)
 Este agente es la base de la plataforma operativa contable. Próximos módulos candidatos: seguimiento de declaraciones, panel de documentación por período, respuestas semiautomáticas por plantilla. Cada módulo nuevo = nueva pestaña en el Sheet + nueva sección en la interfaz + nueva fase aquí.
