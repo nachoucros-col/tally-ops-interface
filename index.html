@@ -408,13 +408,11 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <div class="sub">Interfaz Contable</div>
     <a href="#dashboard" data-view="dashboard">📊 Dashboard</a>
     <a href="#bandeja" class="active" data-view="bandeja">📥 Bandeja</a>
-    <a href="#calculo" data-view="calculo">🧮 Cálculo de impuestos</a>
-    <a href="#auditoria" data-view="auditoria">🚦 Auditoría</a>
+    <a href="#marketplace" data-view="marketplace">🗂️ Clientes Marketplace</a>
     <a href="#reportes" data-view="reportes">📊 Reportes</a>
     <a href="#sc" data-view="sc" style="display:none">📦 Documentación</a><!-- oculto por orden de Juan 29-jul-2026, hasta nueva orden -->
-    <a href="#tareas" data-view="tareas">✅ Tareas</a>
     <a href="#log" data-view="log" style="display:none">🕐 Actividad</a>
-    <a href="#clientes" data-view="clientes" id="navClientes" style="display:none">👥 Clientes</a>
+    <a href="#clientes" data-view="clientes" id="navClientes" style="display:none">📇 Bases correos</a>
     <a href="#config" data-view="config" id="navConfig" style="display:none">⚙️ Configuración</a>
     <div class="push"></div>
     <div class="status" id="userBox" style="border-top:none"></div>
@@ -450,16 +448,27 @@ tr:hover td{background:rgba(96,71,255,.04)}
       <div id="dashCapa2"></div>
     </section>
 
-    <!-- ══ AUDITORÍA (integración del POC · 7-sep-2026) ══ -->
-    <section class="view" id="view-auditoria">
+    <!-- ══ CLIENTES MARKETPLACE · Kanban por estado de declaración (13-oct-2026) ══ -->
+    <section class="view" id="view-marketplace">
       <div class="page-head">
         <div>
-          <h1>Auditoría</h1>
-          <p class="lead">El semáforo de auditoría de cada cliente, con los datos reales del almacén y del SAT. Tres niveles: owners → clic en un owner para ver sus clientes con el detalle de cada uno → clic en un cliente para el desglose por período y la gestión de su acceso a Seller Central. Aquí vive lo que antes llegaba por Slack. Los hallazgos son internos: el cliente recibe su reporte «as is».</p>
+          <h1>Clientes Marketplace</h1>
+          <p class="lead">Todos los clientes del padrón del 360, acomodados por el estado de sus declaraciones. El estado lo calcula el backend con reglas (banco registrado en el 360, facturas visibles en el SAT vía Syntage y ventas/costos con histórico), sin IA. Haz clic en una card para ver First Shipment, ventas y costos reportados y acumulados.</p>
         </div>
-        <div class="head-actions"><button class="chip" onclick="audCargar(true)" title="Vuelve a leer la foto del almacén y los accesos">🔄 Actualizar</button></div>
+        <div class="head-actions">
+          <button class="chip" onclick="cmCargar(true)" title="Vuelve a leer la tabla calculada">🔄 Releer</button>
+          <button class="chip" onclick="cmRefrescar('reciente')" title="Vuelve a pedir al 360, Syntage y AppSheet (últimos 2 meses de facturas). Tarda varios minutos; avanza solo.">⚙️ Recalcular</button>
+          <button class="chip" onclick="cmRefrescar('completo')" title="Recalcula todo el histórico (13 meses). Úsalo solo si cambió algo viejo.">🧱 Recalcular todo</button>
+        </div>
       </div>
-      <div id="audRoot"><div class="dash-empty">Cargando…</div></div>
+      <div class="chips" style="align-items:center;margin-bottom:12px">
+        <input type="text" id="cmBuscar" placeholder="🔎 Cliente, ID, RFC o KAM…" oninput="cmRender()" style="max-width:240px;width:240px">
+        <select id="cmOwner" onchange="cmRender()" style="width:auto;padding:6px 10px;font-size:13px"><option value="">👤 Owner contable: todos</option></select>
+        <select id="cmSyn" onchange="cmRender()" style="width:auto;padding:6px 10px;font-size:13px"><option value="">🔌 Syntage: todos</option><option value="Sí">Conectados</option><option value="No">Sin conectar</option></select>
+        <label class="chip" style="cursor:pointer"><input type="checkbox" id="cmOcultarBaja" checked onchange="cmRender()" style="margin-right:6px">Ocultar suspensión / churn</label>
+        <span id="cmMeta" style="font-size:12px;color:var(--text-secondary)"></span>
+      </div>
+      <div class="kb-board" id="cmBoard"><div class="dash-empty">Cargando…</div></div>
     </section>
 
     <!-- ══ 📊 REPORTES DE CLIENTE (portado de la versión alterna 13-ago · 7-sep-2026) ══ -->
@@ -627,26 +636,6 @@ tr:hover td{background:rgba(96,71,255,.04)}
       <div class="kb-board" id="scBoard">Cargando…</div>
     </section>
 
-    <!-- ══ TAREAS ══ -->
-    <section class="view" id="view-tareas">
-      <div class="page-head">
-        <div>
-          <h1>Tareas</h1>
-          <p class="lead">Tareas del equipo — creadas aquí o desde la Bandeja y Documentación mensual. Owner, fecha de entrega y estado se editan directo en la card; también puedes arrastrarla entre columnas.</p>
-        </div>
-        <div class="head-actions">
-          <button class="compose-btn" onclick="tkNueva()">＋ Crear tarea</button>
-        </div>
-      </div>
-      <div class="chips" style="align-items:center">
-        <input type="text" id="tkBuscar" placeholder="🔎 Buscar tarea o cliente…" oninput="renderTareas()" style="max-width:230px;width:230px">
-        <select id="tkResp" onchange="renderTareas()" style="width:auto;padding:6px 10px;font-size:13px">
-          <option value="">👤 Responsable: todos</option>
-        </select>
-      </div>
-      <div class="kb-board" id="tkBoard">Cargando…</div>
-    </section>
-
     <!-- ══ LOG ══ -->
     <section class="view" id="view-log">
       <h1>Actividad del agente</h1>
@@ -658,8 +647,8 @@ tr:hover td{background:rgba(96,71,255,.04)}
     <section class="view" id="view-clientes">
       <div class="page-head">
         <div>
-          <h1>Clientes</h1>
-          <p class="lead">Directorio de contactos del sistema. Despliega cada cliente para ver sus correos, quitar o agregar contactos — los cambios se guardan al instante y el sistema los usa en todos los envíos.</p>
+          <h1>Bases correos</h1>
+          <p class="lead">Directorio de contactos de correo de cada cliente (antes «Clientes»). Despliega cada cliente para ver sus correos, quitar o agregar contactos — los cambios se guardan al instante y el sistema los usa en todos los envíos.</p>
         </div>
         
       </div>
@@ -668,160 +657,6 @@ tr:hover td{background:rgba(96,71,255,.04)}
     </section>
 
     <!-- ══ CONFIG ══ -->
-<section class="view" id="view-calculo">
-  <h1>Cálculo de impuestos</h1>
-  <p class="lead">Fabrica el cálculo mensual de un cliente en cinco pasos: cliente → documentos → SAT (Syntage) → cálculo → entrega. El documento final es un <b>Excel</b> en español, inglés o chino; queda guardado aquí para filtrarlo, corregirlo, descargarlo o cargarlo en el sistema.</p>
-
-  <div class="cx-tabs"><button class="cx-tab active" data-cxtab="nuevo">➕ Nuevo cálculo</button><button class="cx-tab" data-cxtab="lista">📁 Cálculos guardados</button></div>
-
-  <!-- ═══ NUEVO CÁLCULO (asistente) ═══ -->
-  <div id="cx-nuevo">
-    <ol class="cx-steps">
-      <li class="on" data-s="1">1 · Cliente</li><li data-s="2">2 · Documentos</li><li data-s="3">3 · SAT / Syntage</li><li data-s="4">4 · Cálculo</li><li data-s="5">5 · Entrega</li>
-    </ol>
-
-    <!-- Paso 1 -->
-    <div class="cx-step" data-step="1">
-      <label>¿Para qué cliente es? Escribe el RFC o el nombre</label>
-      <input id="cxRfc" class="cx-input" placeholder="EES251001N28" autocomplete="off" oninput="cxBuscarCliente(this.value)">
-      <div id="cxClienteLista" class="cx-list"></div>
-      <div id="cxClienteSel" class="cx-selected" style="display:none"></div>
-      <div class="cx-row">
-        <label>Ejercicio</label>
-        <select id="cxAnio" class="cx-input" onchange="cxPintarMeses()"></select>
-        <label>Idioma del documento</label>
-        <select id="cxIdioma" class="cx-input"><option value="es">Español</option><option value="en">English</option><option value="zh">中文</option></select>
-      </div>
-      <label>Períodos a calcular <small style="font-weight:400;opacity:.7">— uno o varios; con varios se entrega el consolidado del rango y también el documento de cada mes</small></label>
-      <div id="cxMeses" class="chips"></div>
-      <div class="cx-hint" id="cxMesesHint">Selecciona al menos un mes.</div>
-      <select id="cxMes" style="display:none"></select>
-      <div class="cx-nav"><button class="btn" onclick="cxGo(2)" id="cxNext1" disabled>Continuar →</button></div>
-    </div>
-
-    <!-- Paso 2 -->
-    <div class="cx-step" data-step="2" style="display:none">
-      <label>Sube los reportes del marketplace y el estado de cuenta del mes</label>
-      <div id="cxDrop" class="cx-drop" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="cxDrop(event)" onclick="document.getElementById('cxFile').click()">
-        <div class="cx-drop-ico">⬆️</div>
-        <div><b>Arrastra los documentos aquí</b> o haz clic para elegirlos</div>
-        <small>Resumen mensual de Seller Central · Certificado de retenciones · Estado de cuenta bancario (PDF, CSV o imagen). De cualquier fecha: cada documento se etiqueta con su propio período.</small>
-        <input type="file" id="cxFile" multiple accept=".pdf,.csv,.png,.jpg,.jpeg,.xlsx,.numbers" style="display:none" onchange="cxFiles(this.files)">
-      </div>
-      <div class="cx-panel" id="cxSysPanel" style="margin-top:14px">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <b>Documentos que ya están en el sistema</b>
-          <button class="btn secondary" onclick="cxDocsSistema()">Buscar en el Sistema</button>
-          <span class="cx-hint" id="cxSysMsg" style="margin:0">Los que el equipo ya cargó: se usan directo, sin descargarlos ni volverlos a subir.</span>
-        </div>
-        <div id="cxSysLista"></div>
-      </div>
-      <table class="cx-table" id="cxDocs" style="display:none"><thead><tr><th>Archivo</th><th>Tipo detectado</th><th>Período</th><th>Lectura</th><th>Datos clave</th><th></th></tr></thead><tbody></tbody></table>
-      <div class="cx-hint" id="cxDocsHint">Sin documentos todavía. Se necesitan al menos el resumen del marketplace y el certificado de retenciones de cada período que se vaya a calcular.</div>
-      <div class="cx-nav"><button class="btn secondary" onclick="cxGo(1)">← Atrás</button><button class="btn" onclick="cxGo(3)" id="cxNext2" disabled>Continuar →</button></div>
-    </div>
-
-    <!-- Paso 3 -->
-    <div class="cx-step" data-step="3" style="display:none">
-      <label>Lo que el SAT tiene registrado del RFC (vía Syntage)</label>
-      <div id="cxSyntage" class="cx-panel"><div class="cx-spinner">Consultando Syntage…</div></div>
-      <!-- Alerta cuando el cliente NO está conectado -->
-      <div id="cxSynAlert" class="cx-alert" style="display:none">
-        <b>Este cliente no está reportado en Syntage.</b> Sin la conexión, el cálculo se hace solo con los documentos del marketplace y el banco; no se pueden validar facturas ni declaraciones.
-        <p>¿Deseas que Juan apruebe que este cliente se incluya en Syntage?</p>
-        <label>CIEC del cliente <small>(solo si no está ya en el sistema; se manda a Juan por una liga de un solo uso, no en texto plano)</small></label>
-        <input id="cxCiec" class="cx-input" type="password" autocomplete="new-password" placeholder="••••••••">
-        <div class="cx-nav"><button class="btn" onclick="cxSolicitarSyntage()">Sí, pedir la conexión</button><button class="btn secondary" onclick="cxGo(4)">No, continuar sin SAT</button></div>
-        <div id="cxSynMsg" class="cx-hint"></div>
-        <div style="border-top:1px dashed rgba(0,0,0,.15);margin-top:14px;padding-top:12px">
-          <b>📥 O carga la información directamente desde Contalink</b>
-          <p class="cx-hint" style="margin:6px 0 8px">Sin la conexión al SAT, el IVA acreditable pagado del mes puede tomarse del auxiliar de Contalink. Captura el importe por período: el cálculo lo usará y el documento citará la fuente con una alerta.</p>
-          <p class="cx-hint" style="margin:6px 0 8px"><b>⚠️ No tomes ningún porcentaje de la fila de totales del auxiliar.</b> Esa celda es el promedio de los porcentajes de cada factura, no la proporción real pagada, y sobreestima el acreditable de forma sistemática y sin ruido. Si necesitas una proporción, recálculala desde los renglones: suma pagado entre suma facturado.</p>
-          <div id="cxCtkForm"></div>
-          <div class="cx-nav"><button class="btn secondary" id="cxCtkBtn" onclick="cxCtkForm()">Capturar desde Contalink</button></div>
-          <div id="cxCtkMsg" class="cx-hint"></div>
-        </div>
-      </div>
-      <div class="cx-nav"><button class="btn secondary" onclick="cxGo(2)">← Atrás</button><button class="btn" onclick="cxGo(4)" id="cxNext3">Continuar →</button></div>
-    </div>
-
-    <!-- Paso 4 -->
-    <div class="cx-step" data-step="4" style="display:none">
-      <label>Revisa los insumos y genera el cálculo</label>
-      <div class="cx-grid2">
-        <div class="cx-panel"><h4>Del marketplace</h4><div id="cxResumenMk"></div></div>
-        <div class="cx-panel"><h4>Del SAT y del banco</h4><div id="cxResumenSat"></div></div>
-      </div>
-      <div class="cx-row">
-        <label>Criterio de IVA</label>
-        <select id="cxLectura" class="cx-input" onchange="cxPintarCobrado()"><option value="A">Lectura A — IVA según certificado del marketplace (recomendada para vendedores con ventas transfronterizas)</option><option value="B">Lectura B — IVA según lo facturado en CFDI</option><option value="C">Lectura C — flujo de efectivo: IVA sobre lo efectivamente cobrado</option></select>
-        <label>Coeficiente de utilidad (anual anterior)</label><input id="cxCU" class="cx-input" placeholder="0.0000 · vacío = pendiente" style="max-width:220px">
-      </div>
-      <div id="cxCobradoBox" style="display:none">
-        <label>Ingresos efectivamente cobrados, sin IVA, por período <small style="font-weight:400;opacity:.7">— con el criterio de flujo de efectivo esta es la base del IVA; sale del auxiliar contable, no de los documentos del marketplace</small></label>
-        <div id="cxCobrado" class="cx-row"></div>
-        <div class="cx-row"><label>Fuente del dato</label><input id="cxCobradoFuente" class="cx-input" value="Auxiliar de Contalink · ingresos efectivamente cobrados" style="max-width:520px"></div>
-      </div>
-      <label>Historial del cliente al inicio del primer período <small style="font-weight:400;opacity:.7">— lo que viene de meses anteriores y no está en estos documentos</small></label>
-      <div class="cx-row">
-        <label>IVA a favor por acreditar</label><input id="cxSaldoFavor" class="cx-input" placeholder="0.00" style="max-width:170px">
-        <label>IVA retenido pendiente de acreditar</label><input id="cxRetPend" class="cx-input" placeholder="0.00" style="max-width:170px">
-        <input id="cxRetPendDet" class="cx-input" placeholder="de qué meses (ej.: 1,514 de mayo y 605,367 de junio)" style="max-width:330px">
-        <label>Pagos provisionales de ISR ya hechos</label><input id="cxPagosPrev" class="cx-input" placeholder="0.00" style="max-width:170px">
-      </div>
-      <label>Observaciones del contador <small style="font-weight:400;opacity:.7">— se imprimen tal cual en el documento y quedan en el registro del cálculo</small></label>
-      <textarea id="cxContexto" class="cx-input" rows="4" placeholder="Ej.: este cliente traía IVA retenido de meses anteriores sin acreditar; el criterio de IVA se acordó con el cliente el 3-sep; falta el certificado de la segunda tienda."></textarea>
-      <div class="cx-nav"><button class="btn secondary" onclick="cxGo(3)">← Atrás</button><button class="btn" onclick="cxGenerar()" id="cxBtnGen">🧮 Calcular y generar documento</button></div>
-      <div id="cxGenMsg" class="cx-hint"></div>
-    </div>
-
-    <!-- Paso 5 -->
-    <div class="cx-step" data-step="5" style="display:none">
-      <div class="cx-result" id="cxResult"></div>
-      <div class="cx-nav">
-        <button class="btn" onclick="cxDescargar()" id="cxBtnXlsx">⬇️ Descargar Excel</button>
-        <button class="btn" onclick="cxCargarSistema()" id="cxBtnSis">📤 Carga en Sistema</button>
-        <button class="btn secondary" onclick="cxVer()">👁️ Ver resumen</button>
-        <button class="btn secondary" onclick="cxIrCorreo()">✉️ Redactar correo al cliente</button>
-        <button class="btn secondary" onclick="cxCorregir()">✏️ Pedir corrección</button>
-      </div>
-      <div id="cxSisMsg" class="cx-hint"></div>
-      <iframe id="cxPreview" class="cx-preview" style="display:none"></iframe>
-    </div>
-  </div>
-
-  <!-- ═══ CÁLCULOS GUARDADOS ═══ -->
-  <div id="cx-lista" style="display:none">
-    <div class="cx-filters">
-      <input class="cx-input" id="cxFNombre" placeholder="Cliente (nombre)" oninput="cxListar()">
-      <input class="cx-input" id="cxFRfc" placeholder="RFC" oninput="cxListar()">
-      <select class="cx-input" id="cxFMes" onchange="cxListar()"><option value="">Mes</option></select>
-      <select class="cx-input" id="cxFAnio" onchange="cxListar()"><option value="">Año</option></select>
-      <select class="cx-input" id="cxFEstado" onchange="cxListar()"><option value="">Estado</option><option value="draft">Borrador</option><option value="correccion">En corrección</option><option value="approved">Aprobado por cliente</option><option value="filed">Declarado</option></select>
-    </div>
-    <table class="cx-table" id="cxTabla"><thead><tr><th>Cliente</th><th>RFC</th><th>Período</th><th>IVA a pagar</th><th>ISR a pagar</th><th>Saldo a favor</th><th>Estado</th><th>Idioma</th><th>Actualizado</th><th></th></tr></thead><tbody></tbody></table>
-  </div>
-</section>
-
-<style>
-  .cx-tabs{display:flex;gap:6px;margin:12px 0 18px}.cx-tab{border:1px solid #e6e2da;background:#fff;border-radius:999px;padding:6px 14px;cursor:pointer;font:inherit}.cx-tab.active{background:#6047ff;color:#fefcf8;border-color:#6047ff}
-  .cx-steps{display:flex;gap:6px;list-style:none;padding:0;margin:0 0 18px;font-size:12px}.cx-steps li{flex:1;padding:8px 10px;border-radius:8px;background:#f3f1ec;color:#6b6b6b}.cx-steps li.on{background:#dcdcff;color:#212121;font-weight:500}.cx-steps li.done{background:#c8e8ce}
-  .cx-step label{display:block;font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.05em;color:#6b6b6b;margin:14px 0 6px}
-  .cx-input{width:100%;max-width:520px;padding:10px 12px;border:1px solid #e6e2da;border-radius:10px;font:inherit;background:#fff}.cx-row{display:grid;grid-template-columns:auto 1fr 1fr auto 1fr;gap:10px;align-items:end;margin-top:8px}.cx-row label{margin:0}
-  .cx-list{max-width:520px}.cx-list .it{padding:8px 12px;border:1px solid #e6e2da;border-top:none;background:#fff;cursor:pointer;display:flex;justify-content:space-between}.cx-list .it:hover{background:#dcdcff}
-  .cx-selected{margin-top:8px;padding:10px 14px;border-radius:10px;background:#dcdcff;max-width:520px}
-  .cx-drop{border:2px dashed #6047ff;border-radius:16px;padding:34px;text-align:center;background:#fff;cursor:pointer;max-width:720px}.cx-drop.over{background:#dcdcff}.cx-drop-ico{font-size:28px}.cx-drop small{display:block;color:#6b6b6b;margin-top:6px}
-  .cx-table{width:100%;border-collapse:collapse;margin-top:14px;font-size:13px;font-feature-settings:'tnum' 1}.cx-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#6b6b6b;padding:6px 8px;border-bottom:2px solid #212121}.cx-table td{padding:8px;border-bottom:1px solid #e6e2da;vertical-align:top}
-  .cx-hint{font-size:12px;color:#6b6b6b;margin-top:8px}.cx-nav{display:flex;gap:8px;margin-top:16px}
-  .cx-panel{background:#fff;border:1px solid #e6e2da;border-radius:12px;padding:14px 16px}.cx-panel h4{margin:0 0 8px;font-size:13px}.cx-grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-  .cx-alert{margin-top:14px;padding:16px;border-radius:12px;background:#fcddd6;border-left:4px solid #ff8248;max-width:720px}
-  .cx-result{background:#dcdcff;border-radius:12px;padding:16px 18px}.cx-result .k{display:inline-block;margin-right:24px}.cx-result .k b{display:block;font-size:22px;font-feature-settings:'tnum' 1}
-  .cx-preview{width:100%;height:80vh;border:1px solid #e6e2da;border-radius:12px;margin-top:14px;background:#fff}
-  .cx-filters{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:8px;margin-bottom:6px}.cx-spinner{color:#6b6b6b}
-  .cx-tag{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11px;background:#f3f1ec}.cx-tag.ok{background:#c8e8ce}.cx-tag.warn{background:#fcddd6}.cx-tag.info{background:#dcf8ff}
-</style>
-
-
     <section class="view" id="view-config">
       <h1>Configuración</h1>
       <div class="cfg-card"><h3>Base de datos</h3>
@@ -829,7 +664,7 @@ tr:hover td{background:rgba(96,71,255,.04)}
       <div class="cfg-card"><h3>Endpoint de escritura y envío (Apps Script)</h3>
         <p><code id="cfgScript"></code><br>Estado: <b id="cfgScriptStatus">probando…</b></p></div>
       <div class="cfg-card"><h3>Cuentas y remitentes</h3>
-        <p>Monitoreadas: <code>contabilidad@</code> <code>accounting@</code> <code>elizabeth@</code> <code>juan@</code> (pendiente en Gmail MCP)</p>
+        <p>Triage profundo: <code>accounting@</code> <code>contabilidad@</code> <code>juan@</code> <code>cristian@</code> · el resto de cuentas de <b>Config → cuentas conectadas</b> se revisan con barrido ligero. Todas deben estar autorizadas en el Gmail MCP de Talia.</p>
         <p style="margin-top:8px">Respuestas y correos nuevos → <b>juan@tally.legal</b> (envío directo vía Apps Script). Escenarios SOP SC → <b>accounting@</b> CC <b>customersuccess@</b> (vía agente).</p></div>
       <div class="cfg-card"><h3>Categorías de triage — editable</h3>
         <p style="font-size:13px;color:var(--gray-500);margin-bottom:8px">Separadas por coma. Al guardar, los filtros de la Bandeja se actualizan al instante y el agente aplica la nueva clasificación en su siguiente corrida horaria.</p>
@@ -914,6 +749,14 @@ tr:hover td{background:rgba(96,71,255,.04)}
   </div>
 </div>
 
+<!-- ══ CLIENTES MARKETPLACE · popup de la card ══ -->
+<div class="modal-veil" id="cmModalBack" onclick="if(event.target===this)cmCerrar()">
+  <div class="modal" style="width:680px">
+    <div class="modal-h"><div><h2 id="cmModalTitulo">Cliente</h2><div class="mh-sub" id="cmModalSub"></div></div><button class="modal-x" onclick="cmCerrar()">✕</button></div>
+    <div class="modal-b" id="cmModalBody"></div>
+  </div>
+</div>
+
 <!-- ══ ⌘K BUSCADOR DE CLIENTES ══ -->
 <div class="kbar-veil" id="kbarVeil" onclick="if(event.target===this)closeKbar()">
   <div class="kbar">
@@ -987,9 +830,8 @@ async function safeGviz(tab){ try{ return await gviz(tab); }catch(e){ console.wa
 
 async function loadAll(){
   try{
-    const [em,sc,lg,cl,pl,sa,cf,tk,rcx,rse] = await Promise.all(['Emails','SC_Seguimiento','Log','Clientes','Plantillas','Salientes','Config','Tareas','Reporte_Contextos','Reporte_Secciones'].map(safeGviz));
+    const [em,sc,lg,cl,pl,sa,cf,rcx,rse] = await Promise.all(['Emails','SC_Seguimiento','Log','Clientes','Plantillas','Salientes','Config','Reporte_Contextos','Reporte_Secciones'].map(safeGviz));
     EMAILS=em.filter(r=>r.email_id); SC=sc.filter(r=>r.company_id); LOGS=lg.filter(r=>r.timestamp);
-    TAREAS=(tk||[]).filter(r=>r.tarea_id);
     CLIENTES=cl.filter(r=>r.company_id); PLANTILLAS=pl.filter(r=>r.plantilla_id); SALIENTES=sa.filter(r=>r.saliente_id);
     CONTEXTOS=(rcx||[]).filter(r=>r.contexto_id); SECCIONES=(rse||[]).filter(r=>r.seccion_id);
     if(typeof rptSyncFromSheets==='function') rptSyncFromSheets();
@@ -1007,7 +849,6 @@ async function loadAll(){
     else if(!composeMode && drawerOpen){ renderMailList(); }
     if(!drawerOpen) renderSC();
     if(AUTH&&!USUARIOS_PLAT.length) cargarUsuarios(); // reintenta cada ciclo hasta lograrlo
-    if(!drawerOpen) renderTareas();
     renderLog();
   }catch(e){
     document.getElementById('cfgReadStatus').textContent = '❌ sin acceso — verifica permisos del Sheet ("cualquiera con link puede ver")';
@@ -1067,6 +908,11 @@ function renderCatChips(){
   const el = document.getElementById('catChips');
   if(el.contains(document.activeElement) && document.activeElement.id==='bndBuscar') return; // no re-pintar mientras escribe
   const owners=[...new Set(CLIENTES.map(c=>String(c.owner||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  /* Bandejas por cuenta (13-oct-2026, pedido de Juan): el filtro de owner también deja ver los correos que
+     llegaron a la bandeja de una persona del equipo (columna `cuenta` del triage). Cristian entra siempre;
+     las demás cuentas aparecen cuando ya tienen correos triados. El agente lee cristian@ vía el Gmail MCP
+     (está en Config.cuentas_monitoreadas). */
+  const bandejas=[...new Set(['cristian'].concat(EMAILS.map(e=>String(e.cuenta||'').trim().toLowerCase()).filter(Boolean)))].sort();
   const opt=(v,t)=>`<option value="${esc(v)}" ${catFilter===v?'selected':''}>${t}</option>`;
   const hayFiltro=(qBandeja||fDesde||fHasta||ownerFilter||catFilter!=='*');
   el.innerHTML=`
@@ -1078,6 +924,9 @@ function renderCatChips(){
     <select id="bndOwner" onchange="ownerFilter=this.value;renderMailList()" title="Owner asignado al cliente">
       <option value="">👤 Owner: todos</option>
       ${owners.map(o=>`<option value="${esc(o)}" ${ownerFilter===o?'selected':''}>👤 ${esc(o)}</option>`).join('')}
+      <optgroup label="Bandeja de correo">
+      ${bandejas.map(b=>`<option value="mail:${esc(b)}" ${ownerFilter==='mail:'+b?'selected':''}>📬 ${esc(b)}@tally.legal</option>`).join('')}
+      </optgroup>
     </select>
     <select id="bndCat" onchange="catFilter=this.value;renderMailList()" title="Tipo de correo">
       ${opt('*','Todos ('+countCat('*')+')')}
@@ -1143,13 +992,15 @@ function filtrosExtra(e){
   const f=soloFecha(e.fecha_recibido);
   if(fDesde && f && f<fDesde) return false;
   if(fHasta && f && f>fHasta) return false;
-  if(ownerFilter && ownerDe(e.company_id)!==ownerFilter) return false;
+  if(ownerFilter && ownerFilter.indexOf('mail:')===0){ if(String(e.cuenta||'').trim().toLowerCase()!==ownerFilter.slice(5)) return false; }
+  else if(ownerFilter && ownerDe(e.company_id)!==ownerFilter) return false;
   return pasaBusqueda([e.company_id,e.cliente,e.asunto,e.resumen,e.remitente_nombre,e.remitente_email,e.categoria].join(' | '));
 }
 function filtrosExtraSaliente(s){
   const f=soloFecha(s.fecha);
   if(fDesde && f && f<fDesde) return false;
   if(fHasta && f && f>fHasta) return false;
+  if(ownerFilter && ownerFilter.indexOf('mail:')===0) return false; // las filas de Seller Central no tienen bandeja de origen
   if(ownerFilter && ownerDe(s.company_id)!==ownerFilter) return false;
   return pasaBusqueda([s.company_id,s.cliente,s.asunto,s.destinatarios,s.categoria].join(' | '));
 }
@@ -1499,7 +1350,7 @@ function renderDetail(id){
   let html = `
     ${crumbHtml(e.asunto)}
     <h3>${esc(e.asunto)}</h3>
-    <div class="meta">${esc(e.remitente_nombre)} &lt;${esc(e.remitente_email)}&gt; · ${esc(e.fecha_recibido)} · vía ${esc(e.cuenta)}@tally.legal${e.company_id?` · <b>${esc(e.company_id)}</b>`:''} · <a href="#" onclick="abrirTareas('Bandeja','${esc(e.email_id)}','${esc(e.cliente&&e.cliente!=='INTERNO'?e.cliente:(e.remitente_nombre||''))}');return false" style="color:var(--brand-primary);font-weight:500">➕ Crear tarea</a></div>
+    <div class="meta">${esc(e.remitente_nombre)} &lt;${esc(e.remitente_email)}&gt; · ${esc(e.fecha_recibido)} · vía ${esc(e.cuenta)}@tally.legal${e.company_id?` · <b>${esc(e.company_id)}</b>`:''}</div>
     ${osNotice(e)}
     ${e.mensaje_original?`<div class="msg-label">💬 Mensaje del cliente (texto original)</div><div class="msg-original">${esc(e.mensaje_original)}</div>`:''}
     ${renderCcOriginales(e)}
@@ -1672,11 +1523,10 @@ function renderCompose(){
 
     <label>2 · ¿Cómo lo redactamos?</label>
     <div class="chips" style="margin-bottom:6px">
-      <button class="chip ${(cmp.mode!=='ia'&&cmp.mode!=='calc')?'on':''}" onclick="cmp.mode='tpl';renderCompose()">📄 Con plantilla</button>
+      <button class="chip ${cmp.mode!=='ia'?'on':''}" onclick="cmp.mode='tpl';renderCompose()">📄 Con plantilla</button>
       <button class="chip ${cmp.mode==='ia'?'on':''}" onclick="cmp.mode='ia';renderCompose()">✨ Redacción libre con IA</button>
-      <button class="chip ${cmp.mode==='calc'?'on':''}" onclick="cmp.mode='calc';renderCompose()">🧮 Cálculo de impuestos</button>
     </div>
-    ${cmp.mode==='calc'?calcComposeHtml():cmp.mode==='ia'?`
+    ${cmp.mode==='ia'?`
     <label>3 · Objetivo y contexto del correo</label>
     <textarea id="iaPrompt" rows="5" placeholder="Ej: Avísale que su declaración de junio ya fue presentada, comparte que detectamos ventas crecientes y proponle una sesión de 30 min la próxima semana para revisar su estrategia fiscal.">${esc(cmp.iaPrompt||'')}</textarea>
     <div class="notice info" style="margin-top:8px">🤖 La IA redacta asunto y cuerpo personalizados por cliente. Idioma: IN→español, AZ→inglés por default (cambiable en cada preview). Revisas, editas y envías — nada sale sin tu aprobación.</div>
@@ -2433,7 +2283,7 @@ function scDetail(cid){
   const el=document.getElementById('mailDetail');
   el.innerHTML=`
     <h3>${esc(r.cliente)}</h3>
-    <div class="meta">${esc(r.company_id)} · 👤 ${esc(ownerDe(r.company_id)||r.owner||'—')}${r.tipo_perfil?' · '+esc(r.tipo_perfil):''}${r.periodo?' · '+esc(r.periodo):''} · <a href="#" onclick="abrirTareas('Documentación','${esc(cid)}','${esc(r.cliente||'')}');return false" style="color:var(--brand-primary);font-weight:500">➕ Crear tarea</a></div>
+    <div class="meta">${esc(r.company_id)} · 👤 ${esc(ownerDe(r.company_id)||r.owner||'—')}${r.tipo_perfil?' · '+esc(r.tipo_perfil):''}${r.periodo?' · '+esc(r.periodo):''}</div>
     ${checklistArr(r).length?`<label>Checklist documental del mes</label>
     <div class="resumen">${checklistArr(r).map(c=>{const [ico,lbl]=CHK_META[c.k]||['❔',c.k];return c.info?`${ico} ${lbl}: ${c.ok?'✅':'⚠️ FALTA — revisa antes de enviar información'}`:`${ico} ${lbl}: ${c.ok?(c.auto?'✅ auto (Payoneer)':'✅'):'⬜ pendiente'}`;}).join('\n')}</div>`:''}
     <label>Escenario de envío</label>
@@ -2462,11 +2312,11 @@ async function scDecide(cid,decision){
   else toast('❌ '+(r.error||'error'));
 }
 
-/* ═══════════════ ✅ TAREAS (kanban 2 columnas, alimentado desde Bandeja y Documentación) ═══════════════ */
+/* ═══════════════ USUARIOS DE LA PLATAFORMA (responsables) ═══════════════ */
 async function cargarUsuarios(){
   if(!AUTH) return false;
   const r=await api('usuarios_publicos',{auth:{email:AUTH.email,password:AUTH.password}});
-  if(r.ok&&(r.usuarios||[]).length){ USUARIOS_PLAT=r.usuarios; renderTareas(); return true; }
+  if(r.ok&&(r.usuarios||[]).length){ USUARIOS_PLAT=r.usuarios; return true; }
   console.warn('usuarios_publicos:', r.error||'lista vacía');
   return false;
 }
@@ -2474,250 +2324,6 @@ function nombreUsuario(email){
   const u=USUARIOS_PLAT.find(x=>x.email===String(email||'').toLowerCase());
   return u?u.nombre:(email||'—');
 }
-function tkAbrir(id){
-  const t=TAREAS.find(x=>x.tarea_id===id); if(!t) return;
-  if(t.origen==='Bandeja'&&t.ref_id){
-    const e=EMAILS.find(x=>x.email_id===t.ref_id);
-    if(!e){ toast('⚠️ El correo de esta tarea ya no está en la bandeja'); return; }
-    select(t.ref_id); // abre el drawer con el hilo completo y la opción de responder
-  } else if(t.origen==='Documentación'&&t.ref_id){
-    const r=SC.find(x=>x.company_id===t.ref_id);
-    if(!r){ toast('⚠️ El cliente de esta tarea ya no está en el tablero de documentación'); return; }
-    scDetail(t.ref_id); // abre el drawer del cliente con checklist, escenario y aprobación
-  } else toast('Esta tarea no tiene proceso vinculado');
-}
-function tkFechaEntrega(t){
-  const f=String(t.fecha_entrega||'').substring(0,10);
-  const hoy=new Date().toISOString().substring(0,10);
-  const vencida=f&&f<hoy&&t.estado!=='Finalizado';
-  return `<input type="date" value="${esc(f)}" onclick="event.stopPropagation()" onchange="event.stopPropagation();tkEdit('${esc(t.tarea_id)}','fecha_entrega',this.value)" style="width:auto;padding:4px 8px;font-size:11.5px;${vencida?'border-color:#e54848;color:#b91c1c;font-weight:700':''}" title="${vencida?'⚠️ VENCIDA':'Fecha de entrega'}">`;
-}
-const TK_ESTADOS=['Sin iniciar','En proceso','Bloqueado','Finalizado'];
-function tkNorm(t){ return TK_ESTADOS.includes(t.estado)?t.estado:'Sin iniciar'; }
-function tkCard(t){
-  const origen=t.origen==='Documentación'?'📦':t.origen==='Bandeja'?'📥':'✅';
-  const clientes=String(t.clientes||t.cliente||'').split(',').map(s=>s.trim()).filter(Boolean);
-  const vinculo=(t.origen==='Bandeja'||t.origen==='Documentación')&&t.ref_id;
-  return `<div class="kb-card" style="position:relative" draggable="true" ondragstart="tkDrag(event,'${esc(t.tarea_id)}')" ondragend="this.classList.remove('dragging')" ${vinculo?`onclick="tkAbrir('${esc(t.tarea_id)}')" title="Abrir el proceso vinculado"`:''}>
-    <div class="kb-acts">
-      <button title="Editar tarea" onclick="event.stopPropagation();tkEditar('${esc(t.tarea_id)}')">✏️</button>
-      <button title="Eliminar tarea" onclick="event.stopPropagation();tkDel('${esc(t.tarea_id)}')">🗑</button>
-    </div>
-    <div class="kb-title" style="padding-right:56px">${esc(t.titulo)}${vinculo?' <span style="color:var(--brand-primary);font-weight:400">↗</span>':''}</div>
-    ${t.descripcion?`<div style="font-size:12px;color:var(--text-secondary);margin:3px 0;line-height:1.4">${esc(String(t.descripcion).substring(0,180))}${String(t.descripcion).length>180?'…':''}</div>`:''}
-    ${clientes.length?`<div class="kb-tags" style="margin:4px 0">${clientes.map(c=>`<span class="tag acct">${esc(c)}</span>`).join('')}</div>`:''}
-    <div class="kb-tags" style="align-items:center;gap:6px;margin-top:6px">
-      <select onclick="event.stopPropagation()" onchange="event.stopPropagation();tkEdit('${esc(t.tarea_id)}','responsable',this.value)" style="width:auto;padding:4px 8px;font-size:11.5px" title="Owner">
-        <option value="">👤 sin owner</option>
-        ${USUARIOS_PLAT.map(u=>`<option value="${esc(u.email)}" ${String(t.responsable||'').toLowerCase()===u.email?'selected':''}>${esc(u.nombre)}</option>`).join('')}
-      </select>
-      ${tkFechaEntrega(t)}
-      <select onclick="event.stopPropagation()" onchange="event.stopPropagation();tkEdit('${esc(t.tarea_id)}','estado',this.value)" style="width:auto;padding:4px 8px;font-size:11.5px" title="Estado">
-        ${TK_ESTADOS.map(e=>`<option ${tkNorm(t)===e?'selected':''}>${e}</option>`).join('')}
-      </select>
-    </div>
-    <div class="kb-tags" style="margin-top:6px">
-      <span class="tag acct">${origen} ${esc(t.origen||'Tareas')}</span>
-      <span class="tag acct" title="Fecha de creación">🕐 ${esc(fechaLarga(t.fecha_creacion).split(',')[0]||'')}</span>
-      ${t.estado==='Finalizado'?`<span class="tag st-Enviado">✅ ${esc(String(t.fecha_finalizacion).substring(0,10))}</span>`:''}
-      <span style="font-size:11px;color:var(--text-secondary)">creada por ${esc(nombreUsuario(t.creado_por))}</span>
-    </div>
-  </div>`;
-}
-async function tkEdit(id,campo,valor){
-  const t=TAREAS.find(x=>x.tarea_id===id); if(!t) return;
-  const payload={tarea_id:id,auth:{email:AUTH.email,password:AUTH.password}};
-  payload[campo]=valor;
-  const r=await api('tarea_edit',payload);
-  if(r.ok){
-    t[campo]=valor;
-    if(campo==='estado') t.fecha_finalizacion=valor==='Finalizado'?new Date().toISOString().slice(0,16).replace('T',' '):'';
-    toast('✅ Tarea actualizada');
-  } else toast('❌ '+(r.error||'error'));
-  renderTareas();
-}
-/* Modal de creación/edición completa (nombre, descripción, clientes con tags, owner, fecha entrega) */
-let TKN={id:null,titulo:'',desc:'',clientes:[],resp:'',fecha:''};
-async function tkNueva(){
-  if(!USUARIOS_PLAT.length){ toast('👥 Cargando usuarios…'); await cargarUsuarios(); }
-  TKN={id:null,titulo:'',desc:'',clientes:[],resp:'',fecha:''};
-  tkNuevaRender();
-}
-async function tkEditar(id){
-  const t=TAREAS.find(x=>x.tarea_id===id); if(!t) return;
-  if(!USUARIOS_PLAT.length){ toast('👥 Cargando usuarios…'); await cargarUsuarios(); }
-  const nombres=String(t.clientes||t.cliente||'').split(',').map(s=>s.trim()).filter(Boolean);
-  TKN={id:id,titulo:String(t.titulo||''),desc:String(t.descripcion||''),
-       clientes:nombres.map(n=>{const c=CLIENTES.find(x=>x.cliente===n);return {company_id:c?c.company_id:n,cliente:n};}),
-       resp:String(t.responsable||'').toLowerCase(),fecha:String(t.fecha_entrega||'').substring(0,10)};
-  tkNuevaRender();
-}
-async function tkDel(id){
-  const t=TAREAS.find(x=>x.tarea_id===id); if(!t) return;
-  if(!confirm(`🗑 Eliminar la tarea "${t.titulo}"?\n\nEsta acción no se puede deshacer.`)) return;
-  const r=await api('tarea_del',{tarea_id:id,auth:{email:AUTH.email,password:AUTH.password}});
-  if(r.ok){ TAREAS=TAREAS.filter(x=>x.tarea_id!==id); toast('🗑 Tarea eliminada'); renderTareas(); }
-  else toast('❌ '+(r.error||'error'));
-}
-function tkNuevaRender(){
-  document.getElementById('kbConfirmBack')?.remove();
-  const back=document.createElement('div');
-  back.id='kbConfirmBack';
-  back.innerHTML=`<div class="kb-modal" onclick="event.stopPropagation()" style="max-width:520px">
-    <h3>${TKN.id?'✏️ Editar tarea':'＋ Crear tarea'}</h3>
-    <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin:10px 0 4px">Nombre de la tarea</label>
-    <input type="text" id="tknTit" value="${esc(TKN.titulo)}" placeholder="Qué hay que lograr" oninput="TKN.titulo=this.value">
-    <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin:10px 0 4px">Descripción</label>
-    <textarea id="tknDesc" rows="3" placeholder="Contexto, criterio de terminado, links…" oninput="TKN.desc=this.value">${esc(TKN.desc)}</textarea>
-    <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin:10px 0 4px">Clientes a los que aplica</label>
-    <div class="cli-pick">
-      <input type="text" id="tknCli" placeholder="Busca por nombre o ID… (mínimo 2 letras)" oninput="tknBuscar(this.value)" autocomplete="off">
-      <div class="cli-results" id="tknCliRes" style="display:none"></div>
-    </div>
-    <div class="sel-clients">${TKN.clientes.map((c,i)=>`<span class="chip">${esc(c.cliente)} <b onclick="TKN.clientes.splice(${i},1);tkNuevaRender()">✕</b></span>`).join('')}</div>
-    <div style="display:flex;gap:10px;margin-top:10px">
-      <div style="flex:1"><label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin-bottom:4px">Owner</label>
-      <select onchange="TKN.resp=this.value" style="width:100%">
-        <option value="">— responsable —</option>
-        ${USUARIOS_PLAT.map(u=>`<option value="${esc(u.email)}" ${TKN.resp===u.email?'selected':''}>${esc(u.nombre)}</option>`).join('')}
-      </select></div>
-      <div style="flex:1"><label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin-bottom:4px">Fecha de entrega</label>
-      <input type="date" value="${esc(TKN.fecha)}" onchange="TKN.fecha=this.value" style="width:100%"></div>
-    </div>
-    <p style="font-size:11px;color:var(--text-secondary);margin-top:8px">🕐 La fecha de creación se sella automáticamente y queda visible en la card.</p>
-    <button class="btn btn-primary" onclick="tkNuevaCrear()">${TKN.id?'💾 Guardar cambios':'✅ Crear tarea'}</button>
-    <button class="btn btn-ghost" onclick="document.getElementById('kbConfirmBack').remove()">Cancelar</button>
-  </div>`;
-  back.addEventListener('click',ev=>{ if(ev.target===back) back.remove(); });
-  document.body.appendChild(back);
-  document.getElementById('tknTit').focus();
-}
-function tknBuscar(q){
-  const box=document.getElementById('tknCliRes');
-  q=q.trim().toLowerCase();
-  if(q.length<2){ box.style.display='none'; return; }
-  const hits=CLIENTES.filter(c=>!TKN.clientes.some(s=>s.company_id===c.company_id)&&((c.cliente||'').toLowerCase().includes(q)||(c.company_id||'').toLowerCase().includes(q))).slice(0,10);
-  box.innerHTML=hits.length?hits.map(c=>`<div onclick='tknAdd(${JSON.stringify(c.company_id)})'>${esc(c.cliente)} <span style="color:var(--gray-500)">· ${esc(c.company_id)}</span></div>`).join(''):'<div style="color:var(--gray-500)">sin resultados</div>';
-  box.style.display='block';
-}
-function tknAdd(id){
-  const c=CLIENTES.find(x=>x.company_id===id);
-  if(c) TKN.clientes.push({company_id:c.company_id,cliente:c.cliente});
-  tkNuevaRender();
-}
-async function tkNuevaCrear(){
-  if(!TKN.titulo.trim()){ toast('La tarea necesita nombre'); return; }
-  if(!TKN.resp){ toast('Asigna un owner'); return; }
-  const nombres=TKN.clientes.map(c=>c.cliente).join(', ');
-  if(TKN.id){
-    const r=await api('tarea_edit',{tarea_id:TKN.id,titulo:TKN.titulo.trim(),descripcion:TKN.desc.trim(),responsable:TKN.resp,clientes:nombres,fecha_entrega:TKN.fecha,auth:{email:AUTH.email,password:AUTH.password}});
-    if(r.ok){
-      document.getElementById('kbConfirmBack')?.remove();
-      const t=TAREAS.find(x=>x.tarea_id===TKN.id);
-      if(t){ t.titulo=TKN.titulo.trim(); t.descripcion=TKN.desc.trim(); t.responsable=TKN.resp; t.cliente=nombres; t.clientes=nombres; t.fecha_entrega=TKN.fecha; }
-      toast('✅ Tarea actualizada');
-      renderTareas();
-    } else toast('❌ '+(r.error||'error'));
-    return;
-  }
-  const r=await api('tarea_crear',{tareas:[{titulo:TKN.titulo.trim(),descripcion:TKN.desc.trim(),responsable:TKN.resp,origen:'Tareas',ref_id:'',cliente:nombres,clientes:nombres,fecha_entrega:TKN.fecha}],auth:{email:AUTH.email,password:AUTH.password}});
-  if(r.ok){
-    document.getElementById('kbConfirmBack')?.remove();
-    TAREAS.push({tarea_id:(r.ids&&r.ids[0])||'tmp',fecha_creacion:new Date().toISOString().slice(0,16).replace('T',' '),creado_por:AUTH.email,responsable:TKN.resp,titulo:TKN.titulo.trim(),descripcion:TKN.desc.trim(),origen:'Tareas',ref_id:'',cliente:nombres,clientes:nombres,fecha_entrega:TKN.fecha,estado:'Sin iniciar',fecha_finalizacion:''});
-    toast('✅ Tarea creada');
-    renderTareas();
-  } else toast('❌ '+(r.error||'error'));
-}
-function renderTareas(){
-  const el=document.getElementById('tkBoard'); if(!el) return;
-  const sel=document.getElementById('tkResp');
-  if(sel&&USUARIOS_PLAT.length&&sel.options.length<=1){
-    sel.innerHTML='<option value="">👤 Responsable: todos</option>'+USUARIOS_PLAT.map(u=>`<option value="${esc(u.email)}">${esc(u.nombre)}</option>`).join('');
-  }
-  let rows=[...TAREAS];
-  const q=(document.getElementById('tkBuscar')?.value||'').trim().toLowerCase();
-  if(q) rows=rows.filter(t=>(t.titulo||'').toLowerCase().includes(q)||(t.cliente||'').toLowerCase().includes(q));
-  const resp=document.getElementById('tkResp')?.value||'';
-  if(resp) rows=rows.filter(t=>String(t.responsable||'').toLowerCase()===resp);
-  const cols=TK_ESTADOS.map(e=>({
-    nombre:e,
-    color:e==='Sin iniciar'?'var(--orange-500)':e==='En proceso'?'var(--brand-primary)':e==='Bloqueado'?'#e54848':'var(--green-500)',
-    rows:rows.filter(t=>tkNorm(t)===e)
-  }));
-  cols.forEach(c=>c.rows.sort((a,b)=>c.nombre==='Finalizado'
-    ?(b.fecha_finalizacion||'').localeCompare(a.fecha_finalizacion||'')
-    :(b.fecha_creacion||'').localeCompare(a.fecha_creacion||'')));
-  el.innerHTML=cols.map((c,i)=>`
-    <div class="kb-col" style="border-top-color:${c.color}" ondragover="kbOver(event)" ondragleave="kbLeave(event)" ondrop="tkDrop(event,${i})">
-      <div class="kb-head"><span>${c.nombre}</span><span class="kb-count">${c.rows.length}</span></div>
-      <div class="kb-cards">${c.rows.length?c.rows.map(tkCard).join(''):'<div class="kb-empty">Sin tareas aquí</div>'}</div>
-    </div>`).join('');
-}
-let TK_DRAG=null;
-function tkDrag(ev,id){ TK_DRAG=id; ev.dataTransfer.effectAllowed='move'; ev.target.classList.add('dragging'); }
-async function tkDrop(ev,col){
-  ev.preventDefault(); ev.currentTarget.classList.remove('drag-over');
-  const id=TK_DRAG; TK_DRAG=null; if(!id) return;
-  const t=TAREAS.find(x=>x.tarea_id===id); if(!t) return;
-  const nuevo=TK_ESTADOS[col]||'Sin iniciar';
-  const actual=tkNorm(t);
-  if(actual===nuevo){ renderTareas(); return; }
-  const r=await api('tarea_estado',{tarea_id:id,estado:nuevo,auth:{email:AUTH.email,password:AUTH.password}});
-  if(r.ok){
-    t.estado=nuevo; t.fecha_finalizacion=nuevo==='Finalizado'?new Date().toISOString().slice(0,16).replace('T',' '):'';
-    toast(nuevo==='Finalizado'?'✅ Tarea finalizada':nuevo==='Bloqueado'?'⛔ Tarea bloqueada':nuevo==='En proceso'?'🚧 Tarea en proceso':'↩️ Tarea reabierta');
-  }
-  else toast('❌ '+(r.error||'error'));
-  renderTareas();
-}
-/* Modal de creación múltiple (desde el detalle de Bandeja o Documentación) */
-let TSK={origen:'',ref:'',cliente:'',filas:[]};
-async function abrirTareas(origen,ref,cliente){
-  TSK={origen,ref,cliente,filas:[{responsable:'',titulo:''}]};
-  if(!USUARIOS_PLAT.length){
-    toast('👥 Cargando usuarios de la plataforma…');
-    const ok=await cargarUsuarios();
-    if(!ok){ toast('❌ No pude traer los usuarios — revisa tu sesión (cierra y vuelve a entrar) o espera el deploy del backend'); return; }
-  }
-  renderTskModal();
-}
-function renderTskModal(){
-  document.getElementById('kbConfirmBack')?.remove();
-  const back=document.createElement('div');
-  back.id='kbConfirmBack';
-  back.innerHTML=`<div class="kb-modal" onclick="event.stopPropagation()">
-    <h3>➕ Crear tareas${TSK.cliente?' — '+esc(TSK.cliente):''}</h3>
-    <p>Origen: ${esc(TSK.origen)}. Cada fila es una tarea con su responsable (usuarios de la plataforma).</p>
-    ${TSK.filas.map((f,i)=>`
-      <div style="display:flex;gap:8px;margin-bottom:8px">
-        <select onchange="TSK.filas[${i}].responsable=this.value" style="flex:1">
-          <option value="">— responsable —</option>
-          ${USUARIOS_PLAT.map(u=>`<option value="${esc(u.email)}" ${TSK.filas[i].responsable===u.email?'selected':''}>${esc(u.nombre)}</option>`).join('')}
-        </select>
-        <input type="text" placeholder="¿Qué hay que hacer?" value="${esc(f.titulo)}" oninput="TSK.filas[${i}].titulo=this.value" style="flex:2">
-        ${TSK.filas.length>1?`<button class="mini btn-ghost" onclick="TSK.filas.splice(${i},1);renderTskModal()">✕</button>`:''}
-      </div>`).join('')}
-    <div class="btn-row" style="margin-top:4px"><button class="mini btn-ghost" onclick="TSK.filas.push({responsable:'',titulo:''});renderTskModal()">＋ Otra tarea</button></div>
-    <button class="btn btn-primary" onclick="crearTareas()">✅ Crear ${TSK.filas.length} tarea${TSK.filas.length===1?'':'s'}</button>
-    <button class="btn btn-ghost" onclick="document.getElementById('kbConfirmBack').remove()">Cancelar</button>
-  </div>`;
-  back.addEventListener('click',ev=>{ if(ev.target===back) back.remove(); });
-  document.body.appendChild(back);
-}
-async function crearTareas(){
-  const listas=TSK.filas.filter(f=>f.titulo.trim()&&f.responsable);
-  if(!listas.length){ toast('Cada tarea necesita responsable y descripción'); return; }
-  if(listas.length<TSK.filas.filter(f=>f.titulo.trim()||f.responsable).length){ toast('Hay filas incompletas — completa responsable y descripción'); return; }
-  const r=await api('tarea_crear',{tareas:listas.map(f=>({titulo:f.titulo.trim(),responsable:f.responsable,origen:TSK.origen,ref_id:TSK.ref,cliente:TSK.cliente})),auth:{email:AUTH.email,password:AUTH.password}});
-  if(r.ok){
-    document.getElementById('kbConfirmBack')?.remove();
-    const now=new Date().toISOString().slice(0,16).replace('T',' ');
-    listas.forEach((f,i)=>TAREAS.push({tarea_id:(r.ids&&r.ids[i])||('tmp-'+i),fecha_creacion:now,creado_por:AUTH.email,responsable:f.responsable,titulo:f.titulo.trim(),origen:TSK.origen,ref_id:TSK.ref,cliente:TSK.cliente,estado:'Sin iniciar',fecha_finalizacion:''}));
-    toast('✅ '+r.creadas+' tarea(s) creada(s)');
-    renderTareas();
-  } else toast('❌ '+(r.error||'error'));
-}
-
 /* ═══════════════ LOG ═══════════════ */
 function renderLog(){
   const el=document.getElementById('logTable');
@@ -2727,178 +2333,98 @@ function renderLog(){
   <tbody>${rows.map(r=>`<tr><td>${esc(r.timestamp)}</td><td>${esc(r.corrida)}</td><td>${esc(r.correos_revisados)}</td><td>${esc(r.correos_filtrados_fuera)}</td><td>${esc(r.nuevos_triaged)}</td><td>${esc(r.drafts_generados)}</td><td>${esc(r.enviados)}</td><td>${esc(r.sc_actualizados)}</td><td>${esc(r.errores)}</td><td>${esc(r.notas)}</td></tr>`).join('')}</tbody></table>`;
 }
 
-/* ═══════════════ 🚦 AUDITORÍA — integración del POC (7-sep-2026) ═══════════════
-   Fuente: el mismo almacén del Dashboard (metricas_tabla) + hoja Accesos_SellerCentral.
-   Reglas del semáforo: subconjunto computable hoy del catálogo v0.1 (semaforo-auditoria-tally.md).
-   Regla dura: lenguaje humano, nunca códigos. Hallazgos internos — el cliente recibe su reporte «as is». */
-let AUD={cargado:false,rows:[],periodo:'',corte:'',periodos:{},cache:{},accesos:null,nivel:'own',owner:null,cliente:null};
-const AUD_EMOJI={verde:'🟢',amarillo:'🟡',rojo:'🔴',blanco:'⚪'};
-function audSemaforo(c){
-  const rojos=[],amar=[];
-  if(!dashConectado(c)||String(c.en_universo)!=='sí') return {color:'blanco',rojos:[],amar:[],label:'Sin calificar'};
-  const op=String(c.opinion||''),doc=String(c.documentacion||''),cal=String(c.calculo||''),aud=String(c.auditoria||''),rep=String(c.reporte||'');
-  if(op==='negativa') rojos.push(['El SAT califica al cliente con opinión de cumplimiento negativa','La revisión mensual es de Contabilidad; se escala a Legal solo lo que requiere trámite']);
-  if(aud==='sin declarar') rojos.push(['El período está sin declarar','Riesgo activo hasta presentar — recargos de menores a mayores']);
-  if(doc&&doc!=='completa'){const m=doc.match(/^(\d)\/4$/);amar.push([m?('Documentación del período incompleta — '+m[1]+' de 4 documentos entregados'):'Documentación del período incompleta','Insumos de responsabilidad del cliente (promesa 2)']);}
-  if(cal==='calculado') amar.push(['El cálculo de impuestos está presentado, falta la aprobación del cliente','Promesa 3: no basta declarar bien — el cliente debe entender y aprobar']);
-  if(cal==='pendiente') amar.push(['El cálculo de impuestos del período no se ha presentado','Promesa 3 en cero para este período']);
-  if(aud==='requiere corrección') amar.push(['La auditoría del período requiere corrección','Convertir cada hallazgo en plan con dueño y fecha — con plan vigente no escala a rojo']);
-  if(aud==='en revisión') amar.push(['La auditoría del período está en revisión','El estado del mes aún no se firma']);
-  if(aud==='sin auditar') amar.push(['Período declarado, sin auditar','La firma del mes — con el due diligence legal y fiscal como base — está pendiente']);
-  if(rep==='pendiente') amar.push(['El reporte del mes anterior no se ha entregado al cliente','El mes termina cuando el cliente VE sus números (promesa 5)']);
-  if(!op) amar.push(['Opinión de cumplimiento sin lectura este mes','Refrescarla desde Syntage — la señal llega sola']);
-  const color=rojos.length?'rojo':(amar.length?'amarillo':'verde');
-  return {color,rojos,amar,label:color==='verde'?'Verde — auditoría positiva':color==='amarillo'?'En corrección':'Riesgo activo'};
+/* ═══════════════ 🗂️ CLIENTES MARKETPLACE — Kanban por estado de declaración (13-oct-2026) ═══════════════
+   Fuente: pestaña cm_clientes del Almacén, calculada por el backend (acciones cm_*; ciclo que avanza
+   cada 15 min con el cron). La interfaz solo pinta y filtra: no calcula estados ni llama al 360.
+   Regla dura: lenguaje humano en todo lo visible; «S/D (Sin Datos)» cuando no hay dato, nunca $0 inventado. */
+const CM={cargado:false,rows:[],meta:null,estados:{1:'Declaraciones en ceros sin banco',2:'Declaraciones en ceros con banco',3:'Declaraciones con banco',4:'Declaraciones con operación'}};
+const CM_COLOR={1:'#c9c4ba',2:'#ffb37a',3:'#8fd0ff',4:'#7bd38f'};
+function cmDinero(v){ if(v===''||v===null||v===undefined||isNaN(Number(v))) return 'S/D'; return '$'+Number(v).toLocaleString('es-MX',{minimumFractionDigits:0,maximumFractionDigits:0})+' MXN'; }
+function cmSD(v){ const t=String(v??'').trim(); return t?t:'S/D'; }
+function cmPeriodoLargo(p){ if(!p) return ''; const M=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']; const m=String(p).match(/^(\d{4})-(\d{2})$/); return m?M[Number(m[2])-1]+' '+m[1]:p; }
+async function cmCargar(force){
+  const board=document.getElementById('cmBoard');
+  if(!CM.cargado||force) board.innerHTML='<div class="dash-empty">Leyendo la tabla calculada…</div>';
+  const r=await api('cm_tabla',{},90000);
+  if(!r||!r.ok){ board.innerHTML=`<div class="notice warn">No se pudo leer la tabla: ${esc((r&&r.error)||'sin respuesta')}</div>`; return; }
+  CM.rows=r.clientes||[]; CM.meta=r.meta||{}; CM.cargado=true;
+  if(r.meta&&r.meta.estados) CM.estados=r.meta.estados;
+  const sel=document.getElementById('cmOwner'); const cur=sel.value;
+  const owners=[...new Set(CM.rows.map(c=>String(c.owner||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  sel.innerHTML='<option value="">👤 Owner contable: todos</option>'+owners.map(o=>`<option value="${esc(o)}">👤 ${esc(o)}</option>`).join('')+'<option value="__sin">👤 Sin owner</option>';
+  sel.value=cur;
+  cmRender();
 }
-function audSyn(c){
-  const u=String(c.en_universo||'');
-  if(u==='sí'||u==='no') return {c:'verde',t:'Activo'};
-  if(u==='sin lectura') return {c:'amarillo',t:'Activo, sin lectura'};
-  return {c:'rojo',t:'Inactivo'};
-}
-async function audSolicitarSyntage(id,nombre,btn){
-  if(btn){btn.disabled=true;btn.textContent='Enviando…';}
-  const r=await api('syntage_activar_solicitud',{company_id:id,cliente:nombre,auth:dashAuth()},60000);
-  if(btn){btn.disabled=false;btn.textContent='⚡ Solicitar activación en Syntage';}
-  if(r&&r.ok) toast('✅ Solicitud enviada: tarea creada'+(r.dm?' y DM a Juan entregado':' (el DM a Juan no salió: '+(r.dm_error||'?')+')'));
-  else toast('❌ '+((r&&r.error)||'error al solicitar'));
-}
-function audScEstado(id){
-  if(AUD.accesos===null) return {c:'blanco',t:'Accesos sin conectar (backend anterior)'};
-  const a=AUD.accesos[String(id||'').trim()];
-  if(!a||!String(a.estado||'').trim()) return {c:'rojo',t:'Sin acceso registrado'};
-  const v=a.estado.toLowerCase();
-  if(/complet|total|activo|otorgad|listo|verificad|ok|s[ií]$/.test(v)) return {c:'verde',t:a.estado};
-  if(/parcial|pendiente|proceso|solicitad|enviado|espera|por /.test(v)) return {c:'amarillo',t:a.estado};
-  return {c:'rojo',t:a.estado};
-}
-function audPill(color,txt){return `<span class="aud-pill aud-${color}">${AUD_EMOJI[color]||''} ${esc(txt)}</span>`;}
-async function audCargar(force){
-  const root=document.getElementById('audRoot'); if(!root) return;
-  if(AUD.cargado&&!force){ audRender(); return; }
-  root.innerHTML='<div class="dash-empty">Cargando la foto del almacén…</div>';
-  const r=await dashTabla('');
-  if(!r||!r.ok){ root.innerHTML='<div class="dash-empty">'+esc((r&&r.error)||'sin respuesta del almacén')+'</div>'; return; }
-  AUD.rows=r.clientes||[]; AUD.periodo=r.periodo||''; AUD.corte=r.fecha_corte||''; AUD.periodos=r.periodos||{}; AUD.cache={}; AUD.cache[AUD.periodo]=AUD.rows;
-  try{ const ac=await api('accesos_sc',{auth:dashAuth()},60000); AUD.accesos=(ac&&ac.ok)?(ac.accesos||{}):null; }catch(e){ AUD.accesos=null; }
-  AUD.cargado=true; if(force){AUD.nivel='own';AUD.owner=null;AUD.cliente=null;}
-  audRender();
-}
-function audIrOwners(){AUD.nivel='own';AUD.owner=null;AUD.cliente=null;audRender();}
-function audIrOwner(o){AUD.nivel='owner';AUD.owner=o;AUD.cliente=null;audRender();}
-function audIrCliente(id){AUD.nivel='cliente';AUD.cliente=id;audRender();}
-function audMiga(){
-  let m=`<a onclick="audIrOwners()">🚦 Tablero</a>`;
-  if(AUD.nivel!=='own') m+=' › '+(AUD.nivel==='owner'?`<b>${esc(AUD.owner)}</b>`:`<a onclick="audIrOwner('${esc(AUD.owner)}')">${esc(AUD.owner)}</a>`);
-  if(AUD.nivel==='cliente'){const c=AUD.rows.find(x=>x.company_id===AUD.cliente);m+=` › <b>${esc((c&&c.cliente)||AUD.cliente)}</b>`;}
-  return `<div class="aud-miga">${m} <span style="margin-left:12px">Período <b>${esc(AUD.periodo)}</b> · corte ${esc(AUD.corte)}</span></div>`;
-}
-function audOwnersAgg(){
-  const m={};
-  AUD.rows.forEach(c=>{
-    const o=c.owner||'(sin owner)';
-    const x=(m[o]=m[o]||{owner:o,tot:0,g:0,y:0,r:0,b:0,sg:0,sy:0,sr:0});
-    x.tot++;
-    const s=audSemaforo(c); if(s.color==='verde')x.g++;else if(s.color==='amarillo')x.y++;else if(s.color==='rojo')x.r++;else x.b++;
-    const sc=audScEstado(c.company_id); if(sc.c==='verde')x.sg++;else if(sc.c==='amarillo')x.sy++;else if(sc.c==='rojo')x.sr++;
+function cmFiltrados(){
+  const q=document.getElementById('cmBuscar').value.trim().toLowerCase();
+  const ow=document.getElementById('cmOwner').value, syn=document.getElementById('cmSyn').value, ocultar=document.getElementById('cmOcultarBaja').checked;
+  return CM.rows.filter(c=>{
+    if(ow==='__sin'){ if(String(c.owner||'').trim()) return false; } else if(ow && String(c.owner||'').trim()!==ow) return false;
+    if(syn && String(c.syntage||'')!==syn) return false;
+    if(ocultar && /churn|suspensi|completada/i.test(String(c.ciclo_vida||''))) return false;
+    if(q && [c.nombre,c.friendly_id,c.rfc,c.kam,c.owner].join(' | ').toLowerCase().indexOf(q)<0) return false;
+    return true;
   });
-  return Object.values(m).sort((a,b)=>b.tot-a.tot);
 }
-function audRender(){
-  const root=document.getElementById('audRoot'); if(!root) return;
-  if(AUD.nivel==='own') root.innerHTML=audVistaOwners();
-  else if(AUD.nivel==='owner') root.innerHTML=audVistaOwner();
-  else { root.innerHTML=audVistaCliente(); audLlenarPeriodos(); }
+function cmRender(){
+  const board=document.getElementById('cmBoard'); if(!board) return;
+  const rows=cmFiltrados();
+  const m=CM.meta||{}; const c=m.ciclo||{};
+  const corriendo=c.etapa&&c.etapa!=='listo';
+  document.getElementById('cmMeta').innerHTML=(m.ultimo_calculo?`Calculado: ${esc(String(m.ultimo_calculo).replace('T',' ').slice(0,16))} · `:'')+(m.entorno_360?`360: <b>${esc(m.entorno_360)}</b> · `:'')+`${rows.length} de ${CM.rows.length} clientes`+(corriendo?` · <span style="color:var(--brand-primary)">⏳ recalculando (${esc(c.etapa)} ${c.total?c.hecho+'/'+c.total:''})</span>`:'')+(c.errores?` · <span style="color:#b45309">${c.errores} aviso(s)</span>`:'');
+  if(!CM.rows.length){ board.innerHTML='<div class="dash-empty">Todavía no hay tabla calculada. Pulsa «Recalcular» (tarda varios minutos y avanza solo con el cron) o espera la corrida diaria de las 04:00.</div>'; return; }
+  const cols=[1,2,3,4].map(n=>{
+    const cs=rows.filter(r=>Number(r.estado_num)===n).sort((a,b)=>String(a.nombre||a.friendly_id).localeCompare(String(b.nombre||b.friendly_id)));
+    return `<div class="kb-col" style="border-top-color:${CM_COLOR[n]}">
+      <div class="kb-head"><span>${n} · ${esc(CM.estados[n])}</span><span class="kb-count">${cs.length}</span></div>
+      <div class="kb-cards">${cs.length?cs.map(cmCard).join(''):'<div class="kb-empty">Sin clientes con este estado</div>'}</div>
+    </div>`;
+  }).join('');
+  board.innerHTML=cols;
 }
-function audVistaOwners(){
-  const os=audOwnersAgg();
-  let G=0,Y=0,R=0,B=0; os.forEach(o=>{G+=o.g;Y+=o.y;R+=o.r;B+=o.b;});
-  const calif=G+Y+R, m4=calif?Math.round(100*G/calif):0;
-  const filas=os.map(o=>{
-    const calO=o.g+o.y+o.r;
-    return `<tr class="clic" onclick="audIrOwner('${esc(o.owner)}')">
-      <td><b>${esc(o.owner)}</b></td><td style="text-align:right">${o.tot}</td>
-      <td>🟢 <b>${o.g}</b> &nbsp;🟡 <b>${o.y}</b> &nbsp;🔴 <b>${o.r}</b> &nbsp;⚪ <b>${o.b}</b></td>
-      <td>🟢 <b>${o.sg}</b> &nbsp;🟡 <b>${o.sy}</b> &nbsp;🔴 <b>${o.sr}</b></td>
-      <td style="text-align:right"><b>${calO?Math.round(100*o.g/calO):0}%</b></td>
-      <td><span class="chip" style="pointer-events:none">Ver clientes →</span></td></tr>`;}).join('');
-  return `${audMiga()}
-  <div class="aud-kpis">
-    <div class="aud-kpi"><div class="l">Clientes en el corte</div><div class="v">${AUD.rows.length}</div><div class="s">${calif} califican (universo SAT) · ${B} sin calificar</div></div>
-    <div class="aud-kpi"><div class="l">Conectados a Syntage</div><div class="v">${AUD.rows.filter(c=>audSyn(c).c!=='rojo').length}</div><div class="s">de ${AUD.rows.length} del corte · la conexión habilita las reglas automáticas del semáforo</div></div>
-    <div class="aud-kpi"><div class="l">Semáforo</div><div class="v">🟢 ${G} · 🟡 ${Y} · 🔴 ${R}</div><div class="s">del período ${esc(AUD.periodo)}</div></div>
-    <div class="aud-kpi"><div class="l">Métrica #4 · % en verde</div><div class="v" style="color:#0c6b4b">${m4}%</div><div class="s">auditorías positivas / clientes calificables</div></div>
-    <div class="aud-kpi"><div class="l">Accesos Seller Central</div><div class="v">${AUD.accesos===null?'—':'🟢 '+os.reduce((s,o)=>s+o.sg,0)+' · 🟡 '+os.reduce((s,o)=>s+o.sy,0)+' · 🔴 '+os.reduce((s,o)=>s+o.sr,0)}</div><div class="s">${AUD.accesos===null?'requiere el deploy del backend':'gestionables desde CX, en el detalle del cliente'}</div></div>
-  </div>
-  <table class="aud-tabla"><thead><tr><th>Owner</th><th style="text-align:right">Clientes</th><th>Semáforo de auditoría</th><th>Acceso Seller Central</th><th style="text-align:right">% verde</th><th></th></tr></thead><tbody>${filas}</tbody></table>
-  <p style="font-size:12px;color:var(--gray-500,#777)">🟢 exige: opinión SAT positiva, documentación completa, cálculo aprobado, auditoría firmada y reporte entregado. 🔴 = opinión negativa o período sin declarar. Lo demás en curso = 🟡. ⚪ = fuera del universo SAT del mes.</p>`;
+function cmTagSus(s){ const t=String(s||'S/D'); const col=t==='Al día'?'#c8e8ce':t==='Con deuda'?'#fcddd6':'#f3f1ec'; return `<span class="tag" style="background:${col}">💳 ${esc(t)}</span>`; }
+function cmTagVida(v){ const t=String(v||'Activa'); if(/^activa$/i.test(t)) return ''; return `<span class="tag" style="background:#fcddd6">⚠️ ${esc(t)}</span>`; }
+function cmCard(c){
+  const nombre=c.nombre||c.friendly_id||c.company_id;
+  return `<div class="kb-card" style="cursor:pointer" onclick='cmAbrir(${JSON.stringify(String(c.company_id))})'>
+    <div class="kb-title">${esc(nombre)}</div>
+    <div class="kb-meta">🆔 ${esc(cmSD(c.friendly_id))} · RFC ${esc(cmSD(c.rfc))}</div>
+    <div class="kb-meta">👤 Owner contable: <b>${esc(cmSD(c.owner))}</b> · 🤝 KAM: ${esc(cmSD(c.kam))}</div>
+    <div class="kb-tags">${cmTagSus(c.suscripcion)}<span class="tag" style="background:${c.syntage==='Sí'?'#dcf8ff':'#f3f1ec'}">🔌 Syntage: ${esc(c.syntage==='Sí'?'Sí':'No')}</span>${cmTagVida(c.ciclo_vida)}</div>
+    <div class="kb-meta" style="margin-top:6px">📝 Bitácora 360: ${esc(cmSD(c.bitacora))}</div>
+  </div>`;
 }
-function audVistaOwner(){
-  const cls=AUD.rows.filter(c=>(c.owner||'(sin owner)')===AUD.owner)
-    .map(c=>({c,s:audSemaforo(c),sc:audScEstado(c.company_id)}))
-    .sort((a,b)=>({rojo:0,amarillo:1,verde:2,blanco:3}[a.s.color]-{rojo:0,amarillo:1,verde:2,blanco:3}[b.s.color]));
-  const filas=cls.map(({c,s,sc})=>`<tr class="clic" onclick="audIrCliente('${esc(c.company_id)}')">
-    <td><b>${esc(c.cliente||c.company_id)}</b><div style="font-size:11px;color:var(--gray-500,#777)">${esc(c.company_id)}</div></td>
-    <td>${audPill(s.color,s.label)}</td>
-    <td style="text-align:right"><b>${s.rojos.length+s.amar.length}</b></td>
-    <td>${audPill(sc.c,sc.t)}</td>
-    <td>${audPill(audSyn(c).c,audSyn(c).t)}</td>
-    <td>${dashTags(c)}</td>
-    <td><span class="chip" style="pointer-events:none">Detalle por período →</span></td></tr>`).join('');
-  return `${audMiga()}
-  <table class="aud-tabla"><thead><tr><th>Cliente</th><th>Auditoría</th><th style="text-align:right">Elementos abiertos</th><th>Acceso Seller Central</th><th>Syntage</th><th>Conexión</th><th></th></tr></thead><tbody>${filas||'<tr><td colspan="7">Sin clientes de este owner en el corte.</td></tr>'}</tbody></table>`;
-}
-function audVistaCliente(){
-  const c=AUD.rows.find(x=>x.company_id===AUD.cliente);
-  if(!c) return audMiga()+'<div class="dash-empty">Cliente fuera del corte actual.</div>';
-  const s=audSemaforo(c), sc=audScEstado(c.company_id);
-  const els=[...s.rojos.map(x=>['rj','🔴',x]),...s.amar.map(x=>['am','🟡',x])]
-    .map(([k,e,x])=>`<div class="aud-el ${k}"><div>${e}</div><div><b>${esc(x[0])}</b><div class="w">${esc(x[1]||'')}</div></div></div>`).join('');
-  const cliNombre=String(c.cliente||'').replace(/['"]/g,'');
-  const acc=`<div class="aud-panel"><b>${audPill(sc.c,sc.t)}</b>${AUD.accesos&&AUD.accesos[c.company_id]&&AUD.accesos[c.company_id].pay?`<span style="margin-left:10px;font-size:12.5px;color:var(--gray-500,#777)">Payoneer: ${esc(AUD.accesos[c.company_id].pay)}</span>`:''}
-    <div style="margin-top:10px">
-      <button class="btn btn-primary" onclick="abrirTareas('Auditoría · Acceso SC','${esc(c.company_id)}','${esc(cliNombre)}')">📋 Crear tarea de acceso (CX)</button>
-      <button class="btn btn-ghost" onclick="abrirTareas('Auditoría','${esc(c.company_id)}','${esc(cliNombre)}')">📋 Crear tarea de auditoría</button>
+function cmAbrir(cid){
+  const c=CM.rows.find(r=>String(r.company_id)===String(cid)); if(!c) return;
+  document.getElementById('cmModalTitulo').textContent=c.nombre||c.friendly_id||cid;
+  document.getElementById('cmModalSub').innerHTML=`${esc(cmSD(c.friendly_id))} · RFC ${esc(cmSD(c.rfc))} · Owner contable ${esc(cmSD(c.owner))} · KAM ${esc(cmSD(c.kam))} · <b>${esc(c.estado_kanban||'')}</b>`;
+  const fsFecha=(String(c.first_shipment)==='Finalizado'&&c.first_shipment_fecha)?` · ${esc(c.first_shipment_fecha)}`:'';
+  const rep=(v,p,f)=>(v===''||v===null||v===undefined)?'S/D (Sin Datos)':`${cmDinero(v)} <small style="color:var(--text-secondary)">· ${esc(cmPeriodoLargo(p))}${f?' · '+esc(f):''}</small>`;
+  document.getElementById('cmModalBody').innerHTML=`
+    <div class="stat-row" style="border-top:none;padding-top:0;margin-top:0">
+      <div class="st"><b style="font-size:18px">${esc(cmSD(c.first_shipment))}${fsFecha}</b><span>Estado First Shipment${String(c.first_shipment)==='Finalizado'?' · fecha':''}</span></div>
+      <div class="st"><b style="font-size:18px">${rep(c.ventas_rep,c.ventas_rep_periodo,c.ventas_rep_fuente)}</b><span>Ventas reportadas (último mes con dato: AppSheet › 360 › Syntage)</span></div>
+      <div class="st"><b style="font-size:18px">${rep(c.costos_rep,c.costos_rep_periodo,c.costos_rep_fuente)}</b><span>Costos reportados (último mes con dato: 360 › Syntage)</span></div>
+      <div class="st"><b style="font-size:18px">${c.ventas_acum===''?'S/D (Sin Datos)':cmDinero(c.ventas_acum)}</b><span>Ventas acumuladas (últimos 13 meses)</span></div>
+      <div class="st"><b style="font-size:18px">${c.costos_acum===''?'S/D (Sin Datos)':cmDinero(c.costos_acum)}</b><span>Costos acumulados (últimos 13 meses)</span></div>
     </div>
-    <div style="font-size:12px;color:var(--gray-500,#777);margin-top:8px">El estado viene de la tabla de accesos del sistema. Las tareas caen al tablero ✅ Tareas con el cliente ya vinculado — sin pasar por Slack.</div></div>`;
-  return `${audMiga()}
-  <div class="aud-kpis">
-    <div class="aud-kpi"><div class="l">Semáforo de auditoría</div><div class="v" style="font-size:16px">${audPill(s.color,s.label)}</div><div class="s">período ${esc(AUD.periodo)}</div></div>
-    <div class="aud-kpi"><div class="l">Elementos abiertos</div><div class="v">${s.rojos.length+s.amar.length}</div><div class="s">${s.rojos.length} rojos · ${s.amar.length} amarillos</div></div>
-    <div class="aud-kpi"><div class="l">Owner</div><div class="v" style="font-size:17px">${esc(c.owner||'(sin owner)')}</div><div class="s">${dashTags(c)}</div></div>
-  </div>
-  <div class="aud-h2">Elementos de auditoría abiertos</div>
-  <div class="aud-q">En lenguaje humano, con su lectura — internos, nunca viajan al cliente («as is»).</div>
-  ${els||'<div class="aud-panel">Sin elementos abiertos en este período. ✅</div>'}
-  <div class="aud-h2">Desglose por período</div>
-  <div class="aud-q">La historia del cliente, mes a mes — cada fila con los elementos de ese cierre.</div>
-  <div id="audPeriodos"><div class="dash-empty">Cargando períodos…</div></div>
-  <div class="aud-h2">Conexión a Syntage (SAT)</div>
-  <div class="aud-q">La conexión activa las reglas automáticas del semáforo: opinión, declaraciones y facturas directo del SAT.</div>
-  <div class="aud-panel"><b>${audPill(audSyn(c).c,audSyn(c).t)}</b> <span style="font-size:12.5px;color:var(--gray-500,#777);margin-left:8px">${dashConexion(c).t}</span>
-    ${audSyn(c).c==='rojo'?`<div style="margin-top:10px"><button class="btn btn-primary" onclick="audSolicitarSyntage('${esc(c.company_id)}','${esc(String(c.cliente||'').replace(/['"]/g,''))}',this)">⚡ Solicitar activación en Syntage</button></div>
-    <div style="font-size:12px;color:var(--gray-500,#777);margin-top:8px">Crea la tarea de activación y le avisa a Juan por DM — él aprueba y conecta al cliente.</div>`:''}
-  </div>
-  <div class="aud-h2">Acceso · Amazon Seller Central</div>
-  <div class="aud-q">Gestión desde CX, aquí mismo.</div>
-  ${acc}`;
+    <p class="sec" style="margin-top:18px"><b>Por qué está en «${esc(c.estado_kanban||'')}»:</b> ${esc(c.motivo||'—')}</p>
+    <p class="sec">Banco registrado en el 360: <b>${esc(cmSD(c.banco_360))}</b> · Syntage: <b>${esc(c.syntage==='Sí'?'Conectado':'Sin conectar')}</b> · Facturas visibles: ${esc(String(c.cfdi_emitidas_n||0))} emitidas / ${esc(String(c.cfdi_recibidas_n||0))} recibidas (${esc(String(c.fees_n||0))} fees Amazon/Tally · ${esc(String(c.marketing_n||0))} pauta/marketing · ${esc(String(c.otros_n||0))} otros proveedores) · Meses con ingresos: ${esc(String(c.meses_ingresos||0))} · con costos: ${esc(String(c.meses_costos||0))}</p>
+    <p class="sec">Suscripción: <b>${esc(cmSD(c.suscripcion))}</b>${c.suscripcion_detalle?' ('+esc(c.suscripcion_detalle)+')':''} · Ciclo de vida: <b>${esc(c.ciclo_vida||'Activa')}</b> · Bitácora 360: ${esc(cmSD(c.bitacora))}</p>
+    <p class="sec" style="font-size:12px">Actualizado ${esc(String(c.actualizado||'').replace('T',' ').slice(0,16))}. Los importes vienen tal cual de cada fuente; S/D significa que ninguna fuente trae el dato.</p>`;
+  document.getElementById('cmModalBack').classList.add('open');
 }
-async function audLlenarPeriodos(){
-  const el=document.getElementById('audPeriodos'); if(!el) return;
-  const pers=Object.keys(AUD.periodos||{}).sort().reverse().slice(0,6);
-  const filas=[];
-  for(const per of pers){
-    if(!AUD.cache[per]){ const r=await dashTabla(per); AUD.cache[per]=(r&&r.ok)?(r.clientes||[]):[]; }
-    const row=AUD.cache[per].find(x=>x.company_id===AUD.cliente);
-    if(!row){ filas.push(`<tr><td><b>${esc(per)}</b></td><td>${audPill('blanco','Sin datos en este corte')}</td><td>—</td></tr>`); }
-    else { const s=audSemaforo(row);
-      const det=s.color==='blanco'?'Fuera del universo SAT del mes':([...s.rojos,...s.amar].map(x=>x[0]).join(' · ')||'Cierre limpio');
-      filas.push(`<tr><td><b>${esc(per)}</b></td><td>${audPill(s.color,s.label)}</td><td style="font-size:12.5px">${esc(det)}</td></tr>`); }
-    if(document.getElementById('audPeriodos')!==el) return; // el usuario navegó
-    el.innerHTML=`<table class="aud-tabla"><thead><tr><th style="width:110px">Período</th><th style="width:210px">Estado</th><th>Elementos del cierre</th></tr></thead><tbody>${filas.join('')}</tbody></table>`;
-  }
-  if(!pers.length) el.innerHTML='<div class="dash-empty">Sin períodos en el almacén.</div>';
+function cmCerrar(){ document.getElementById('cmModalBack').classList.remove('open'); }
+async function cmRefrescar(modo){
+  if(!AUTH){ toast('Inicia sesión para recalcular'); return; }
+  if(!confirm(modo==='completo'?'¿Recalcular TODO el histórico (13 meses)? Tarda bastante y usa muchas llamadas al 360.':'¿Pedir de nuevo los datos al 360, Syntage y AppSheet? El ciclo avanza solo cada 15 minutos; puedes seguir trabajando.')) return;
+  toast('⚙️ Ciclo iniciado…');
+  const r=await api('cm_refresh',{modo,auth:{email:AUTH.email,password:AUTH.password}},120000);
+  if(!r||!r.ok){ toast('❌ '+((r&&r.error)||'sin respuesta')); return; }
+  toast(`✅ Ciclo ${r.ciclo&&r.ciclo.modo} en marcha · etapa ${(r.tick&&r.tick.etapa)||'…'}`);
+  setTimeout(()=>cmCargar(true),4000);
 }
+document.addEventListener('keydown',ev=>{ if(ev.key==='Escape') cmCerrar(); });
 
 /* ═══════════════ UTILIDADES / NAV ═══════════════ */
 function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -2909,8 +2435,7 @@ document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',ev=>{
   document.querySelectorAll('.nav a').forEach(x=>x.classList.remove('active')); a.classList.add('active');
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-'+a.dataset.view).classList.add('active');
-  if(a.dataset.view==='calculo' && typeof cxCargarPadron==='function') cxCargarPadron().catch(()=>{});
-  if(a.dataset.view==='auditoria' && typeof audCargar==='function') audCargar().catch(()=>{});
+  if(a.dataset.view==='marketplace' && typeof cmCargar==='function' && !CM.cargado) cmCargar().catch(()=>{});
 }));
 document.getElementById('catChips').addEventListener('click',ev=>{
   const ch=ev.target.closest('.chip');
@@ -2996,7 +2521,7 @@ function closeModal(id){ document.getElementById(id).classList.remove('open'); d
 function openSesion(){ openModal('sesionVeil'); }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'){
   ['opsVeil','sesionVeil','faqVeil'].forEach(id=>{ const el=document.getElementById(id); if(el&&el.classList.contains('open')) closeModal(id); });
-  if(typeof tkCloseSide==='function'){ const s=document.getElementById('tkSide'); if(s&&s.classList.contains('open')) tkCloseSide(); } }});
+  }});
 
 /* — Ops: todo lo interno, fuera de la vista del cliente — */
 function openOps(){
@@ -3925,7 +3450,6 @@ const PL_T={
       favorSinBase:'The VAT credit for this period comes from withholdings and creditable VAT that are not yet broken down in this report. The full breakdown is in the calculation for the period.'}
 };
 
-let CALC_INDEX=null;
 
 /* El período efectivo del reporte: el elegido en el selector o el último con datos. */
 function rptPeriodoActual(){
@@ -3936,27 +3460,13 @@ function rptPeriodoActual(){
 /* Trae el cálculo del período del cliente. Prefiere el declarado sobre el
    aprobado, y el aprobado sobre el borrador: gana la versión más firme. */
 async function rptLoadPL(force){
-  RPT.pl=null; RPT.plError=''; RPT.plStatus='cargando'; renderPL();
+  /* 13-oct-2026: el módulo «Cálculo de impuestos» de Tally Ops se retiró; el cálculo del mes vive ahora en Drive → 360.
+     Este bloque queda sin fuente hasta que el P&L se alimente del 360 (pendiente de definir con Juan). */
+  RPT.pl=null; RPT.plError='';
   if(!RPT.cid){ RPT.plStatus='sin_cliente'; renderPL(); return; }
   const per=rptPeriodoActual();
   if(!per){ RPT.plStatus='sin_periodo'; renderPL(); return; }
-  try{
-    if(CALC_INDEX===null||force){
-      const l=await capi('calc_listar',{});
-      CALC_INDEX=(l&&l.ok&&l.calculos)?l.calculos:[];
-    }
-    const ORD={filed:0,approved:1,correccion:2,draft:3};
-    const cand=CALC_INDEX
-      .filter(c=>String(c.company_id||'')===String(RPT.cid)
-        && Number(c.anio)===per.y && Number(c.mes)===per.m)
-      .sort((a,b)=>(ORD[a.estado]==null?9:ORD[a.estado])-(ORD[b.estado]==null?9:ORD[b.estado]));
-    if(!cand.length){ RPT.plStatus='sin_calculo'; renderPL(); return; }
-    const g=await capi('calc_get',{calc_id:cand[0].calc_id});
-    if(!g||!g.ok){ RPT.plStatus='error'; RPT.plError=(g&&g.error)||'sin respuesta'; renderPL(); return; }
-    RPT.pl={fila:g.fila,calc:g.calculo,periodo:per};
-    RPT.plStatus='ok';
-  }catch(e){ RPT.plStatus='error'; RPT.plError=String(e&&e.message||e); }
-  renderPL();
+  RPT.plStatus='sin_calculo'; renderPL();
 }
 
 /* Modelo normalizado del P&L. null = no hay cálculo del período. */
@@ -5465,12 +4975,6 @@ function dashAbrir(cid){
   document.getElementById('dashModalBack').classList.add('open');
 }
 function dashCerrar(){ document.getElementById('dashModalBack').classList.remove('open'); }
-function dashVerTareas(cid){
-  dashCerrar();
-  const q=document.getElementById('tkBuscar'); if(q){ q.value=cid; }
-  const a=document.querySelector('.nav a[data-view="tareas"]'); if(a) a.click();
-  try{ renderTareas(); }catch(e){}
-}
 document.addEventListener('keydown',ev=>{ if(ev.key==='Escape') dashCerrar(); });
 const dashNavLink=document.querySelector('.nav a[data-view="dashboard"]');
 if(dashNavLink) dashNavLink.addEventListener('click',()=>{ if(!DASH.actual&&!DASH.cargando) dashCargar(); });
@@ -5489,1035 +4993,6 @@ api('__health',{}).then(()=>{});
 
 loadAll();
 setInterval(loadAll,120000);
-</script>
-<script>
-/* ============================================================================
-   Tally · Motor determinista del cálculo de impuestos (sin IA en los números)
-   Entrada normalizada (lo que el backend arma con OCR + Syntage + banco) y
-   salida = objeto `calculo` que consume calculo-render.js.
-   Funciona en navegador, Node y Apps Script (V8).
-   Criterio por defecto: "Lectura A" — el IVA trasladado es el que el
-   marketplace reporta por orden en el certificado de retenciones.
-   ============================================================================ */
-(function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.TallyCalculoEngine = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
-
-  const r2 = n => Math.round((Number(n) || 0) * 100) / 100;
-
-  /**
-   * @param {Object} in_
-   *  cliente:  {nombre, rfc, company_id, regimen, marketplace}
-   *  periodo:  {mes, anio}
-   *  meses: [{mes, anio, cert:{ordenes, base, ordenes_16, iva_trasladado, isr_retenido, iva_retenido, folio},
-   *                       liq:{ingreso_neto, gastos_netos, transferencias, iva_retenido, isr_retenido},
-   *                       cfdi:{emitidos:[{fecha,quien,subtotal,iva,total}], recibidos:[...], iva_acreditable_pue, iva_ppd_pendiente},
-   *                       banco:{abonos, cuenta, nota} | null }]   // orden cronológico, ene..mes del cálculo
-   *  isr: {cu, perdidas, pagos_previos:[{mes, importe}]}
-   *  saldo_favor_inicial: number (IVA a favor antes del primer mes de la serie)
-   *  fuentes: [{nombre, es, en, zh, que_es, que_en, que_zh, estado}]
-   *  idioma, estado, emitido
-   */
-  function calcular(in_) {
-    const meses = (in_.meses || []).slice().sort((a, b) => (a.anio - b.anio) || (a.mes - b.mes));
-    const target = in_.periodo;
-    let saldoFavor = Number(in_.saldo_favor_inicial) || 0;
-    let ingresosAcum = 0, retAcum = 0, pagosAcum = 0;
-    const cu = (in_.isr && typeof in_.isr.cu === 'number') ? in_.isr.cu : null;
-    const perdidas = (in_.isr && Number(in_.isr.perdidas)) || 0;
-    const pagosPrev = {}; ((in_.isr && in_.isr.pagos_previos) || []).forEach(p => { pagosPrev[p.anio + '-' + p.mes] = Number(p.importe) || 0; });
-
-    const detalle = [], banco = [], serie = [];
-    let out = null;
-    meses.forEach(m => {
-      const c = m.cert || {}, l = m.liq || {}, f = m.cfdi || {};
-      let base16 = r2((c.iva_trasladado || 0) / 0.16);
-      let base0 = r2((c.base || 0) - base16);
-      if (c.base && Math.abs(base0) < 1) { base16 = r2(c.base); base0 = 0; }   /* residuo de dividir entre 0.16 */
-      const trasladado = r2(c.iva_trasladado || 0);
-      /* El IVA retenido lo manda el certificado de retenciones: es el CFDI que ve el SAT.
-         La liquidación del marketplace queda como cotejo y, si difiere, se avisa. */
-      const retenido = r2(c.iva_retenido != null ? c.iva_retenido : (l.iva_retenido || 0));
-      const retenidoLiq = l.iva_retenido != null ? r2(l.iva_retenido) : null;
-      const difRet = (c.iva_retenido != null && retenidoLiq != null && Math.abs(retenidoLiq - retenido) > 0.01) ? r2(retenidoLiq - retenido) : null;
-      /* Retenciones de meses anteriores que el cliente no acreditó: las captura el contador
-         y se aplican en el primer mes de la serie, en su propio renglón. */
-      const retAnterior = (m === meses[0]) ? r2(Number(in_.retenciones_pendientes) || 0) : 0;
-      const acreditable = r2(f.iva_acreditable_pue || 0);
-      const resultado = r2(trasladado - retenido - acreditable - retAnterior);
-      const posicion = r2(resultado - saldoFavor);
-      const aPagar = Math.max(0, posicion);
-      const arrastre = Math.max(0, -posicion);
-
-      ingresosAcum = r2(ingresosAcum + (c.base || 0));
-      retAcum = r2(retAcum + (c.isr_retenido || 0));
-      pagosAcum = r2(pagosAcum + (pagosPrev[m.anio + '-' + m.mes] || 0));
-      let utilidad = null, baseISR = null, isrAcum = null, isrPagar = null;
-      if (cu !== null) {
-        utilidad = r2(ingresosAcum * cu);
-        const perd = Math.min(utilidad, perdidas);
-        baseISR = Math.max(0, r2(utilidad - perd));
-        isrAcum = r2(baseISR * 0.30);
-        isrPagar = Math.max(0, r2(isrAcum - retAcum - pagosAcum));
-      }
-
-      detalle.push({ mes: m.mes, anio: m.anio, ordenes: c.ordenes, base: c.base, iva: trasladado, iva_ret: retenido, isr_ret: c.isr_retenido });
-      banco.push({ mes: m.mes, anio: m.anio, esperado: l.transferencias, real: m.banco ? m.banco.abonos : null, nota: m.banco ? (m.banco.nota || m.banco.cuenta || '') : '' });
-      serie.push({ mes: m.mes, anio: m.anio, iva_a_pagar: aPagar, arrastre, isr_a_pagar: isrPagar });
-
-      if (m.mes === target.mes && m.anio === target.anio) {
-        /* Costos y gastos del mes, con los documentos como única fuente:
-           las comisiones del resumen del marketplace (su suma cuadra contra tarifas netas)
-           y los gastos facturados con CFDI a nombre del cliente. */
-        const gLista = l.gastos_detalle || [];
-        const gSuma = gLista.reduce(function (a, x) { return a + (Number(x.importe) || 0); }, 0);
-        const gmk = gLista.length ? r2(gSuma) : (l.gastos_netos != null ? r2(l.gastos_netos) : null);
-        const gcf = (f.recibidos || []).reduce(function (a, x) { return { sub: a.sub + (Number(x.subtotal) || 0), iva: a.iva + (Number(x.iva) || 0), tot: a.tot + (Number(x.total) || 0) }; }, { sub: 0, iva: 0, tot: 0 });
-        const costoTotal = r2(Math.abs(gmk || 0) + gcf.sub);
-
-        /* ═══ CONTROL: LO COBRADO CONTRA LO DEPOSITADO ═══
-           El motor toma la base del certificado de retenciones — el CFDI que
-           ve el SAT — y no el depósito bancario. Cuando el criterio de quien
-           declara es "sobre lo depositado", la diferencia entre las dos
-           cifras no es un error de nadie: es exactamente lo que el
-           marketplace se quedó de la liquidación (comisiones, tarifas de
-           logística, publicidad) más lo que retuvo de impuestos.
-
-           Eso también está cobrado. Se extinguió por compensación, y por lo
-           tanto es base gravada del período aunque nunca haya tocado la
-           cuenta bancaria.
-
-           Este control no cambia el criterio de nadie ni corrige la fórmula:
-           pone la diferencia enfrente, cliente por cliente y mes por mes,
-           para que una exposición que hoy es invisible aparezca sola.     */
-        const cobrado = r2((c.base || 0) + trasladado);
-        const depBanco = (m.banco && m.banco.abonos != null) ? r2(m.banco.abonos) : null;
-        const depositado = depBanco != null ? depBanco : (l.transferencias != null ? r2(l.transferencias) : null);
-        const cobComis = r2(Math.abs(gmk || 0));
-        const cobRetIva = r2(retenido);
-        const cobRetIsr = r2(c.isr_retenido || 0);
-        const cobExplicado = r2(cobComis + cobRetIva + cobRetIsr);
-        const cobDif = depositado != null ? r2(cobrado - depositado) : null;
-
-        out = {
-          cobro: {
-            cobrado: cobrado,
-            depositado: depositado,
-            diferencia: cobDif,
-            coincide: cobDif != null ? (Math.abs(cobDif) < 0.01) : null,
-            /* Composición de la diferencia, cada parte con su documento. */
-            comisiones: cobComis,
-            comisiones_detalle: gLista.filter(function (x) { return Number(x.importe) !== 0; }),
-            iva_retenido: cobRetIva,
-            isr_retenido: cobRetIsr,
-            explicado: cobExplicado,
-            sin_explicar: cobDif != null ? r2(cobDif - cobExplicado) : null,
-            src_cobrado: 'Certificado de retenciones: base del período más IVA trasladado',
-            src_depositado: depBanco != null ? 'Estado de cuenta bancario del período'
-                          : (l.transferencias != null ? 'Transferencias reportadas en la liquidación del marketplace' : null),
-            src_comisiones: gLista.length ? 'Desglose de conceptos de la liquidación del marketplace'
-                                          : (l.gastos_netos != null ? 'Tarifas netas de la liquidación del marketplace' : null),
-            leyenda: 'La diferencia entre lo cobrado y lo depositado son las comisiones, tarifas de logística y publicidad que el marketplace descontó de la liquidación, más el IVA y el ISR que retuvo. Esos importes también están cobrados: se extinguieron por compensación conforme al artículo 1-B de la Ley del IVA, así que forman parte de la base gravada del período aunque nunca hayan entrado a la cuenta bancaria.'
-          },
-          costos: { marketplace_detalle: gLista.filter(function (x) { return Number(x.importe) !== 0; }), marketplace_total: gmk,
-                    marketplace_declarado: l.gastos_netos != null ? r2(l.gastos_netos) : null,
-                    marketplace_control: (l.gastos_netos != null && gLista.length) ? (Math.abs(r2(gSuma - l.gastos_netos)) < 0.05) : null,
-                    cfdi_n: (f.recibidos || []).length, cfdi_subtotal: r2(gcf.sub), cfdi_iva: r2(gcf.iva), cfdi_total: r2(gcf.tot),
-                    total: costoTotal, utilidad_estimada: r2((c.base || 0) - costoTotal),
-                    /* Cada renglón del costo carga su fuente y con qué fecha se
-                       clasificó. El sesgo por fechas vive del lado del costo —no
-                       del de las ventas, que solo toman el reporte del
-                       marketplace— y es justo el lado que se rotulaba como si
-                       estuviera completo. Para efectos de IVA la fecha que manda
-                       es la de cobro o pago: PUE toma la de emisión y PPD la del
-                       complemento de pago. La fecha de timbrado no se usa nunca
-                       como fecha de flujo.                                     */
-                    src_marketplace: gLista.length ? 'Desglose de conceptos de la liquidación del marketplace'
-                                                   : (l.gastos_netos != null ? 'Tarifas netas de la liquidación del marketplace' : null),
-                    src_cfdi: 'CFDI recibidos a nombre del cliente (SAT / Syntage)',
-                    fecha_base_marketplace: 'Período de la liquidación del marketplace',
-                    fecha_base_cfdi: 'Fecha de emisión del CFDI (PUE). Para PPD la fecha de flujo es la del complemento de pago y no está disponible en la fuente.' },
-          cliente: in_.cliente, periodo: target, idioma: in_.idioma || 'es', estado: in_.estado || 'draft', emitido: in_.emitido || new Date().toISOString().slice(0, 10),
-          logo_svg: in_.logo_svg || null, lectura: in_.lectura || null, fuentes: in_.fuentes || [], alertas: (in_.alertas || []).concat(difRet != null ? ['El IVA retenido del certificado (' + retenido.toFixed(2) + ') no coincide con el de la liquidación del marketplace (' + retenidoLiq.toFixed(2) + '): diferencia de ' + difRet.toFixed(2) + '. El cálculo usa el certificado.'] : []), notas: in_.notas || [],
-          resumen: { ventas_base: c.base, ordenes: c.ordenes, ordenes_16: c.ordenes_16, ordenes_0: (c.ordenes != null && c.ordenes_16 != null) ? c.ordenes - c.ordenes_16 : null,
-                     isr_retenido_mes: c.isr_retenido, iva_retenido_mes: retenido, ingreso_liquidacion: l.ingreso_neto, transferencias: l.transferencias,
-                     /* Proporción de la base a 16% contra tasa 0%, recalculada
-                        desde los renglones. Nunca se toma un porcentaje de la
-                        fila de totales de un archivo externo: esa celda suele
-                        ser el promedio de los porcentajes de cada renglón y no
-                        la proporción real, y quien la automatiza se equivoca de
-                        forma sistemática y sin ruido.                        */
-                     proporcion_16: (Number(c.base) > 0) ? r2(base16 / Number(c.base) * 100) : null,
-                     proporcion_0: (Number(c.base) > 0) ? r2(base0 / Number(c.base) * 100) : null,
-                     src_ventas: c.src_base || 'Certificado de retenciones' + (c.folio ? ' ' + c.folio : ''),
-                     src_liquidacion: 'Liquidación mensual del marketplace' },
-          iva: { base_16: base16, base_0: base0, trasladado, retenido, retenido_anterior: retAnterior, acreditable, saldo_favor_anterior: saldoFavor, resultado, a_pagar: aPagar, saldo_favor_arrastre: arrastre,
-                 src_retenido_anterior: 'Historial capturado por el contador' + (in_.retenciones_pendientes_detalle ? ' · ' + in_.retenciones_pendientes_detalle : ''),
-                 ppd_pendiente: f.iva_ppd_pendiente || 0,
-                 src_16: c.src_base || ('Certificado de retenciones ' + (c.folio || '')), src_0: c.src_base || 'Certificado de retenciones', src_trasladado: c.src_base || 'Certificado de retenciones', src_retenido: 'Certificado de retenciones' + (retenidoLiq != null ? ' · liquidación: ' + retenidoLiq.toFixed(2) : ''), src_acreditable: 'CFDI recibidos y pagados (SAT / Syntage) · clasificados por FECHA DE EMISIÓN del CFDI; para los PPD la fecha de flujo es la del complemento de pago y esa fecha no viene en la fuente' + (f.iva_99 ? ' · se excluyó ' + Number(f.iva_99).toFixed(2) + ' de facturas con método de pago 99 (no pagadas en el mes)' : ''), iva_no_pagado_99: f.iva_99 || 0 },
-          isr: { ingresos_mes: c.base, ingresos_acum: ingresosAcum, cu, utilidad, perdidas: cu !== null ? Math.min(utilidad, perdidas) : null, base: baseISR, isr_acum: isrAcum, retenido_acum: retAcum, pagos_previos: pagosAcum, a_pagar: isrPagar },
-          cfdi_emitidos: f.emitidos || [], cfdi_recibidos: f.recibidos || [],
-          detalle_meses: detalle.slice(), banco: banco.slice(), serie: serie.slice(),
-          contexto: in_.contexto || '', contexto_autor: in_.contexto_autor || '',
-          rango: in_.rango ? {
-            desde: in_.rango.desde, hasta: in_.rango.hasta, meses: serie.length,
-            iva_a_pagar: r2(serie.reduce(function (a, x) { return a + (x.iva_a_pagar || 0); }, 0)),
-            ventas: r2(detalle.reduce(function (a, x) { return a + (x.base || 0); }, 0)),
-            ordenes: detalle.reduce(function (a, x) { return a + (Number(x.ordenes) || 0); }, 0),
-            iva_trasladado: r2(detalle.reduce(function (a, x) { return a + (x.iva || 0); }, 0)),
-            iva_retenido: r2(detalle.reduce(function (a, x) { return a + (x.iva_ret || 0); }, 0)),
-            isr_retenido: r2(detalle.reduce(function (a, x) { return a + (x.isr_ret || 0); }, 0)),
-            saldo_favor_final: arrastre, isr_a_pagar: isrPagar
-          } : null
-        };
-      }
-      saldoFavor = arrastre;
-    });
-    if (!out) throw new Error('El período solicitado no está en la serie de meses');
-    return out;
-  }
-
-  return { calcular };
-});
-
-</script>
-<script>
-/* ============================================================================
-   Tally · Cálculo de impuestos — renderizador del formato (ES / EN / 中文)
-   Uso en navegador:  window.TallyCalculo.render(calculo, 'es') -> HTML string
-   Uso en Node:       require('./calculo-render.js').render(calculo, 'en')
-   El mismo archivo alimenta la vista previa en Tally Ops, el PDF (imprimir)
-   y el adjunto que se manda por correo. Un solo lugar para el formato.
-   Marca: brand-master.md §6 (cream / ink / violet; DM Sans Light+Bold;
-   máximo 3 colores por vista). Logo: wordmark tipográfico con ranura para
-   el SVG oficial (tally-logotipo-violet.svg) vía calculo.logo_svg.
-   ============================================================================ */
-(function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.TallyCalculo = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
-
-  const I18N = {
-    es: {
-      doc_title: 'Cálculo de impuestos', subtitle: 'Papel de trabajo mensual · IVA e ISR', period: 'Período', prepared: 'Preparado por Tally', issued: 'Fecha de emisión',
-      rfc: 'RFC', regime: 'Régimen', marketplace: 'Canal de venta', status: 'Estado', status_draft: 'Borrador para revisión', status_approved: 'Aprobado por el cliente', status_filed: 'Declarado',
-      lang_note: 'Documento disponible en español, inglés y chino. Las cifras son idénticas en los tres.',
-      exec_title: 'Resumen ejecutivo', exec_lead: 'Lo que pagas este mes, en tres líneas.',
-      kpi_iva: 'IVA a pagar', kpi_isr: 'ISR a pagar', kpi_total: 'Total a pagar', kpi_favor: 'Saldo a favor de IVA que se arrastra', kpi_ret: 'Impuestos ya retenidos por el marketplace',
-      exec_sales: 'Ventas del mes (base sin IVA)', exec_orders: 'Órdenes', exec_domestic: 'Órdenes con IVA 16% (venta nacional)', exec_cross: 'Órdenes sin IVA (transfronterizas)',
-      exec_next: 'Qué sigue', exec_next_1: 'Revisas este documento y nos confirmas tu aprobación (o tus dudas) respondiendo al correo.', exec_next_2: 'Con tu aprobación presentamos la declaración ante el SAT y te enviamos el acuse.', exec_next_3: 'El saldo a favor se acredita mes a mes en tu declaración; no requiere ningún trámite tuyo.',
-      how_title: 'Cómo calculamos tus impuestos', how_lead: 'De dónde sale cada número y por qué.',
-      src_title: 'Fuentes de información', src_col_src: 'Fuente', src_col_what: 'Qué aporta', src_col_status: 'Estado',
-      src_ok: 'Recibida', src_missing: 'Pendiente', src_partial: 'Parcial',
-      how_steps_title: 'Los cinco pasos', how_step_1: 'Tomamos tus ventas del mes desde el certificado de retenciones de Amazon: cada orden, con o sin IVA.',
-      how_step_2: 'Identificamos el IVA que cobraste (solo órdenes con 16%) y el que ya te retuvo el marketplace.',
-      how_step_3: 'Restamos el IVA que pagaste en tus gastos con factura (CFDI) a nombre de tu empresa; eso es IVA acreditable.',
-      how_step_4: 'Para ISR sumamos tus ingresos acumulados del año, aplicamos el coeficiente de utilidad y restamos las retenciones ya hechas.',
-      how_step_5: 'Cruzamos todo contra tu estado de cuenta bancario y contra lo que el SAT tiene registrado de tu RFC.',
-      iva_title: 'IVA — impuesto al valor agregado', iva_lead: 'Pago definitivo del mes.',
-      isr_title: 'ISR — impuesto sobre la renta', isr_lead: 'Pago provisional del mes, calculado sobre el acumulado del año.',
-      col_concept: 'Concepto', col_amount: 'Importe (MXN)', col_source: 'De dónde sale',
-      iva_r1: 'Ventas con IVA 16% (base)', iva_r2: 'Ventas sin IVA (tasa 0% / transfronterizas)', iva_r3: 'IVA que cobraste (16%)', iva_r4: 'IVA retenido por el marketplace', iva_r5: 'IVA acreditable (tus gastos con CFDI)', iva_r6: 'Saldo a favor del mes anterior', iva_r7: 'Resultado del mes', iva_r8: 'IVA a pagar', iva_r9: 'Saldo a favor que se arrastra',
-      cd_title: 'Lo cobrado contra lo depositado',
-      cd_lead: 'La base del período sale del certificado de retenciones — el CFDI que ve el SAT — y no del depósito bancario. Aquí está la diferencia entre las dos cifras, y de qué se compone.',
-      cd_cobrado: 'Cobrado en el período (base + IVA trasladado)',
-      cd_depositado: 'Depositado en la cuenta bancaria',
-      cd_dif: 'Diferencia',
-      cd_comp: 'De qué se compone la diferencia',
-      cd_comis: 'Comisiones, tarifas de logística y publicidad del marketplace',
-      cd_ret_iva: 'IVA retenido por el marketplace',
-      cd_ret_isr: 'ISR retenido por el marketplace',
-      cd_explicado: 'Total explicado',
-      cd_sin: 'Sin explicar',
-      cd_ok: 'Lo cobrado y lo depositado coinciden en el período: no hay diferencia que explicar.',
-      cd_nodep: 'No hay estado de cuenta bancario ni transferencias de la liquidación cargadas para el período, así que la comparación contra lo depositado no se pudo hacer.',
-      cd_legend: 'Estos importes también están cobrados: se extinguieron por compensación conforme al artículo 1-B de la Ley del IVA, así que forman parte de la base gravada del período aunque nunca hayan entrado a la cuenta bancaria. Declarar únicamente sobre lo depositado deja fuera esta diferencia.',
-      isr_r1: 'Ingresos del mes (base sin IVA)', isr_r2: 'Ingresos acumulados del año', isr_r3: 'Coeficiente de utilidad', isr_r4: 'Utilidad fiscal estimada', isr_r5: 'Pérdidas fiscales aplicadas', isr_r6: 'Base gravable', isr_r7: 'ISR acumulado (30%)', isr_r8: 'ISR retenido por el marketplace (acumulado)', isr_r9: 'Pagos provisionales anteriores', isr_r10: 'ISR a pagar',
-      isr_no_cu: 'Pendiente: coeficiente de utilidad de la declaración anual. Sin él no se determina pago provisional.',
-      detail_title: 'Detalle de ventas y retenciones', detail_lead: 'Lo que reporta el marketplace, mes a mes.',
-      col_month: 'Mes', col_orders: 'Órdenes', col_base: 'Base sin IVA', col_iva: 'IVA cobrado', col_isr_ret: 'ISR retenido', col_iva_ret: 'IVA retenido', col_total: 'Total',
-      cost_title: 'Costos y gastos', cost_lead: 'Lo que costó vender este mes, según los documentos.', cost_mk: 'Comisiones y tarifas del marketplace (resumen mensual)', cost_cfdi: 'Gastos facturados a tu empresa (CFDI recibidos del mes)', cost_total: 'Total de costos y gastos del mes', cost_profit: 'Utilidad estimada del mes (ventas − costos y gastos)', cost_ctrl: 'Control: la suma del detalle contra las tarifas netas del resumen', cost_ok: 'cuadra', cost_bad: 'no cuadra', cost_none: 'Sin resumen mensual del marketplace: no hay detalle de comisiones', cost_note: 'Las comisiones salen del resumen mensual del marketplace y su suma cuadra contra el renglón de tarifas netas. Los gastos facturados son el subtotal de los CFDI recibidos del mes. Si el marketplace factura sus comisiones por CFDI, esas comisiones están en los dos bloques: este documento no decide la deducibilidad, eso lo revisa el contador.',
-      iva_r4b: 'IVA retenido de meses anteriores, pendiente de acreditar', ctx_title: 'Observaciones del contador', ctx_lead: 'Contexto que el contador dejó asentado para este cálculo.', rango_title: 'Resumen del rango', rango_lead: 'El acumulado de todos los períodos incluidos en este documento.', rango_meses: 'Períodos incluidos',
-      cfdi_title: 'Facturas (CFDI) registradas en el SAT', cfdi_lead: 'Lo que el SAT ve de tu empresa este mes.',
-      cfdi_issued: 'Facturas emitidas por tu empresa', cfdi_received: 'Facturas recibidas (gastos)', col_date: 'Fecha', col_who: 'Emisor / receptor', col_subtotal: 'Subtotal', col_none: 'Sin facturas en el período',
-      bank_title: 'Conciliación bancaria', bank_lead: 'Lo que el marketplace dice que te depositó contra lo que llegó al banco.', col_bank_expected: 'Depósitos según marketplace', col_bank_actual: 'Abonos en el estado de cuenta', col_diff: 'Diferencia', bank_missing: 'Sin estado de cuenta del mes',
-      notes_title: 'Notas y supuestos', notes_lead: 'Lo que debes saber para leer bien las cifras.',
-      glossary_title: 'Glosario', gl_iva: 'IVA', gl_iva_d: 'Impuesto al valor agregado, 16%. Lo cobras al vender y lo pagas al comprar; al SAT se entera la diferencia.', gl_isr: 'ISR', gl_isr_d: 'Impuesto sobre la renta. Se paga mensualmente a cuenta (provisional) y se ajusta en la declaración anual.', gl_cfdi: 'CFDI', gl_cfdi_d: 'Factura electrónica mexicana. Solo lo que tiene CFDI a nombre de tu empresa se deduce o acredita.', gl_ret: 'Retención', gl_ret_d: 'Impuesto que el marketplace descuenta de tus ventas y entrega al SAT en tu nombre; se resta de lo que te toca pagar.', gl_favor: 'Saldo a favor', gl_favor_d: 'IVA que pagaste de más y se acredita contra meses siguientes. No se solicita en devolución: se aplica solo.', gl_cu: 'Coeficiente de utilidad', gl_cu_d: 'Porcentaje de utilidad del año anterior con el que el SAT estima tu utilidad de este año para el pago provisional.',
-      footer: 'Tally prepara, calcula y da seguimiento. Las declaraciones se presentan ante el SAT con tu aprobación previa. Este documento no sustituye la declaración ni el acuse.',
-      page: 'Página', of: 'de', months: ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'],
-      pending: 'pendiente', na: 'n/d', reading: 'Criterio aplicado'
-    },
-    en: {
-      doc_title: 'Tax calculation', subtitle: 'Monthly working paper · VAT and Income Tax', period: 'Period', prepared: 'Prepared by Tally', issued: 'Issue date',
-      rfc: 'Tax ID (RFC)', regime: 'Tax regime', marketplace: 'Sales channel', status: 'Status', status_draft: 'Draft for your review', status_approved: 'Approved by client', status_filed: 'Filed with SAT',
-      lang_note: 'Available in Spanish, English and Chinese. Figures are identical in all three.',
-      exec_title: 'Executive summary', exec_lead: 'What you pay this month, in three lines.',
-      kpi_iva: 'VAT payable', kpi_isr: 'Income tax payable', kpi_total: 'Total payable', kpi_favor: 'VAT credit carried forward', kpi_ret: 'Taxes already withheld by the marketplace',
-      exec_sales: 'Sales for the month (net of VAT)', exec_orders: 'Orders', exec_domestic: 'Orders with 16% VAT (domestic)', exec_cross: 'Orders without VAT (cross-border)',
-      exec_next: 'What happens next', exec_next_1: 'You review this document and confirm your approval (or questions) by replying to the email.', exec_next_2: 'With your approval we file the return with SAT and send you the receipt.', exec_next_3: 'Any VAT credit is applied automatically month to month in your return; nothing is required from you.',
-      how_title: 'How we calculate your taxes', how_lead: 'Where every number comes from, and why.',
-      src_title: 'Data sources', src_col_src: 'Source', src_col_what: 'What it provides', src_col_status: 'Status', src_ok: 'Received', src_missing: 'Pending', src_partial: 'Partial',
-      how_steps_title: 'The five steps', how_step_1: 'We take your sales for the month from Amazon\'s withholding certificate: every order, with or without VAT.',
-      how_step_2: 'We identify the VAT you collected (16% orders only) and the VAT the marketplace already withheld.',
-      how_step_3: 'We subtract the VAT you paid on expenses invoiced (CFDI) to your company; that is creditable VAT.',
-      how_step_4: 'For income tax we add your year-to-date income, apply the profit coefficient and subtract withholdings already made.',
-      how_step_5: 'We reconcile everything against your bank statement and against what SAT has on record for your RFC.',
-      iva_title: 'VAT — value added tax', iva_lead: 'Definitive monthly payment.', isr_title: 'Income tax (ISR)', isr_lead: 'Provisional monthly payment, computed on year-to-date figures.',
-      col_concept: 'Item', col_amount: 'Amount (MXN)', col_source: 'Source',
-      iva_r1: 'Sales with 16% VAT (base)', iva_r2: 'Sales without VAT (0% / cross-border)', iva_r3: 'VAT you collected (16%)', iva_r4: 'VAT withheld by the marketplace', iva_r5: 'Creditable VAT (your CFDI expenses)', iva_r6: 'Credit balance from prior month', iva_r7: 'Result for the month', iva_r8: 'VAT payable', iva_r9: 'Credit carried forward',
-      cd_title: 'Collected versus deposited',
-      cd_lead: 'The taxable base for the period comes from the withholding certificate — the document the tax office sees — not from the bank deposit. Here is the gap between the two figures and what it is made of.',
-      cd_cobrado: 'Collected in the period (base + VAT charged)',
-      cd_depositado: 'Deposited into the bank account',
-      cd_dif: 'Difference',
-      cd_comp: 'What the difference is made of',
-      cd_comis: 'Marketplace commissions, logistics fees and advertising',
-      cd_ret_iva: 'VAT withheld by the marketplace',
-      cd_ret_isr: 'Income tax withheld by the marketplace',
-      cd_explicado: 'Total explained',
-      cd_sin: 'Unexplained',
-      cd_ok: 'Collected and deposited match for the period: there is no gap to explain.',
-      cd_nodep: 'No bank statement or settlement transfers were loaded for the period, so the comparison against the deposit could not be made.',
-      cd_legend: 'These amounts are collected as well: they were settled by offset under article 1-B of the VAT Law, so they form part of the taxable base for the period even though they never reached the bank account. Filing only on what was deposited leaves this gap out.',
-      isr_r1: 'Income for the month (net of VAT)', isr_r2: 'Year-to-date income', isr_r3: 'Profit coefficient', isr_r4: 'Estimated taxable profit', isr_r5: 'Tax losses applied', isr_r6: 'Taxable base', isr_r7: 'Cumulative income tax (30%)', isr_r8: 'Income tax withheld by marketplace (cumulative)', isr_r9: 'Prior provisional payments', isr_r10: 'Income tax payable',
-      isr_no_cu: 'Pending: profit coefficient from the annual return. Without it no provisional payment can be determined.',
-      detail_title: 'Sales and withholding detail', detail_lead: 'What the marketplace reports, month by month.',
-      col_month: 'Month', col_orders: 'Orders', col_base: 'Base (net of VAT)', col_iva: 'VAT collected', col_isr_ret: 'Income tax withheld', col_iva_ret: 'VAT withheld', col_total: 'Total',
-      cost_title: 'Costs and expenses', cost_lead: 'What it cost to sell this month, per the documents.', cost_mk: 'Marketplace fees and commissions (monthly summary)', cost_cfdi: 'Expenses invoiced to your company (CFDI received this month)', cost_total: 'Total costs and expenses for the month', cost_profit: 'Estimated profit for the month (sales − costs and expenses)', cost_ctrl: 'Control: detail total against net fees in the summary', cost_ok: 'matches', cost_bad: 'does not match', cost_none: 'No marketplace monthly summary: no fee detail available', cost_note: 'Fees come from the marketplace monthly summary and their total ties to the net fees line. Invoiced expenses are the subtotal of the CFDI received this month. If the marketplace invoices its fees by CFDI, those fees appear in both blocks: this document does not rule on deductibility, your accountant does.',
-      iva_r4b: 'VAT withheld in prior months, still to be credited', ctx_title: "Accountant's notes", ctx_lead: 'Context the accountant recorded for this calculation.', rango_title: 'Range summary', rango_lead: 'The total across every period included in this document.', rango_meses: 'Periods included',
-      cfdi_title: 'Invoices (CFDI) on record with SAT', cfdi_lead: 'What SAT sees of your company this month.', cfdi_issued: 'Invoices issued by your company', cfdi_received: 'Invoices received (expenses)', col_date: 'Date', col_who: 'Issuer / receiver', col_subtotal: 'Subtotal', col_none: 'No invoices in the period',
-      bank_title: 'Bank reconciliation', bank_lead: 'What the marketplace says it paid you versus what reached the bank.', col_bank_expected: 'Payouts per marketplace', col_bank_actual: 'Credits on bank statement', col_diff: 'Difference', bank_missing: 'No bank statement for the month',
-      notes_title: 'Notes and assumptions', notes_lead: 'What you need to know to read the figures correctly.',
-      glossary_title: 'Glossary', gl_iva: 'VAT (IVA)', gl_iva_d: 'Value added tax, 16%. You collect it when you sell and pay it when you buy; the difference is remitted to SAT.', gl_isr: 'ISR', gl_isr_d: 'Mexican income tax. Paid monthly on account (provisional) and settled in the annual return.', gl_cfdi: 'CFDI', gl_cfdi_d: 'Mexican electronic invoice. Only expenses with a CFDI issued to your company are deductible or creditable.', gl_ret: 'Withholding', gl_ret_d: 'Tax the marketplace deducts from your sales and remits to SAT on your behalf; it reduces what you owe.', gl_favor: 'Credit balance', gl_favor_d: 'VAT you overpaid, applied against following months. Not claimed as a refund: it is applied automatically.', gl_cu: 'Profit coefficient', gl_cu_d: 'Last year\'s profit ratio SAT uses to estimate this year\'s profit for provisional payments.',
-      footer: 'Tally prepares, calculates and follows up. Returns are filed with SAT only after your approval. This document is not the tax return or the filing receipt.',
-      page: 'Page', of: 'of', months: ['January','February','March','April','May','June','July','August','September','October','November','December'],
-      pending: 'pending', na: 'n/a', reading: 'Criterion applied'
-    },
-    zh: {
-      doc_title: '税务计算', subtitle: '月度工作底稿 · 增值税与所得税', period: '期间', prepared: 'Tally 编制', issued: '出具日期',
-      rfc: '税号 (RFC)', regime: '税制', marketplace: '销售渠道', status: '状态', status_draft: '待您审阅的草稿', status_approved: '客户已批准', status_filed: '已向 SAT 申报',
-      lang_note: '本文件提供西班牙语、英语和中文版本，三个版本的数字完全一致。',
-      exec_title: '执行摘要', exec_lead: '本月应缴税款，三行看懂。',
-      kpi_iva: '应缴增值税', kpi_isr: '应缴所得税', kpi_total: '应缴总额', kpi_favor: '结转下期的增值税留抵', kpi_ret: '平台已代扣的税款',
-      exec_sales: '本月销售额（不含增值税）', exec_orders: '订单数', exec_domestic: '含 16% 增值税订单（本地销售）', exec_cross: '不含增值税订单（跨境）',
-      exec_next: '接下来', exec_next_1: '您审阅本文件后，回复邮件确认批准（或提出疑问）。', exec_next_2: '获得您的批准后，我们向 SAT 提交申报并把回执发给您。', exec_next_3: '增值税留抵会在您的申报中逐月自动抵扣，无需您办理任何手续。',
-      how_title: '我们如何计算您的税款', how_lead: '每个数字的来源与依据。',
-      src_title: '数据来源', src_col_src: '来源', src_col_what: '提供的信息', src_col_status: '状态', src_ok: '已收到', src_missing: '待提供', src_partial: '部分',
-      how_steps_title: '五个步骤', how_step_1: '从亚马逊代扣证明中提取本月每一笔订单的销售额，区分含税与不含税。',
-      how_step_2: '识别您实际收取的增值税（仅 16% 订单）以及平台已代扣的增值税。',
-      how_step_3: '扣减以贵公司名义开具发票 (CFDI) 的费用所含增值税，即可抵扣进项税。',
-      how_step_4: '所得税方面，累计年初至今收入，乘以利润系数，再扣减已被代扣的税款。',
-      how_step_5: '将全部数据与您的银行对账单及 SAT 对贵公司税号的登记记录进行核对。',
-      iva_title: '增值税 (IVA)', iva_lead: '月度最终缴纳。', isr_title: '所得税 (ISR)', isr_lead: '月度预缴，按年初至今累计数计算。',
-      col_concept: '项目', col_amount: '金额 (MXN)', col_source: '来源',
-      iva_r1: '含 16% 增值税销售额（计税基础）', iva_r2: '不含增值税销售额（0% / 跨境）', iva_r3: '您收取的增值税 (16%)', iva_r4: '平台代扣的增值税', iva_r5: '可抵扣进项税（有 CFDI 的费用）', iva_r6: '上月留抵', iva_r7: '本月结果', iva_r8: '应缴增值税', iva_r9: '结转下期留抵',
-      cd_title: '已收取金额与银行到账金额对比',
-      cd_lead: '本期计税基础来自代扣代缴证明（即税务局看到的 CFDI），而非银行到账金额。以下为两者差额及其构成。',
-      cd_cobrado: '本期已收取（计税基础 + 销项增值税）',
-      cd_depositado: '银行账户实际到账',
-      cd_dif: '差额',
-      cd_comp: '差额构成',
-      cd_comis: '平台佣金、物流费用及广告费',
-      cd_ret_iva: '平台代扣的增值税',
-      cd_ret_isr: '平台代扣的所得税',
-      cd_explicado: '已说明合计',
-      cd_sin: '未说明',
-      cd_ok: '本期已收取金额与到账金额一致，无差额需要说明。',
-      cd_nodep: '本期未加载银行对账单或平台结算转账记录，因此无法与到账金额进行对比。',
-      cd_legend: '这些金额同样属于已收取：依据增值税法第 1-B 条以抵销方式清偿，因此即使从未进入银行账户，仍构成本期计税基础。仅按到账金额申报会遗漏这部分差额。',
-      isr_r1: '本月收入（不含增值税）', isr_r2: '年初至今累计收入', isr_r3: '利润系数', isr_r4: '预计应税利润', isr_r5: '已抵减的税务亏损', isr_r6: '应税基础', isr_r7: '累计所得税 (30%)', isr_r8: '平台代扣所得税（累计）', isr_r9: '此前预缴税款', isr_r10: '应缴所得税',
-      isr_no_cu: '待定：年度申报中的利润系数。缺少该系数无法确定预缴税款。',
-      detail_title: '销售与代扣明细', detail_lead: '平台逐月报告的数据。',
-      col_month: '月份', col_orders: '订单', col_base: '不含税基础', col_iva: '收取增值税', col_isr_ret: '代扣所得税', col_iva_ret: '代扣增值税', col_total: '合计',
-      cost_title: '成本与费用', cost_lead: '按单据计算的本月销售成本。', cost_mk: '平台佣金与费用（月度汇总）', cost_cfdi: '开具给贵公司的费用发票（本月收到的 CFDI）', cost_total: '本月成本与费用合计', cost_profit: '本月预估利润（销售额 − 成本与费用）', cost_ctrl: '核对：明细合计与汇总中的净费用', cost_ok: '一致', cost_bad: '不一致', cost_none: '没有平台月度汇总：无费用明细', cost_note: '费用取自平台月度汇总，其合计与净费用行核对一致。已开票费用为本月收到的 CFDI 小计。若平台以 CFDI 开具其佣金，则该佣金同时出现在两个板块：本文件不判定可抵扣性，由会计师复核。',
-      iva_r4b: '往月代扣增值税，尚未抵扣', ctx_title: '会计师备注', ctx_lead: '会计师为本次计算记录的背景说明。', rango_title: '区间汇总', rango_lead: '本文件所含全部期间的累计。', rango_meses: '包含期间',
-      cfdi_title: 'SAT 登记的发票 (CFDI)', cfdi_lead: 'SAT 本月看到的贵公司情况。', cfdi_issued: '贵公司开具的发票', cfdi_received: '收到的发票（费用）', col_date: '日期', col_who: '开票方 / 受票方', col_subtotal: '小计', col_none: '本期无发票',
-      bank_title: '银行对账', bank_lead: '平台声称的付款与实际到账的对比。', col_bank_expected: '平台付款', col_bank_actual: '银行对账单入账', col_diff: '差额', bank_missing: '缺少本月银行对账单',
-      notes_title: '说明与假设', notes_lead: '正确阅读数字所需了解的事项。',
-      glossary_title: '术语表', gl_iva: '增值税 (IVA)', gl_iva_d: '税率 16%。销售时收取，采购时支付，差额缴纳给 SAT。', gl_isr: '所得税 (ISR)', gl_isr_d: '墨西哥所得税。按月预缴，年度申报时清算。', gl_cfdi: 'CFDI', gl_cfdi_d: '墨西哥电子发票。只有开具给贵公司的 CFDI 才可扣除或抵扣。', gl_ret: '代扣', gl_ret_d: '平台从您的销售额中扣除并代您缴给 SAT 的税款，可从应缴额中减除。', gl_favor: '留抵', gl_favor_d: '多缴的增值税，用于抵扣后续月份。不申请退税，自动抵扣。', gl_cu: '利润系数', gl_cu_d: 'SAT 用上一年度的利润率估算本年度利润，以计算预缴税款。',
-      footer: 'Tally 负责编制、计算与跟进。申报仅在获得您批准后向 SAT 提交。本文件不构成纳税申报表或申报回执。',
-      page: '第', of: '页 / 共', months: ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'],
-      pending: '待定', na: '无', reading: '适用标准'
-    }
-  };
-
-  const fmt = (n, lang) => (n === null || n === undefined || n === '' || isNaN(n)) ? '—'
-    : new Intl.NumberFormat(lang === 'zh' ? 'zh-CN' : lang === 'en' ? 'en-US' : 'es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
-  const money = (n, lang) => { if (n === null || n === undefined || isNaN(n)) return '—'; const s = fmt(Math.abs(n), lang); return n < 0 ? '(' + s + ')' : s; };
-  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const pct = (n, d = 4) => (n === null || n === undefined || isNaN(n)) ? '—' : (Number(n)).toFixed(d);
-
-  const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
-  :root{--violet:#6047ff;--violet-100:#dcdcff;--cyan:#5ed7ff;--cyan-100:#dcf8ff;--green:#49d475;--green-100:#c8e8ce;--orange:#ff8248;--orange-100:#fcddd6;--ink:#212121;--cream:#fefcf8;--line:#e6e2da;--muted:#6b6b6b}
-  *{box-sizing:border-box} html,body{margin:0;background:var(--cream);color:var(--ink);font-family:'DM Sans','Noto Sans SC','Noto Sans CJK SC','PingFang SC','Helvetica Neue',Arial,sans-serif;font-size:11pt;line-height:1.5}
-  .page{width:210mm;min-height:297mm;padding:18mm 18mm 20mm;margin:0 auto;background:var(--cream);position:relative;page-break-after:always}
-  .page:last-child{page-break-after:auto}
-  .wordmark{font-weight:700;letter-spacing:-.03em;color:var(--violet);font-size:26px;line-height:1} .wordmark svg{height:26px;width:auto;display:block}
-  .eyebrow{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
-  h1{font-size:40px;font-weight:700;line-height:1.05;letter-spacing:-.015em;margin:8px 0 6px;text-wrap:balance} h1 .light{font-weight:300}
-  h2{font-size:24px;font-weight:700;line-height:1.1;letter-spacing:-.01em;margin:0 0 4px;text-wrap:balance}
-  h3{font-size:14px;font-weight:500;margin:18px 0 6px}
-  .lead{font-size:14px;color:var(--muted);margin:0 0 18px}
-  .cover{display:flex;flex-direction:column;justify-content:space-between;background:var(--ink);color:var(--cream)}
-  .cover .wordmark{color:var(--cream)} .cover .eyebrow{color:#c9c4ff} .cover h1{font-size:56px;color:var(--cream)} .cover .meta{display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;margin-top:28px;font-size:13px}
-  .cover .meta b{display:block;font-weight:500;color:#c9c4ff;font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
-  .cover .pill{display:inline-block;background:var(--violet);color:var(--cream);border-radius:999px;padding:4px 12px;font-size:12px;font-weight:500}
-  .cover .bar{height:6px;background:linear-gradient(90deg,var(--violet-100),var(--cyan-100));border-radius:3px;margin:22px 0}
-  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0}
-  .kpi{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:#fff}
-  .kpi.big{grid-column:span 1;background:var(--violet-100);border-color:var(--violet-100)}
-  .kpi .l{font-size:11px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.04em} .kpi .v{font-size:26px;font-weight:700;letter-spacing:-.01em;font-feature-settings:'tnum' 1;margin-top:4px}
-  .kpi .s{font-size:11px;color:var(--muted);margin-top:2px}
-  table{width:100%;border-collapse:collapse;font-size:10.5pt;font-feature-settings:'tnum' 1} th{text-align:left;font-weight:500;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:6px 8px;border-bottom:2px solid var(--ink)}
-  td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top} td.n,th.n{text-align:right;white-space:nowrap} tr.total td{font-weight:700;border-top:2px solid var(--ink);border-bottom:none}
-  tr.hl td{background:var(--violet-100)} .src{color:var(--muted);font-size:9.5pt}
-  .tag{display:inline-block;border-radius:999px;padding:1px 8px;font-size:10px;font-weight:500} .tag.ok{background:var(--green-100)} .tag.miss{background:var(--orange-100)} .tag.part{background:var(--cyan-100)}
-  .steps{counter-reset:s;display:grid;gap:8px;margin:8px 0 0} .step{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start} .step:before{counter-increment:s;content:counter(s);width:28px;height:28px;border-radius:50%;background:var(--violet);color:var(--cream);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
-  .note{border-left:3px solid var(--violet);padding:6px 12px;margin:8px 0;background:#fff;font-size:10.5pt} .warn{border-left-color:var(--orange)}
-  .two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-  .foot{position:absolute;left:18mm;right:18mm;bottom:10mm;font-size:9px;color:var(--muted);display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:6px}
-  .gl dt{font-weight:700;margin-top:8px} .gl dd{margin:0;color:#444}
-  @media print{body{background:#fff} .page{margin:0;box-shadow:none} @page{size:A4;margin:0}}
-  @media screen{.page{box-shadow:0 2px 14px rgba(0,0,0,.08);margin:16px auto}}
-  `;
-
-  function statusLabel(t, s) { return s === 'approved' ? t.status_approved : s === 'filed' ? t.status_filed : t.status_draft; }
-
-  function render(c, lang) {
-    lang = I18N[lang] ? lang : 'es'; const t = I18N[lang];
-    const m = money, cl = c.cliente || {}, p = c.periodo || {}, iva = c.iva || {}, isr = c.isr || {}, r = c.resumen || {};
-    const periodLabel = (t.months[(p.mes || 1) - 1] || '') + ' ' + (p.anio || '');
-    const logo = c.logo_svg ? c.logo_svg : 'Tally';
-    const foot = (n, total) => `<div class="foot"><span>${esc(cl.nombre || '')} · ${esc(t.doc_title)} · ${esc(periodLabel)}</span><span>${esc(t.page)} ${n} ${esc(t.of)} ${total}</span></div>`;
-    const pages = [];
-    const src = (c.fuentes || []).map(f => `<tr><td>${esc(f[lang] || f.nombre)}</td><td class="src">${esc(f['que_' + lang] || f.que || '')}</td><td><span class="tag ${f.estado === 'ok' ? 'ok' : f.estado === 'partial' ? 'part' : 'miss'}">${f.estado === 'ok' ? t.src_ok : f.estado === 'partial' ? t.src_partial : t.src_missing}</span></td></tr>`).join('');
-    const total = (iva.a_pagar || 0) + (typeof isr.a_pagar === 'number' ? isr.a_pagar : 0);
-
-    // 1 · Portada
-    pages.push(`<section class="page cover">
-      <div><div class="wordmark">${logo}</div></div>
-      <div>
-        <div class="eyebrow">${esc(t.doc_title)} · ${esc(t.subtitle)}</div>
-        <h1><span class="light">${esc(cl.nombre || '')}</span><br>${esc(periodLabel)}</h1>
-        <div class="bar"></div>
-        <span class="pill">${esc(statusLabel(t, c.estado))}</span>
-        <div class="meta">
-          <div><b>${esc(t.rfc)}</b>${esc(cl.rfc || '')}</div>
-          <div><b>${esc(t.regime)}</b>${esc(cl.regimen || '—')}</div>
-          <div><b>${esc(t.marketplace)}</b>${esc(cl.marketplace || '—')}</div>
-          <div><b>${esc(t.issued)}</b>${esc(c.emitido || '')}</div>
-        </div>
-      </div>
-      <div style="font-size:11px;color:#c9c4ff">${esc(t.prepared)} · ${esc(t.lang_note)}</div>
-    </section>`);
-
-    // 2 · Resumen ejecutivo
-    pages.push(`<section class="page">
-      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
-      <h2>${esc(t.exec_title)}</h2><p class="lead">${esc(t.exec_lead)}</p>
-      <div class="kpis">
-        <div class="kpi big"><div class="l">${esc(t.kpi_total)}</div><div class="v">$ ${m(total, lang)}</div><div class="s">MXN</div></div>
-        <div class="kpi"><div class="l">${esc(t.kpi_iva)}</div><div class="v">$ ${m(iva.a_pagar, lang)}</div><div class="s">${esc(t.kpi_favor)}: $ ${m(iva.saldo_favor_arrastre, lang)}</div></div>
-        <div class="kpi"><div class="l">${esc(t.kpi_isr)}</div><div class="v">${typeof isr.a_pagar === 'number' ? '$ ' + m(isr.a_pagar, lang) : esc(t.pending)}</div><div class="s">${esc(t.kpi_ret)}: $ ${m((r.isr_retenido_mes || 0) + (r.iva_retenido_mes || 0), lang)}</div></div>
-      </div>
-      <table><tbody>
-        <tr><td>${esc(t.exec_sales)}</td><td class="n">$ ${m(r.ventas_base, lang)}</td></tr>
-        <tr><td>${esc(t.exec_orders)}</td><td class="n">${r.ordenes != null ? r.ordenes : '—'}</td></tr>
-        <tr><td>${esc(t.exec_domestic)}</td><td class="n">${r.ordenes_16 != null ? r.ordenes_16 : '—'}</td></tr>
-        <tr><td>${esc(t.exec_cross)}</td><td class="n">${r.ordenes_0 != null ? r.ordenes_0 : '—'}</td></tr>
-      </tbody></table>
-      ${c.lectura && c.lectura[lang] ? `<div class="note"><b>${esc(t.reading)}:</b> ${esc(c.lectura[lang])}</div>` : ''}
-      <h3>${esc(t.exec_next)}</h3>
-      <div class="steps"><div class="step"><div>${esc(t.exec_next_1)}</div></div><div class="step"><div>${esc(t.exec_next_2)}</div></div><div class="step"><div>${esc(t.exec_next_3)}</div></div></div>
-      ${(c.alertas && c.alertas.length) ? c.alertas.map(a => `<div class="note warn">${esc(a[lang] || a.es || a)}</div>`).join('') : ''}
-    </section>`);
-
-    // 3 · Cómo calculamos
-    pages.push(`<section class="page">
-      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
-      <h2>${esc(t.how_title)}</h2><p class="lead">${esc(t.how_lead)}</p>
-      <h3>${esc(t.how_steps_title)}</h3>
-      <div class="steps">${[1,2,3,4,5].map(i => `<div class="step"><div>${esc(t['how_step_' + i])}</div></div>`).join('')}</div>
-      <h3>${esc(t.src_title)}</h3>
-      <table><thead><tr><th>${esc(t.src_col_src)}</th><th>${esc(t.src_col_what)}</th><th>${esc(t.src_col_status)}</th></tr></thead><tbody>${src}</tbody></table>
-    </section>`);
-
-    // 4 · IVA e ISR
-    const ivaRows = [
-      [t.iva_r1, iva.base_16, iva.src_16], [t.iva_r2, iva.base_0, iva.src_0], [t.iva_r3, iva.trasladado, iva.src_trasladado],
-      [t.iva_r4, -(iva.retenido || 0), iva.src_retenido], [t.iva_r5, -(iva.acreditable || 0), iva.src_acreditable], [t.iva_r6, -(iva.saldo_favor_anterior || 0), ''],
-    ];
-    const isrRows = [
-      [t.isr_r1, isr.ingresos_mes], [t.isr_r2, isr.ingresos_acum], [t.isr_r3, isr.cu != null ? pct(isr.cu) : t.pending, 'raw'], [t.isr_r4, isr.utilidad], [t.isr_r5, -(isr.perdidas || 0)],
-      [t.isr_r6, isr.base], [t.isr_r7, isr.isr_acum], [t.isr_r8, -(isr.retenido_acum || 0)], [t.isr_r9, -(isr.pagos_previos || 0)],
-    ];
-    pages.push(`<section class="page">
-      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
-      <h2>${esc(t.iva_title)}</h2><p class="lead">${esc(t.iva_lead)}</p>
-      <table><thead><tr><th>${esc(t.col_concept)}</th><th class="n">${esc(t.col_amount)}</th><th>${esc(t.col_source)}</th></tr></thead><tbody>
-        ${ivaRows.map(x => `<tr><td>${esc(x[0])}</td><td class="n">${m(x[1], lang)}</td><td class="src">${esc(x[2] || '')}</td></tr>`).join('')}
-        <tr><td>${esc(t.iva_r7)}</td><td class="n">${m(iva.resultado, lang)}</td><td></td></tr>
-        <tr class="total hl"><td>${esc(t.iva_r8)}</td><td class="n">$ ${m(iva.a_pagar, lang)}</td><td></td></tr>
-        <tr><td>${esc(t.iva_r9)}</td><td class="n">${m(iva.saldo_favor_arrastre, lang)}</td><td></td></tr>
-      </tbody></table>
-      <h2 style="margin-top:26px">${esc(t.isr_title)}</h2><p class="lead">${esc(t.isr_lead)}</p>
-      ${isr.cu == null ? `<div class="note warn">${esc(t.isr_no_cu)}</div>` : ''}
-      <table><thead><tr><th>${esc(t.col_concept)}</th><th class="n">${esc(t.col_amount)}</th></tr></thead><tbody>
-        ${isrRows.map(x => `<tr><td>${esc(x[0])}</td><td class="n">${x[2] === 'raw' ? esc(x[1]) : (typeof x[1] === 'number' ? m(x[1], lang) : esc(t.pending))}</td></tr>`).join('')}
-        <tr class="total hl"><td>${esc(t.isr_r10)}</td><td class="n">${typeof isr.a_pagar === 'number' ? '$ ' + m(isr.a_pagar, lang) : esc(t.pending)}</td></tr>
-      </tbody></table>
-    </section>`);
-
-    /* 4-bis · Lo cobrado contra lo depositado.
-       Va inmediatamente después del IVA porque es la lectura que decide si la
-       base declarada es la del certificado o la del depósito. Se imprime
-       siempre que haya con qué comparar: es un control, no un hallazgo
-       ocasional, y su valor está en aparecer solo todos los meses.        */
-    const cob = c.cobro || null;
-    if (cob) {
-      const cdFilas = [
-        [t.cd_cobrado, cob.cobrado, cob.src_cobrado],
-        [t.cd_depositado, cob.depositado, cob.src_depositado],
-      ];
-      const cdComp = [
-        [t.cd_comis, cob.comisiones, cob.src_comisiones],
-        [t.cd_ret_iva, cob.iva_retenido, ''],
-        [t.cd_ret_isr, cob.isr_retenido, ''],
-      ];
-      pages.push(`<section class="page">
-      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
-      <h2>${esc(t.cd_title)}</h2><p class="lead">${esc(t.cd_lead)}</p>
-      ${cob.depositado == null ? `<div class="note warn">${esc(t.cd_nodep)}</div>` : `
-      <table><thead><tr><th>${esc(t.col_concept)}</th><th class="n">${esc(t.col_amount)}</th><th>${esc(t.col_source)}</th></tr></thead><tbody>
-        ${cdFilas.map(x => `<tr><td>${esc(x[0])}</td><td class="n">${m(x[1], lang)}</td><td class="src">${esc(x[2] || '')}</td></tr>`).join('')}
-        <tr class="total hl"><td>${esc(t.cd_dif)}</td><td class="n">$ ${m(cob.diferencia, lang)}</td><td></td></tr>
-      </tbody></table>
-      ${cob.coincide ? `<div class="note">${esc(t.cd_ok)}</div>` : `
-      <h3 style="margin-top:22px">${esc(t.cd_comp)}</h3>
-      <table><thead><tr><th>${esc(t.col_concept)}</th><th class="n">${esc(t.col_amount)}</th><th>${esc(t.col_source)}</th></tr></thead><tbody>
-        ${cdComp.map(x => `<tr><td>${esc(x[0])}</td><td class="n">${m(x[1], lang)}</td><td class="src">${esc(x[2] || '')}</td></tr>`).join('')}
-        <tr class="total"><td>${esc(t.cd_explicado)}</td><td class="n">${m(cob.explicado, lang)}</td><td></td></tr>
-        ${Math.abs(Number(cob.sin_explicar) || 0) >= 0.01 ? `<tr><td>${esc(t.cd_sin)}</td><td class="n">${m(cob.sin_explicar, lang)}</td><td></td></tr>` : ''}
-      </tbody></table>
-      <div class="note warn">${esc(t.cd_legend)}</div>`}
-      `}
-    </section>`);
-    }
-
-    // 5 · Detalle ventas/retenciones + banco
-    const det = (c.detalle_meses || []).map(d => `<tr><td>${esc(t.months[d.mes - 1])}</td><td class="n">${d.ordenes != null ? d.ordenes : '—'}</td><td class="n">${m(d.base, lang)}</td><td class="n">${m(d.iva, lang)}</td><td class="n">${m(d.iva_ret, lang)}</td><td class="n">${m(d.isr_ret, lang)}</td></tr>`).join('');
-    const bank = (c.banco || []).map(b => `<tr><td>${esc(t.months[b.mes - 1])}</td><td class="n">${m(b.esperado, lang)}</td><td class="n">${b.real == null ? '<span class="tag miss">' + esc(t.bank_missing) + '</span>' : m(b.real, lang)}</td><td class="n">${b.real == null ? '—' : m(b.esperado - b.real, lang)}</td><td class="src">${esc(b.nota || '')}</td></tr>`).join('');
-    pages.push(`<section class="page">
-      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
-      <h2>${esc(t.detail_title)}</h2><p class="lead">${esc(t.detail_lead)}</p>
-      <table><thead><tr><th>${esc(t.col_month)}</th><th class="n">${esc(t.col_orders)}</th><th class="n">${esc(t.col_base)}</th><th class="n">${esc(t.col_iva)}</th><th class="n">${esc(t.col_iva_ret)}</th><th class="n">${esc(t.col_isr_ret)}</th></tr></thead><tbody>${det}</tbody></table>
-      <h2 style="margin-top:26px">${esc(t.bank_title)}</h2><p class="lead">${esc(t.bank_lead)}</p>
-      <table><thead><tr><th>${esc(t.col_month)}</th><th class="n">${esc(t.col_bank_expected)}</th><th class="n">${esc(t.col_bank_actual)}</th><th class="n">${esc(t.col_diff)}</th><th></th></tr></thead><tbody>${bank}</tbody></table>
-    </section>`);
-
-    // 6 · CFDI
-    const cf = (arr) => (arr && arr.length) ? arr.map(x => `<tr><td>${esc(x.fecha)}</td><td>${esc(x.quien)}</td><td class="n">${m(x.subtotal, lang)}</td><td class="n">${m(x.iva, lang)}</td><td class="n">${m(x.total, lang)}</td></tr>`).join('') : `<tr><td colspan="5" class="src">${esc(t.col_none)}</td></tr>`;
-    pages.push(`<section class="page">
-      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
-      <h2>${esc(t.cfdi_title)}</h2><p class="lead">${esc(t.cfdi_lead)}</p>
-      <h3>${esc(t.cfdi_issued)}</h3>
-      <table><thead><tr><th>${esc(t.col_date)}</th><th>${esc(t.col_who)}</th><th class="n">${esc(t.col_subtotal)}</th><th class="n">IVA</th><th class="n">${esc(t.col_total)}</th></tr></thead><tbody>${cf(c.cfdi_emitidos)}</tbody></table>
-      <h3>${esc(t.cfdi_received)}</h3>
-      <table><thead><tr><th>${esc(t.col_date)}</th><th>${esc(t.col_who)}</th><th class="n">${esc(t.col_subtotal)}</th><th class="n">IVA</th><th class="n">${esc(t.col_total)}</th></tr></thead><tbody>${cf(c.cfdi_recibidos)}</tbody></table>
-    </section>`);
-
-    // 7 · Notas + glosario
-    pages.push(`<section class="page">
-      <div class="eyebrow">${esc(t.doc_title)} · ${esc(periodLabel)}</div>
-      <h2>${esc(t.notes_title)}</h2><p class="lead">${esc(t.notes_lead)}</p>
-      ${(c.notas || []).map(n => `<div class="note">${esc(n[lang] || n.es || n)}</div>`).join('')}
-      <h2 style="margin-top:26px">${esc(t.glossary_title)}</h2>
-      <dl class="gl two">${['iva','isr','cfdi','ret','favor','cu'].map(k => `<div><dt>${esc(t['gl_' + k])}</dt><dd>${esc(t['gl_' + k + '_d'])}</dd></div>`).join('')}</dl>
-      <p class="src" style="margin-top:24px">${esc(t.footer)}</p>
-    </section>`);
-
-    const n = pages.length;
-    const html = pages.map((pg, i) => pg.replace('</section>', foot(i + 1, n) + '</section>')).join('\n');
-    return `<!doctype html><html lang="${lang === 'zh' ? 'zh-CN' : lang}"><head><meta charset="utf-8"><title>${esc(cl.nombre || '')} · ${esc(t.doc_title)} · ${esc(periodLabel)}</title><style>${CSS}</style></head><body>${html}</body></html>`;
-  }
-
-  /* Resumen corto para la plantilla de correo (Bandeja → Redactar) */
-  function emailSummary(c, lang) {
-    lang = I18N[lang] ? lang : 'es'; const t = I18N[lang]; const p = c.periodo || {}, iva = c.iva || {}, isr = c.isr || {}, r = c.resumen || {};
-    const periodLabel = (t.months[(p.mes || 1) - 1] || '') + ' ' + (p.anio || '');
-    const total = (iva.a_pagar || 0) + (typeof isr.a_pagar === 'number' ? isr.a_pagar : 0);
-    const L = {
-      es: { hi: 'Hola, equipo de', intro: `Adjuntamos el cálculo de impuestos de ${periodLabel}. Lo relevante:`, ok: 'Si están de acuerdo, respondan este correo con su aprobación y presentamos la declaración. Si tienen preguntas, aquí mismo las resolvemos.', bye: 'Saludos,\nEquipo de Contabilidad · Tally' },
-      en: { hi: 'Hello team at', intro: `Attached is your tax calculation for ${periodLabel}. The highlights:`, ok: 'If you agree, reply to this email with your approval and we will file the return. If you have questions, we will answer them right here.', bye: 'Best regards,\nAccounting Team · Tally' },
-      zh: { hi: '您好，', intro: `附件为 ${periodLabel} 的税务计算。要点如下：`, ok: '如无异议，请回复本邮件确认批准，我们将提交申报。如有疑问，欢迎在此邮件中提出。', bye: '此致\nTally 会计团队' }
-    }[lang];
-    const lines = [
-      `• ${t.exec_sales}: $ ${money(r.ventas_base, lang)} MXN`,
-      `• ${t.kpi_iva}: $ ${money(iva.a_pagar, lang)} MXN` + (iva.saldo_favor_arrastre ? ` (${t.kpi_favor}: $ ${money(iva.saldo_favor_arrastre, lang)})` : ''),
-      `• ${t.kpi_isr}: ${typeof isr.a_pagar === 'number' ? '$ ' + money(isr.a_pagar, lang) + ' MXN' : t.pending}`,
-      `• ${t.kpi_total}: $ ${money(total, lang)} MXN`,
-      `• ${t.kpi_ret}: $ ${money((r.isr_retenido_mes || 0) + (r.iva_retenido_mes || 0), lang)} MXN`
-    ];
-    const subject = `${c.cliente && c.cliente.nombre ? c.cliente.nombre + ' · ' : ''}${t.doc_title} · ${periodLabel}`;
-    const body = `${L.hi} ${c.cliente ? c.cliente.nombre : ''}:\n\n${L.intro}\n\n${lines.join('\n')}\n\n${L.ok}\n\n${L.bye}`;
-    return { subject, body };
-  }
-
-  return { render, emailSummary, I18N, money };
-});
-
-</script>
-<script>
-/* ═══ helpers del módulo: llamadas con credenciales del usuario; subida de archivos por POST (JSONP no aguanta base64) ═══ */
-function capi(action, payload){
-  const p = Object.assign({auth:{email:AUTH.email,password:AUTH.password}}, payload||{});
-  /* El JSONP manda el payload dentro de la URL. Con CFDI del mes adentro se pasa del límite
-     y el navegador ni siquiera envía la petición ("no se pudo contactar el Apps Script"),
-     así que arriba de ~6 KB se usa POST, que no tiene ese tope. */
-  try { if (JSON.stringify(p).length > 6000) return capiPost(action, payload || {}); } catch(e){}
-  return api(action, p, 90000);
-}
-async function capiPost(action, payload){
-  try{ const r=await fetch(APPS_SCRIPT_URL,{method:'POST',body:JSON.stringify(Object.assign({action,token:API_TOKEN,auth:{email:AUTH.email,password:AUTH.password}},payload||{}))});
-       return await r.json(); }catch(e){ return {ok:false,error:'sin respuesta del Apps Script (POST): '+e}; }
-}
-</script>
-<script>
-/* ══════════════ estado del asistente ══════════════ */
-const CX = { cliente: null, mes: null, anio: null, meses: [], idioma: 'es', docs: [], syntage: null, contalink: null, calc: null, calc_id: null, archivos: null, contexto: '', sistema: [] };
-const CX_MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-const cxFmt = n => (n == null || isNaN(n)) ? '—' : new Intl.NumberFormat('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
-
-function cxInit() {
-  const now = new Date(), prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  ['cxMes', 'cxFMes'].forEach(id => { const s = document.getElementById(id); CX_MESES.forEach((m, i) => s.insertAdjacentHTML('beforeend', `<option value="${i + 1}">${m}</option>`)); });
-  cxPintarMeses(prev.getMonth() + 1);
-  ['cxAnio', 'cxFAnio'].forEach(id => { const s = document.getElementById(id); for (let y = now.getFullYear(); y >= 2024; y--) s.insertAdjacentHTML('beforeend', `<option>${y}</option>`); });
-  document.getElementById('cxMes').value = prev.getMonth() + 1; document.getElementById('cxAnio').value = prev.getFullYear();
-  document.querySelectorAll('.cx-tab').forEach(b => b.onclick = () => { document.querySelectorAll('.cx-tab').forEach(x => x.classList.remove('active')); b.classList.add('active'); document.getElementById('cx-nuevo').style.display = b.dataset.cxtab === 'nuevo' ? '' : 'none'; document.getElementById('cx-lista').style.display = b.dataset.cxtab === 'lista' ? '' : 'none'; if (b.dataset.cxtab === 'lista') cxListar(); });
-  if (location.hash.startsWith('#ciec=')) cxRevelarCiec(location.hash.slice(6));
-}
-function cxGo(n) {
-  if (n === 3 && !CX.syntage) cxConsultarSyntage();
-  if (n === 4) { cxResumenInsumos(); cxPintarCobrado(); }
-  document.querySelectorAll('.cx-step').forEach(s => s.style.display = s.dataset.step == n ? '' : 'none');
-  document.querySelectorAll('.cx-steps li').forEach(li => { li.classList.toggle('on', li.dataset.s == n); li.classList.toggle('done', li.dataset.s < n); });
-}
-
-/* ══════════════ períodos: uno o varios ══════════════ */
-function cxPintarMeses(preseleccion) {
-  const C = document.getElementById('cxMeses'); if (!C) return;
-  if (preseleccion) CX.meses = [preseleccion];
-  C.innerHTML = CX_MESES.map((m, i) => `<button class="chip ${CX.meses.indexOf(i + 1) >= 0 ? 'on' : ''}" onclick="cxToggleMes(${i + 1})">${m.slice(0, 3)}</button>`).join('') +
-    ` <button class="chip" onclick="cxTodoElEjercicio()">todo el ejercicio</button>`;
-  const H = document.getElementById('cxMesesHint');
-  const sel = CX.meses.slice().sort((a, b) => a - b);
-  CX.mes = sel.length ? sel[sel.length - 1] : null;
-  CX.anio = +document.getElementById('cxAnio').value;
-  if (H) H.innerHTML = !sel.length ? 'Selecciona al menos un mes.'
-    : sel.length === 1 ? `Un período: <b>${CX_MESES[sel[0] - 1]} ${CX.anio}</b>.`
-    : `<b>${sel.length} períodos</b>: ${sel.map(m => CX_MESES[m - 1]).join(', ')} de ${CX.anio}. Se entrega el consolidado del rango y el documento de cada mes.`;
-  const B = document.getElementById('cxNext1'); if (B) B.disabled = !CX.cliente || !sel.length;
-}
-function cxPintarCobrado() {
-  const lec = document.getElementById('cxLectura').value;
-  const box = document.getElementById('cxCobradoBox'); if (!box) return;
-  box.style.display = lec === 'C' ? '' : 'none';
-  if (lec !== 'C') return;
-  const C = document.getElementById('cxCobrado');
-  C.innerHTML = cxPeriodos().map(pp => `<label>${CX_MESES[pp.mes - 1]}</label><input id="cxCob_${pp.anio}_${pp.mes}" class="cx-input" placeholder="0.00" style="max-width:160px" value="${(CX.cobrado || {})[pp.anio + '-' + pp.mes] || ''}">`).join('');
-}
-function cxLeerCobrado() {
-  CX.cobrado = {};
-  cxPeriodos().forEach(pp => { const el = document.getElementById(`cxCob_${pp.anio}_${pp.mes}`); const v = el ? parseFloat(String(el.value).replace(/[^\d.-]/g, '')) : NaN; if (!isNaN(v)) CX.cobrado[pp.anio + '-' + pp.mes] = v; });
-  return CX.cobrado;
-}
-function cxToggleMes(m) { const i = CX.meses.indexOf(m); if (i >= 0) CX.meses.splice(i, 1); else CX.meses.push(m); cxPintarMeses(); cxPintarCobrado(); }
-function cxTodoElEjercicio() { const hoy = new Date(), n = (+document.getElementById('cxAnio').value === hoy.getFullYear()) ? hoy.getMonth() : 12; CX.meses = []; for (let i = 1; i <= Math.max(1, n); i++) CX.meses.push(i); cxPintarMeses(); }
-function cxPeriodos() { return CX.meses.slice().sort((a, b) => a - b).map(m => ({ anio: CX.anio, mes: m })); }
-
-/* ══════════════ documentos que ya están en el sistema ══════════════ */
-const CX_ORIGEN = { 'Retenciones_por_periodo': 'Certificados de retenciones', 'Reportes_de_venta': 'Reportes de venta del marketplace', 'Estados_cuenta': 'Estados de cuenta', 'declaracion_periodo': 'Declaraciones y acuses', 'Solicitud Docs Contabilidad': 'Documentos solicitados al cliente' };
-async function cxDocsSistema() {
-  const L = document.getElementById('cxSysLista'), M = document.getElementById('cxSysMsg');
-  if (!CX.cliente) { M.textContent = 'Primero elige el cliente.'; return; }
-  M.textContent = 'Buscando en el sistema…'; L.innerHTML = '';
-  const r = await capi('calc_docs_sistema', { company_id: CX.cliente.company_id || '', periodos: cxPeriodos() });
-  if (!r.ok) { M.innerHTML = '⚠️ ' + (r.error || 'no pude consultar'); return; }
-  CX.sistema = r.documentos || [];
-  const avisos = (r.avisos || []).length ? `<div class="cx-hint">⚠️ ${(r.avisos || []).join(' · ')}</div>` : '';
-  if (!CX.sistema.length) { M.textContent = ''; L.innerHTML = '<div class="cx-hint">No hay documentos cargados en el sistema para este cliente y estos períodos. Puedes arrastrarlos aquí arriba.</div>' + avisos; return; }
-  M.textContent = '';
-  const filas = CX.sistema.map((d, i) => `<tr><td>${d.file_id ? `<input type="checkbox" id="cxSys${i}" ${d.tipo === 'otro' ? '' : 'checked'}>` : '—'}</td>
-    <td>${CX_TIPO[d.tipo] || d.tipo}</td><td>${d.mes_nombre || d.periodo} ${d.anio || ''}</td><td><small>${d.archivo}</small></td>
-    <td><small>${CX_ORIGEN[d.tabla] || d.tabla}${d.fecha ? ' · cargado ' + d.fecha : ''}</small></td>
-    <td>${d.file_id ? `<span class="cx-tag ok">disponible</span>` : `<span class="cx-tag warn">el archivo no está en Drive</span>`}</td></tr>`).join('');
-  L.innerHTML = `<table class="cx-table"><thead><tr><th></th><th>Rubro</th><th>Período</th><th>Archivo</th><th>Origen</th><th></th></tr></thead><tbody>${filas}</tbody></table>
-    <div class="cx-nav"><button class="btn" onclick="cxUsarDocsSistema()">Usar los seleccionados →</button></div>
-    <div class="cx-hint">${CX.sistema.length} documentos · ${r.sin_archivo || 0} sin archivo localizable en Drive</div>${avisos}`;
-}
-async function cxUsarDocsSistema() {
-  const ids = [], metas = [];
-  CX.sistema.forEach((d, i) => { const c = document.getElementById('cxSys' + i); if (d.file_id && c && c.checked) { ids.push(d.file_id); metas.push(d); } });
-  if (!ids.length) { document.getElementById('cxSysMsg').textContent = 'No hay documentos seleccionados.'; return; }
-  const T = document.getElementById('cxDocs'); T.style.display = '';
-  document.getElementById('cxDocsHint').textContent = `Leyendo ${ids.length} documento(s) del sistema…`;
-  metas.forEach((d, k) => CX.docs.push({ file_id: d.file_id, nombre: d.archivo, tipo: '…', datos: null, mes: d.mes, anio: d.anio, origen: 'del sistema · ' + (CX_ORIGEN[d.tabla] || d.tabla) }));
-  cxPintarDocs();
-  const r = await capi('calc_extraer', { file_ids: ids });
-  (r.documentos || []).forEach(dd => { const row = CX.docs.filter(x => x.file_id === dd.file_id)[0]; if (row) Object.assign(row, dd, { origen: row.origen, mes: row.mes, anio: row.anio }); });
-  cxPintarDocs(); cxRevisarDocs();
-}
-
-/* ══════════════ paso 1 · cliente ══════════════ */
-let cxT, CX_PADRON = null, CX_PADRON_PROM = null, CX_PADRON_TS = 0;
-/* El padrón se trae una sola vez (leer las dos hojas en el servidor cuesta segundos) y
-   a partir de ahí el filtrado es en el navegador: escribir es instantáneo. */
-function cxCargarPadron(refrescar) {
-  if (CX_PADRON && !refrescar) return Promise.resolve(CX_PADRON);
-  if (CX_PADRON_PROM && !refrescar) return CX_PADRON_PROM;
-  CX_PADRON_PROM = capi('calc_clientes', { q: '', todos: true, refrescar: refrescar ? 1 : 0 }).then(r => {
-    CX_PADRON_PROM = null;
-    if (r && r.ok) { CX_PADRON = r.clientes || []; CX_PADRON_TS = Date.now(); return CX_PADRON; }
-    throw new Error((r && r.error) || 'no pude leer el padrón');
-  }).catch(e => { CX_PADRON_PROM = null; throw e; });
-  return CX_PADRON_PROM;
-}
-function cxFiltrarPadron(q) {
-  const Q = String(q || '').toUpperCase().trim();
-  const esRfc = /^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/.test(Q);
-  return (CX_PADRON || []).filter(c =>
-    (c.rfc && c.rfc.indexOf(Q) >= 0) || String(c.nombre || '').toUpperCase().indexOf(Q) >= 0 ||
-    String(c.company_id || '').toUpperCase().indexOf(Q) >= 0 || String(c.nombre_syntage || '').toUpperCase().indexOf(Q) >= 0
-  ).slice(0, 40).map(c => c.rfc ? c : Object.assign({}, c, esRfc ? { rfc: Q, rfc_origen: 'capturado' } : {}));
-}
-function cxPintarClientes(q, lista) {
-  const L = document.getElementById('cxClienteLista');
-  const items = lista.map(c => `<div class="it" onclick='cxElegir(${JSON.stringify(c).replace(/'/g, "&#39;")})'><span><b>${c.nombre}</b> · ${c.rfc || '<i>sin RFC en el padrón</i>'}${c.company_id ? ' · ' + c.company_id : ''}${c.owner ? ' · ' + c.owner : ''}</span><span class="cx-tag ${c.syntage ? 'ok' : 'warn'}">${c.syntage ? 'SAT conectado' : 'Sin Syntage'}</span></div>`).join('');
-  const pie = `<div class="cx-hint">${(CX_PADRON || []).length} clientes en memoria · <button class="btn secondary" onclick="cxRefrescarPadron()">actualizar padrón</button></div>`;
-  L.innerHTML = (items || ('<div class="cx-hint">Sin coincidencias en el padrón.</div>' + cxManualHtml(q))) + pie;
-}
-function cxRefrescarPadron() {
-  const L = document.getElementById('cxClienteLista'); L.innerHTML = '<div class="cx-hint">Releyendo el padrón…</div>';
-  cxCargarPadron(true).then(() => cxBuscarCliente(document.getElementById('cxRfc').value))
-    .catch(e => { L.innerHTML = `<div class="cx-hint">⚠️ ${e.message}</div>`; });
-}
-function cxBuscarCliente(q) {
-  clearTimeout(cxT); q = String(q || '').trim(); CX.cliente = null;
-  document.getElementById('cxClienteSel').style.display = 'none'; document.getElementById('cxNext1').disabled = true;
-  const L0 = document.getElementById('cxClienteLista');
-  if (q.length < 3) { L0.innerHTML = ''; return; }
-  if (CX_PADRON) { cxT = setTimeout(() => cxPintarClientes(q, cxFiltrarPadron(q)), 60); return; }
-  L0.innerHTML = '<div class="cx-hint">Cargando el padrón por primera vez… (después la búsqueda es inmediata)</div>';
-  cxCargarPadron().then(() => cxPintarClientes(q, cxFiltrarPadron(q)))
-    .catch(e => { document.getElementById('cxClienteLista').innerHTML = `<div class="cx-hint">⚠️ No pude leer el padrón: ${e.message}. Puedes continuar con el RFC tal cual.</div>` + cxManualHtml(q); });
-}
-
-function cxManualHtml(q) { const rfc = q.toUpperCase().replace(/\s+/g, ''); if (!/^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/.test(rfc)) return '<div class="cx-hint">Escribe un RFC válido (12 o 13 caracteres) para continuar sin padrón.</div>'; return `<div class="it" onclick='cxElegir({company_id:"",rfc:"${rfc}",nombre:"${rfc}",owner:"",syntage:false,manual:true})'><span>➕ <b>Usar este RFC tal cual</b> · ${rfc} <small>(sin ficha en el padrón; el nombre se toma de Syntage si está conectado)</small></span><span class="cx-tag warn">manual</span></div>`; }
-function cxElegir(c) { if (!c.rfc) { const r = prompt('Este cliente no tiene RFC en el padrón. Escribe su RFC (12 o 13 caracteres):', ''); const rfc = String(r || '').toUpperCase().replace(/\s+/g, ''); if (!/^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/.test(rfc)) { alert('RFC no válido. No se seleccionó el cliente.'); return; } c.rfc = rfc; c.rfc_origen = 'capturado'; } CX.cliente = c; document.getElementById('cxClienteLista').innerHTML = ''; document.getElementById('cxRfc').value = c.rfc; const S = document.getElementById('cxClienteSel'); S.style.display = ''; S.innerHTML = `<b>${c.nombre}</b> · ${c.rfc} · ${c.owner || 'sin owner'} · <span class="cx-tag ${c.syntage ? 'ok' : 'warn'}">${c.syntage ? 'Conectado a Syntage' : 'No conectado a Syntage'}</span>`; cxPintarMeses(); }
-
-/* ══════════════ paso 2 · documentos ══════════════ */
-function cxDrop(ev) { ev.preventDefault(); document.getElementById('cxDrop').classList.remove('over'); cxFiles(ev.dataTransfer.files); }
-async function cxFiles(files) {
-  CX.mes = +document.getElementById('cxMes').value; CX.anio = +document.getElementById('cxAnio').value; CX.idioma = document.getElementById('cxIdioma').value;
-  const periodo = `${CX.anio}-${String(CX.mes).padStart(2, '0')}`; const T = document.getElementById('cxDocs'); T.style.display = ''; document.getElementById('cxDocsHint').textContent = 'Subiendo y leyendo…';
-  for (const f of files) {
-    const b64 = await new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(f); });
-    const up = await capiPost('calc_upload', { rfc: CX.cliente.rfc, periodo, nombre: f.name, mime: f.type, base64: b64 });
-    const row = { file_id: up.file_id, nombre: f.name, tipo: '…', datos: null, mes: CX.mes, anio: CX.anio, origen: 'cargado a mano' }; CX.docs.push(row); cxPintarDocs();
-    const ex = await capi('calc_extraer', { file_ids: [up.file_id] }); Object.assign(row, ex.documentos[0]); cxPintarDocs();
-  }
-  cxRevisarDocs();
-}
-/* El período de cada documento manda: con varios meses seleccionados se revisa que cada
-   uno tenga su certificado, y se avisa exactamente cuál falta. */
-function cxRevisarDocs() {
-  const per = cxPeriodos(); const faltan = [];
-  per.forEach(pp => {
-    const delMes = CX.docs.filter(d => Number(d.mes) === pp.mes && Number(d.anio) === pp.anio);
-    const tipos = delMes.map(d => d.tipo);
-    if (!tipos.includes('certificado_retenciones')) faltan.push(`${CX_MESES[pp.mes - 1]}: certificado de retenciones`);
-    if (!tipos.includes('resumen_marketplace')) faltan.push(`${CX_MESES[pp.mes - 1]}: resumen del marketplace`);
-  });
-  const hayAlgo = CX.docs.some(d => d.tipo === 'certificado_retenciones');
-  document.getElementById('cxNext2').disabled = !hayAlgo;
-  document.getElementById('cxDocsHint').innerHTML = !CX.docs.length
-    ? 'Sin documentos todavía. Arrastra los que falten o toma los que ya están en el sistema.'
-    : (faltan.length ? `<span class="cx-tag warn">falta</span> ${faltan.join(' · ')}. Puedes continuar, pero esos meses saldrán incompletos y el documento lo dirá.`
-                     : 'Listo: cada período seleccionado tiene su certificado y su resumen. Revisa los datos clave contra el PDF antes de continuar.');
-}
-const CX_TIPO = { resumen_marketplace: 'Resumen del marketplace', certificado_retenciones: 'Certificado de retenciones', estado_cuenta: 'Estado de cuenta', otro: 'Otro', '…': 'Leyendo…' };
-function cxPintarDocs() {
-  document.querySelector('#cxDocs tbody').innerHTML = CX.docs.map((d, i) => { const k = d.datos || {}; const clave = d.tipo === 'certificado_retenciones' ? `Base ${cxFmt(k.base)} · ${k.ordenes || '?'} órdenes${k.ordenes_16 != null ? ` (${k.ordenes_16} al 16%)` : ''} · IVA trasladado ${cxFmt(k.iva_trasladado)} · IVA ret. ${cxFmt(k.iva_retenido)} · ISR ret. ${cxFmt(k.isr_retenido)}` : d.tipo === 'resumen_marketplace' ? `Ingreso neto ${cxFmt(k.ingreso_neto)} · Transferencias ${cxFmt(k.transferencias)}` : d.tipo === 'estado_cuenta' ? `Abonos ${cxFmt(k.abonos)}${k.moneda ? ' ' + k.moneda : ''}${k.cargos ? ` · cargos ${cxFmt(k.cargos)}` : ''}${k.abonos_marketplace != null ? ` · del marketplace ${cxFmt(k.abonos_marketplace)} (${k.movimientos_marketplace})` : ''} · ${k.movimientos || 0} mov. ${k.cuenta || ''}${k.saldo_final != null ? ` · saldo final ${cxFmt(k.saldo_final)}` : ''}${k.saldo_final != null ? (k.cuadra ? ' · cuadra' : ' · no cuadra') : ''}` : '';
-    return `<tr><td>${d.nombre}${d.origen ? `<br><small style="opacity:.6">${d.origen}</small>` : ''}</td><td><select onchange="CX.docs[${i}].tipo=this.value;cxRevisarDocs()" class="cx-input" style="max-width:220px">${Object.keys(CX_TIPO).filter(t => t !== '…').map(t => `<option value="${t}" ${t === d.tipo ? 'selected' : ''}>${CX_TIPO[t]}</option>`).join('')}</select></td>
-      <td><select onchange="CX.docs[${i}].mes=+this.value;cxRevisarDocs()" class="cx-input" style="max-width:130px">${CX_MESES.map((m, k) => `<option value="${k + 1}" ${Number(d.mes) === k + 1 ? 'selected' : ''}>${m}</option>`).join('')}</select> <small>${d.anio || CX.anio}</small></td><td><span class="cx-tag ${d.ok ? 'ok' : d.tipo === '…' ? 'info' : 'warn'}">${d.tipo === '…' ? 'leyendo' : d.ok ? ('leído' + (d.via ? ' · ' + (d.via === 'OCR' ? 'OCR' : 'texto') : '')) : 'no legible'}</span></td><td>${clave}</td><td><button class="btn secondary" onclick="CX.docs.splice(${i},1);cxPintarDocs();cxRevisarDocs()">✕</button></td></tr>`; }).join('');
-}
-
-/* ══════════════ paso 3 · Syntage ══════════════ */
-async function cxConsultarSyntage() {
-  const P = document.getElementById('cxSyntage'); P.innerHTML = '<div class="cx-spinner">Consultando Syntage…</div>'; document.getElementById('cxSynAlert').style.display = 'none';
-  const r = await capi('calc_syntage', { rfc: CX.cliente.rfc, company_id: CX.cliente.company_id || '', syntage_entity_id: CX.cliente.syntage_entity_id || '', nombre: CX.cliente.nombre || '', anio: CX.anio, mes: CX.mes }); CX.syntage = r; if (r.ok && r.conectado && CX.cliente.manual && r.nombre) CX.cliente.nombre = r.nombre;
-  if (!r.ok) { P.innerHTML = `<span class="cx-tag warn">Error</span> ${r.error || ''}`; return; }
-  if (!r.conectado) { P.innerHTML = `<span class="cx-tag warn">No encontramos a este cliente en Syntage</span><div class="cx-hint">Se buscó por el identificador guardado, por RFC y por nombre en ${r.entidades_revisadas || 0} entidades del catálogo. <button class="btn secondary" onclick="CX.syntage=null;cxConsultarSyntage()">Reintentar</button></div>`; document.getElementById('cxSynAlert').style.display = ''; return; }
-  const k = `${CX.anio}-${String(CX.mes).padStart(2, '0')}`; const m = (r.cfdi_por_mes || {})[k] || { emitidos: [], recibidos: [], iva_acreditable_pue: 0 };
-  const dec = (r.declaraciones || []).filter(d => d.periodicidad === 'Mensual' && String(d.ejercicio) === String(CX.anio));
-  P.innerHTML = `<span class="cx-tag ok">Conectado · ${r.nombre}</span>${r.ligado_por && r.ligado_por !== 'rfc' ? ` <span class="cx-tag info">ligado por ${r.ligado_por === 'entity_id' ? 'identificador guardado' : 'nombre'}</span>` : ''}${r.rfc_syntage && CX.cliente.rfc && r.rfc_syntage !== CX.cliente.rfc ? ` <span class="cx-tag warn">en Syntage el RFC es ${r.rfc_syntage}</span>` : ''}${!r.rfc_syntage ? ' <span class="cx-tag warn">Syntage no reporta RFC de esta entidad</span>' : ''}
-    <table class="cx-table"><tr><td>CFDI emitidos en ${CX_MESES[CX.mes - 1]}</td><td>${m.emitidos.length} · IVA trasladado ${cxFmt(m.emitidos.reduce((a, x) => a + x.iva, 0))}</td></tr>
-    <tr><td>CFDI recibidos (gastos con factura a su RFC)</td><td>${m.recibidos.length} · IVA acreditable (PUE) ${cxFmt(m.iva_acreditable_pue)}${m.iva_ppd_pendiente ? ` · PPD pendiente ${cxFmt(m.iva_ppd_pendiente)}` : ''}${!r.cfdi_recibidos_anio ? ' · <span class="cx-tag warn">ninguno en todo ' + CX.anio + '</span>' : ''}</td></tr>
-    <tr><td>CFDI del ejercicio ${CX.anio} en el SAT</td><td>${r.cfdi_del_anio || 0} · emitidos ${r.cfdi_emitidos_anio || 0} · recibidos ${r.cfdi_recibidos_anio || 0}</td></tr>
-    <tr><td>Certificados de retención en el SAT</td><td>${(r.retenciones || []).filter(x => x.periodo === k).length ? 'coincide con el mes' : 'no aparece el del mes'}</td></tr>
-    <tr><td>Declaraciones mensuales ${CX.anio} registradas</td><td>${dec.length ? dec.map(d => d.periodo + ' (' + d.presentada + ')').join(', ') : '<span class="cx-tag warn">ninguna</span>'}</td></tr></table>`;
-}
-function cxCtkForm(){
-  const per=cxPeriodos();
-  if(!per.length){ document.getElementById('cxCtkMsg').textContent='Primero selecciona los períodos en el paso 1.'; return; }
-  document.getElementById('cxCtkForm').innerHTML = per.map(pp=>{const k=pp.anio+'-'+String(pp.mes).padStart(2,'0');
-    return `<div class="cx-row"><label style="min-width:230px;margin:0;text-transform:none;letter-spacing:0">IVA acreditable pagado · ${CX_MESES[pp.mes-1]} ${pp.anio}</label><input class="cx-input" style="max-width:180px" type="number" step="0.01" id="ctk_${k}" placeholder="0.00"></div>`;}).join('')
-    + `<div class="cx-row"><label style="min-width:230px;margin:0;text-transform:none;letter-spacing:0">Fuente del dato</label><input class="cx-input" id="ctkFuente" value="Contalink · auxiliar de IVA acreditable pagado" style="max-width:440px"></div>
-       <div class="cx-nav"><button class="btn" onclick="cxCtkGuardar()">📥 Usar estos datos de Contalink</button></div>`;
-  document.getElementById('cxCtkBtn').style.display='none';
-}
-function cxCtkGuardar(){
-  const per=cxPeriodos(); const porMes={};
-  per.forEach(pp=>{const k=pp.anio+'-'+String(pp.mes).padStart(2,'0'); const el=document.getElementById('ctk_'+k);
-    const v=el?parseFloat(el.value):NaN; if(!isNaN(v)) porMes[k]={iva_acreditable:Math.round(v*100)/100};});
-  if(!Object.keys(porMes).length){ document.getElementById('cxCtkMsg').textContent='Captura al menos un mes para continuar.'; return; }
-  CX.contalink={porMes,fuente:(document.getElementById('ctkFuente').value||'Contalink').trim()};
-  document.getElementById('cxCtkMsg').innerHTML='✅ IVA acreditable cargado desde Contalink para '+Object.keys(porMes).length+' mes(es). El documento citará la fuente y llevará la alerta correspondiente.';
-  document.getElementById('cxSyntage').innerHTML='<span class="cx-tag info">Sin Syntage · IVA acreditable cargado desde Contalink</span> <span class="cx-hint">'+esc(CX.contalink.fuente)+'</span> <button class="btn secondary" onclick="CX.contalink=null;CX.syntage=null;document.getElementById(\'cxCtkBtn\').style.display=\'\';document.getElementById(\'cxCtkForm\').innerHTML=\'\';cxConsultarSyntage()">Quitar y reconsultar</button>';
-}
-async function cxSolicitarSyntage() {
-  const M = document.getElementById('cxSynMsg'); M.textContent = 'Enviando solicitud a Juan…';
-  const r = await capi('calc_solicitar_syntage', { rfc: CX.cliente.rfc, nombre: CX.cliente.nombre, ciec: document.getElementById('cxCiec').value });
-  document.getElementById('cxCiec').value = '';
-  M.innerHTML = r.enviado ? '✅ Juan recibió la solicitud en Slack. Cuando conecte al cliente (≈5 min), vuelve a este paso y pulsa “Reintentar”. <button class="btn secondary" onclick="CX.syntage=null;cxConsultarSyntage()">Reintentar</button>' : ('⚠️ No se pudo notificar: ' + (r.error || ''));
-}
-async function cxRevelarCiec(token) { const r = await capi('calc_revelar_ciec', { token }); alert(r.ok ? `CIEC de ${r.nombre} (${r.rfc}):\n\n${r.ciec}\n\nEsta liga ya no volverá a mostrarla.` : ('No se pudo revelar: ' + r.error)); location.hash = '#calculo'; }
-
-/* ══════════════ paso 4 · insumos y generación ══════════════ */
-function cxDoc(tipo) { return (CX.docs.find(d => d.tipo === tipo) || {}).datos || null; }
-function cxResumenInsumos() {
-  /* Con varios períodos, el panel muestra un renglón por mes: así se ve de un golpe
-     qué mes trae qué y cuál viene incompleto. */
-  const per = cxPeriodos();
-  const filas = per.map(pp => {
-    const c = cxDocDe('certificado_retenciones', pp) || {}, l = cxDocDe('resumen_marketplace', pp) || {};
-    return `<tr><td><b>${CX_MESES[pp.mes - 1]}</b></td><td>${cxFmt(c.base)}</td><td>${c.ordenes || '—'} · ${c.ordenes_16 ?? '—'}</td><td>${cxFmt(c.iva_trasladado)}</td><td>${cxFmt(c.iva_retenido)}</td><td>${cxFmt(c.isr_retenido)}</td><td>${cxFmt(l.gastos_netos)}</td><td>${cxFmt(l.transferencias)}</td></tr>`;
-  }).join('');
-  document.getElementById('cxResumenMk').innerHTML = `<table class="cx-table"><thead><tr><th>Mes</th><th>Base sin IVA</th><th>Órdenes · 16%</th><th>IVA trasladado</th><th>IVA retenido</th><th>ISR retenido</th><th>Comisiones</th><th>Transferencias</th></tr></thead><tbody>${filas || '<tr><td>Sin períodos seleccionados</td></tr>'}</tbody></table>`;
-  const fSat = per.map(pp => {
-    const k = `${pp.anio}-${String(pp.mes).padStart(2, '0')}`;
-    const ctk = (!CX.syntage || !CX.syntage.conectado) && CX.contalink && CX.contalink.porMes[k];
-    const m = CX.syntage && CX.syntage.conectado ? (CX.syntage.cfdi_por_mes[k] || {}) : (ctk ? { iva_acreditable_pue: ctk.iva_acreditable, emitidos: [], recibidos: [] } : null);
-    const b = cxDocDe('estado_cuenta', pp);
-    return `<tr><td><b>${CX_MESES[pp.mes - 1]}</b></td><td>${m ? cxFmt(m.iva_acreditable_pue)+(ctk?' <span class="cx-tag info">Contalink</span>':'') : '<span class="cx-tag warn">sin Syntage</span>'}</td><td>${m ? cxFmt((m.emitidos || []).reduce((a, x) => a + x.iva, 0)) : '—'}</td><td>${m ? (m.recibidos || []).length : '—'}</td><td>${b ? cxFmt(b.abonos) + ' · ' + (b.cuenta || '') : '<span class="cx-tag warn">sin estado de cuenta</span>'}</td></tr>`;
-  }).join('');
-  document.getElementById('cxResumenSat').innerHTML = `<table class="cx-table"><thead><tr><th>Mes</th><th>IVA acreditable (PUE)</th><th>IVA en CFDI emitidos</th><th>CFDI recibidos</th><th>Abonos en banco</th></tr></thead><tbody>${fSat || ''}</tbody></table>`;
-}
-async function cxGenerar() {
-  const B = document.getElementById('cxBtnGen'), MSG = document.getElementById('cxGenMsg');
-  const per = cxPeriodos();
-  if (!per.length) { MSG.textContent = 'Selecciona al menos un período en el paso 1.'; return; }
-  B.disabled = true; MSG.textContent = 'Calculando…';
-  const lectura = document.getElementById('cxLectura').value;
-  const cu = parseFloat(document.getElementById('cxCU').value);
-  const contexto = (document.getElementById('cxContexto').value || '').trim();
-  const saldoFavor = parseFloat(document.getElementById('cxSaldoFavor').value) || 0;
-  const retPend = parseFloat(document.getElementById('cxRetPend').value) || 0;
-  const retPendDet = (document.getElementById('cxRetPendDet').value || '').trim();
-  if (lectura === 'C') cxLeerCobrado();
-  const pagosPrev = parseFloat(document.getElementById('cxPagosPrev').value) || 0;
-
-  /* La serie incluye todo período con documentos, no solo los seleccionados: así el
-     arrastre de saldo a favor y los acumulados de ISR salen del mismo material. */
-  const mapa = {};
-  CX.docs.forEach(d => { if (d.mes) { const a = Number(d.anio || CX.anio); mapa[a + '-' + Number(d.mes)] = { anio: a, mes: Number(d.mes) }; } });
-  per.forEach(pp => { mapa[pp.anio + '-' + pp.mes] = pp; });
-  const meses = Object.keys(mapa).map(k => mapa[k]).sort((a, b) => (a.anio - b.anio) || (a.mes - b.mes)).map(pp => cxMesInput(pp, lectura));
-
-  const fuentes = [
-    { es: 'Resumen mensual del marketplace', en: 'Marketplace monthly summary', zh: '平台月度汇总', que_es: 'Ventas, tarifas, depósitos y retenciones liquidadas', que_en: 'Sales, fees, payouts and settled withholdings', que_zh: '销售、费用、付款与已结算代扣', estado: CX.docs.some(d => d.tipo === 'resumen_marketplace') ? 'ok' : 'missing' },
-    { es: 'Certificado de retenciones', en: 'Withholding certificate', zh: '代扣证明', que_es: 'Base por orden, IVA cobrado, ISR e IVA retenidos', que_en: 'Per-order base, VAT collected, taxes withheld', que_zh: '逐单基础、收取增值税、代扣税款', estado: CX.docs.some(d => d.tipo === 'certificado_retenciones') ? 'ok' : 'missing' },
-    { es: 'SAT vía Syntage', en: 'SAT via Syntage', zh: 'SAT（Syntage）', que_es: 'CFDI emitidos y recibidos, declaraciones', que_en: 'CFDI issued/received, returns', que_zh: '发票与申报', estado: (CX.syntage && CX.syntage.conectado) || CX.contalink ? 'ok' : 'missing' },
-    { es: 'Estado de cuenta bancario', en: 'Bank statement', zh: '银行对账单', que_es: 'Depósitos recibidos del marketplace', que_en: 'Payouts received', que_zh: '收到的平台付款', estado: CX.docs.some(d => d.tipo === 'estado_cuenta') ? 'ok' : 'missing' },
-    { es: 'Declaración anual anterior (coeficiente de utilidad)', en: 'Prior annual return (profit coefficient)', zh: '上年度申报（利润系数）', que_es: 'Determina el ISR provisional', que_en: 'Determines provisional income tax', que_zh: '决定所得税预缴', estado: isNaN(cu) ? 'missing' : 'ok' },
-    { es: 'Historial capturado por el contador', en: 'History captured by the accountant', zh: '会计师录入的历史数据', que_es: 'Saldo a favor, retenciones pendientes y pagos provisionales previos', que_en: 'Credit balance, pending withholdings and prior provisional payments', que_zh: '留抵、未抵扣代扣与已缴预缴', estado: (saldoFavor || retPend || pagosPrev) ? 'ok' : 'missing' }
-  ];
-  const alertas = cxAlertas(per, lectura, cu, retPend);
-  const base = {
-    cliente: { nombre: CX.cliente.nombre, rfc: CX.cliente.rfc, company_id: CX.cliente.company_id, regimen: 'General de Ley Personas Morales (601)', marketplace: 'Amazon México' },
-    idioma: CX.idioma, estado: 'draft', meses: meses, completar_serie: true,
-    isr: { cu: isNaN(cu) ? null : cu, perdidas: 0, pagos_previos: pagosPrev ? [{ anio: per[0].anio, mes: per[0].mes, importe: pagosPrev }] : [] },
-    fuentes: fuentes, alertas: alertas, contexto: contexto,
-    saldo_favor_inicial: saldoFavor, retenciones_pendientes: retPend, retenciones_pendientes_detalle: retPendDet,
-    lectura: lectura === 'A'
-      ? { es: 'Lectura A — el IVA cobrado es el que el marketplace reporta orden por orden en el certificado de retenciones.', en: 'Criterion A — VAT collected is what the marketplace reports order by order in the withholding certificate.', zh: '标准 A —— 增值税以平台代扣证明中逐单报告的数据为准。' }
-      : lectura === 'B'
-      ? { es: 'Lectura B — el IVA cobrado es el trasladado en los CFDI emitidos.', en: 'Criterion B — VAT collected is the VAT charged on issued CFDI.', zh: '标准 B —— 增值税以已开具 CFDI 中的转嫁税额为准。' }
-      : { es: 'Lectura C — flujo de efectivo: el IVA se calcula sobre los ingresos efectivamente cobrados en el mes, y el IVA acreditable solo sobre gastos efectivamente pagados. Es el criterio del artículo 1-B de la Ley del IVA.', en: 'Criterion C — cash basis: VAT is computed on income actually collected in the month, and creditable VAT only on expenses actually paid.', zh: '标准 C —— 收付实现制：增值税按当月实际收到的收入计算，进项税仅就实际支付的费用抵扣。' }
-  };
-
-  CX.generados = [];
-  for (let k = 0; k < per.length; k++) {
-    MSG.textContent = `Calculando ${CX_MESES[per[k].mes - 1]} ${per[k].anio}… (${k + 1} de ${per.length}${per.length > 1 ? ' + consolidado' : ''})`;
-    const r = await capiPost('calc_generar', { input: Object.assign({}, base, { periodo: per[k] }) });
-    if (!r.ok) { B.disabled = false; MSG.innerHTML = `⚠️ ${CX_MESES[per[k].mes - 1]}: ${r.error}`; return; }
-    CX.generados.push({ calc_id: r.calc_id, etiqueta: `${CX_MESES[per[k].mes - 1]} ${per[k].anio}`, calculo: r.calculo });
-  }
-  if (per.length > 1) {
-    const rango = { desde: `${per[0].anio}-${String(per[0].mes).padStart(2, '0')}`, hasta: `${per[per.length - 1].anio}-${String(per[per.length - 1].mes).padStart(2, '0')}` };
-    MSG.textContent = 'Armando el consolidado del rango…';
-    const rc = await capiPost('calc_generar', { input: Object.assign({}, base, { periodo: per[per.length - 1], rango: rango }) });
-    if (!rc.ok) { B.disabled = false; MSG.innerHTML = '⚠️ consolidado: ' + rc.error; return; }
-    CX.generados.unshift({ calc_id: rc.calc_id, etiqueta: `Consolidado ${rango.desde} → ${rango.hasta}`, calculo: rc.calculo, consolidado: true });
-  }
-  B.disabled = false; MSG.textContent = '';
-  const el = CX.generados[0];
-  CX.calc = el.calculo; CX.calc_id = el.calc_id;
-  const x = el.calculo, rg = x.rango;
-  document.getElementById('cxResult').innerHTML =
-    `<div class="k"><span>IVA a pagar${rg ? ' del rango' : ''}</span><b>$ ${cxFmt(rg ? rg.iva_a_pagar : x.iva.a_pagar)}</b></div>
-     <div class="k"><span>ISR a pagar</span><b>${x.isr.a_pagar == null ? 'pendiente CU' : '$ ' + cxFmt(x.isr.a_pagar)}</b></div>
-     <div class="k"><span>Saldo a favor que se arrastra</span><b>$ ${cxFmt(x.iva.saldo_favor_arrastre)}</b></div>
-     <div class="k"><span>Ventas base${rg ? ' del rango' : ''}</span><b>$ ${cxFmt(rg ? rg.ventas : x.resumen.ventas_base)}</b></div>
-     <p class="cx-hint">${CX.generados.length} documento(s) guardados en “Cálculos guardados”. Estado: borrador hasta que el cliente apruebe.</p>
-     <div class="cx-list">${CX.generados.map((g, i) => `<div class="it"><span>${g.consolidado ? '📚 ' : '📄 '}<b>${g.etiqueta}</b> · ${g.calc_id}</span><span><button class="btn secondary" onclick="cxElegirGenerado(${i})">usar este</button></span></div>`).join('')}</div>`;
-  cxGo(5);
-}
-function cxElegirGenerado(i) {
-  const g = CX.generados[i]; if (!g) return;
-  CX.calc = g.calculo; CX.calc_id = g.calc_id;
-  document.getElementById('cxSisMsg').innerHTML = `Trabajando con <b>${g.etiqueta}</b> (${g.calc_id}): descarga, carga al sistema y correo usan este documento.`;
-}
-function cxMesInput(pp, lectura) {
-  const c = cxDocDe('certificado_retenciones', pp) || {}, l = cxDocDe('resumen_marketplace', pp) || {}, b = cxDocDe('estado_cuenta', pp);
-  const k = `${pp.anio}-${String(pp.mes).padStart(2, '0')}`;
-  const ctk = (!CX.syntage || !CX.syntage.conectado) && CX.contalink && CX.contalink.porMes[k];
-  const syn = (CX.syntage && CX.syntage.conectado) ? (CX.syntage.cfdi_por_mes[k] || {}) : (ctk ? { emitidos: [], recibidos: [], iva_acreditable_pue: ctk.iva_acreditable, iva_ppd_pendiente: 0 } : {});
-  let cert;
-  if (lectura === 'C') {
-    /* Flujo de efectivo: la base es lo cobrado y el IVA sale de esa base. El resto del
-       certificado (retenciones, órdenes, folio) se conserva como está. */
-    const cob = (CX.cobrado || {})[pp.anio + '-' + pp.mes];
-    const fuente = (document.getElementById('cxCobradoFuente').value || 'Ingresos efectivamente cobrados').trim();
-    cert = Object.assign({}, c, cob != null ? { base: cob, iva_trasladado: Math.round(cob * 0.16 * 100) / 100, src_base: fuente } : { src_base: fuente });
-  } else if (lectura === 'B') {
-    cert = Object.assign({}, c, { iva_trasladado: (syn.emitidos || []).reduce((a, x) => a + x.iva, 0), src_base: 'CFDI emitidos (SAT / Syntage)' });
-  } else cert = c;
-  return { mes: pp.mes, anio: pp.anio,
-    cert: cert,
-    liq: l, cfdi: { emitidos: syn.emitidos || [], recibidos: syn.recibidos || [], iva_acreditable_pue: syn.iva_acreditable_pue || 0, iva_ppd_pendiente: syn.iva_ppd_pendiente || 0 },
-    banco: b ? { abonos: b.abonos, cuenta: b.cuenta } : null };
-}
-function cxDocDe(tipo, pp) {
-  const d = CX.docs.filter(x => x.tipo === tipo && Number(x.mes) === pp.mes && Number(x.anio || CX.anio) === pp.anio)[0];
-  return d ? d.datos : null;
-}
-function cxAlertas(per, lectura, cu, retPend) {
-  const A = [];
-  if ((!CX.syntage || !CX.syntage.conectado) && CX.contalink) {
-    const meses = Object.keys(CX.contalink.porMes).map(k => CX_MESES[Number(k.slice(5)) - 1]).join(', ');
-    A.push(`Sin conexión al SAT (Syntage): el IVA acreditable de ${meses} se cargó directamente desde Contalink (${CX.contalink.fuente}). No se validó contra CFDI del SAT.`);
-  }
-  if (CX.syntage && CX.syntage.conectado && !CX.syntage.cfdi_recibidos_anio)
-    A.push(`El SAT no reporta facturas recibidas a nombre de este RFC en ${CX.anio}. El IVA acreditable queda en cero hasta que el cliente registre sus gastos con factura a su RFC.`);
-  if (cu === 0)
-    A.push('El coeficiente de utilidad se capturó como 0: eso deja el ISR en cero por criterio, no por falta de dato. Si no se tiene el coeficiente de la anual anterior, el campo debe quedar vacío y el documento dirá “pendiente”.');
-  if (retPend)
-    A.push(`Se aplicó IVA retenido de meses anteriores por ${cxFmt(retPend)}, capturado por el contador como historial del cliente${document.getElementById('cxRetPendDet').value ? ' (' + document.getElementById('cxRetPendDet').value.trim() + ')' : ''}. No sale de los documentos de estos períodos.`);
-  if (lectura === 'C') {
-    const faltan = cxPeriodos().filter(pp => (CX.cobrado || {})[pp.anio + '-' + pp.mes] == null).map(pp => CX_MESES[pp.mes - 1]);
-    if (faltan.length) A.push(`Criterio de flujo de efectivo sin base capturada en: ${faltan.join(', ')}. Esos meses quedaron con la base del certificado, que es lo devengado y no lo cobrado.`);
-  }
-  per.forEach(pp => {
-    const c = cxDocDe('certificado_retenciones', pp), l = cxDocDe('resumen_marketplace', pp), b = cxDocDe('estado_cuenta', pp);
-    const et = `${CX_MESES[pp.mes - 1]} ${pp.anio}`;
-    if (!c) A.push(`${et}: sin certificado de retenciones; ese mes queda incompleto.`);
-    if (!l) A.push(`${et}: sin resumen del marketplace; no hay comisiones ni transferencias que conciliar.`);
-    if (lectura === 'B' && c && c.iva_trasladado) {
-      const k = `${pp.anio}-${String(pp.mes).padStart(2, '0')}`;
-      const syn = (CX.syntage && CX.syntage.conectado) ? (CX.syntage.cfdi_por_mes[k] || {}) : {};
-      const ivaCfdi = (syn.emitidos || []).reduce((a, x) => a + x.iva, 0);
-      if (ivaCfdi) A.push(`${et} · criterio Lectura B: el IVA cobrado se toma de los CFDI emitidos (${cxFmt(ivaCfdi)}) y no del certificado (${cxFmt(c.iva_trasladado)}).`);
-    }
-    if (b && b.moneda && b.moneda !== 'MXN') A.push(`${et}: el estado de cuenta está en ${b.moneda}, no en pesos; la conciliación es referencia.`);
-    if (b && b.saldo_final != null && b.cuadra === false) A.push(`${et}: el estado de cuenta no cuadra renglón por renglón.`);
-  });
-  return A;
-}
-
-/* ══════════════ paso 5 · entrega ══════════════ */
-function cxVer() { const f = document.getElementById('cxPreview'); f.style.display = ''; f.srcdoc = TallyCalculo.render(CX.calc, CX.idioma); }
-async function cxDescargar() {
-  const b = document.getElementById('cxBtnXlsx'); const t0 = b.textContent; b.disabled = true; b.textContent = '⏳ Generando Excel…';
-  const r = await capi('calc_descargar', { calc_id: CX.calc_id, idioma: CX.idioma });
-  b.disabled = false; b.textContent = t0;
-  if (!r.ok) { document.getElementById('cxSisMsg').textContent = '⚠️ ' + (r.error || 'no se pudo generar el Excel'); return; }
-  const bin = atob(r.b64), arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-  const url = URL.createObjectURL(new Blob([arr], { type: r.mime }));
-  const a = document.createElement('a'); a.href = url; a.download = r.nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
-}
-async function cxCargarSistema() {
-  if (!CX.calc_id) return;
-  if (!confirm('Se cargará el Excel de este cálculo en la tabla calculo_impuestos del sistema (AppSheet), en el período del cliente. ¿Continuar?')) return;
-  const b = document.getElementById('cxBtnSis'), M = document.getElementById('cxSisMsg'); const t0 = b.textContent;
-  b.disabled = true; b.textContent = '⏳ Cargando…'; M.textContent = '';
-  const r = await capi('calc_appsheet_push', { calc_id: CX.calc_id, idioma: CX.idioma });
-  b.disabled = false; b.textContent = t0;
-  M.innerHTML = r.ok
-    ? `✅ ${r.actualizada ? 'Actualizado' : 'Cargado'} en el sistema · <b>${r.nombre}</b> · período <b>${r.company_id}</b> (${r.mes} ${r.anio}) · id ${r.calc_imp_id}. Ya se ve en AppSheet en la tabla calculo_impuestos.`
-    : '⚠️ ' + (r.error || 'no se pudo cargar');
-}
-async function cxCorregir() { const t = prompt('¿Qué hay que corregir en este cálculo?'); if (!t) return; const r = await capi('calc_correccion', { calc_id: CX.calc_id, texto: t }); alert(r.ok ? 'Corrección registrada. Se avisó por Slack.' : ('Error: ' + r.error)); }
-function cxIrCorreo() { cxCorreoDe(CX.calc_id, CX.idioma); }
-
-/* ══════════════ lista y filtros ══════════════ */
-async function cxListar() {
-  const f = { nombre: document.getElementById('cxFNombre').value, rfc: document.getElementById('cxFRfc').value, mes: document.getElementById('cxFMes').value, anio: document.getElementById('cxFAnio').value, estado: document.getElementById('cxFEstado').value };
-  const r = await capi('calc_listar', f); CX.lista = r.calculos || []; const E = { draft: 'Borrador', correccion: 'En corrección', approved: 'Aprobado', filed: 'Declarado' };
-  document.querySelector('#cxTabla tbody').innerHTML = (r.calculos || []).map(c => `<tr><td><b>${c.nombre}</b></td><td>${c.rfc}</td><td>${CX_MESES[c.mes - 1]} ${c.anio}</td><td>${cxFmt(+c.iva_a_pagar)}</td><td>${c.isr_a_pagar === '' ? 'pendiente' : cxFmt(+c.isr_a_pagar)}</td><td>${cxFmt(+c.saldo_favor)}</td><td><span class="cx-tag ${c.estado === 'approved' || c.estado === 'filed' ? 'ok' : c.estado === 'correccion' ? 'warn' : 'info'}">${E[c.estado] || c.estado}</span></td><td>${c.idioma}</td><td>${String(c.actualizado_en).slice(0, 10)}${c.appsheet_calc_imp_id ? ' <span class="cx-tag ok" title="Cargado en la tabla calculo_impuestos de AppSheet">en sistema</span>' : ''}</td>
-    <td><button class="btn secondary" onclick="cxAbrir('${c.calc_id}')">Abrir</button> <button class="btn secondary" onclick="cxCorreoDe('${c.calc_id}','${c.idioma}')">✉️</button></td></tr>`).join('') || '<tr><td colspan="10" class="cx-hint">Sin cálculos con esos filtros.</td></tr>';
-}
-async function cxAbrir(id) { const r = await capi('calc_get', { calc_id: id }); if (!r.ok) return alert(r.error); CX.calc = r.calculo; CX.calc_id = id; CX.idioma = r.fila.idioma; CX.cliente = { nombre: r.fila.nombre, rfc: r.fila.rfc, company_id: r.fila.company_id }; document.querySelector('[data-cxtab="nuevo"]').click(); cxGo(5); document.getElementById('cxResult').innerHTML = `<div class="k"><span>${r.fila.nombre} · ${CX_MESES[r.fila.mes - 1]} ${r.fila.anio}</span></div><div class="k"><span>IVA a pagar</span><b>$ ${cxFmt(+r.fila.iva_a_pagar)}</b></div><div class="k"><span>ISR a pagar</span><b>${r.fila.isr_a_pagar === '' ? 'pendiente CU' : '$ ' + cxFmt(+r.fila.isr_a_pagar)}</b></div>${r.fila.correcciones ? `<p class="cx-hint">Correcciones:<br>${String(r.fila.correcciones).replace(/\n/g, '<br>')}</p>` : ''}`; cxVer(); }
-function cxCorreoDe(id, idioma) {
-  const fila=(CX.lista||[]).find(x=>x.calc_id===id)||{calc_id:id,idioma:idioma,company_id:(CX.cliente||{}).company_id,nombre:(CX.cliente||{}).nombre};
-  document.querySelector('.nav a[data-view="bandeja"]').click();
-  openCompose(); cmp.mode='calc'; cmp.calcPre={calc_id:id,idioma:idioma||fila.idioma};
-  const c=CLIENTES.find(x=>x.company_id===fila.company_id); if(c) cmp.clients=[c];
-  renderCompose();
-}
-
-document.addEventListener('DOMContentLoaded', cxInit);
-</script>
-<script>
-/* ═══ Compose · modo Cálculo de impuestos: elige el cálculo guardado de cada cliente → plantilla con resumen + documento adjunto ═══ */
-let CALC_LISTA_CMP=null;
-function calcComposeHtml(){
-  if(CALC_LISTA_CMP===null){ CALC_LISTA_CMP=[]; capi('calc_listar',{}).then(r=>{ CALC_LISTA_CMP=r.calculos||[]; if(cmp.mode==='calc') renderCompose(); }); }
-  const M=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  cmp.calcSel=cmp.calcSel||{};
-  if(cmp.calcPre){ const c=CALC_LISTA_CMP.find(x=>x.calc_id===cmp.calcPre.calc_id); if(c){ cmp.calcSel[c.company_id]={calc_id:c.calc_id,idioma:cmp.calcPre.idioma||c.idioma}; } }
-  const reales=cmp.clients.filter(c=>!c.custom);
-  if(!reales.length) return `<div class="notice info" style="margin-top:8px">🧮 Agrega en el paso 1 el cliente del directorio al que le enviarás su cálculo de impuestos.</div>`;
-  return `<label>3 · Cálculo a adjuntar por cliente</label>
-  ${reales.map(c=>{ const opts=CALC_LISTA_CMP.filter(x=>x.company_id===c.company_id||(x.rfc&&c.rfc&&String(x.rfc).toUpperCase()===String(c.rfc).toUpperCase())); const sel=cmp.calcSel[c.company_id]||{};
-    return `<div style="display:flex;gap:8px;align-items:center;margin:6px 0"><span style="flex:1;font-size:13px"><b>${esc(c.cliente)}</b></span>
-      <select style="flex:1.4" onchange="cmp.calcSel['${c.company_id}']=Object.assign(cmp.calcSel['${c.company_id}']||{},{calc_id:this.value})"><option value="">— período —</option>${opts.map(x=>`<option value="${x.calc_id}" ${sel.calc_id===x.calc_id?'selected':''}>${M[Number(x.mes)-1]} ${x.anio} · ${x.estado}</option>`).join('')}</select>
-      <select style="width:auto" onchange="cmp.calcSel['${c.company_id}']=Object.assign(cmp.calcSel['${c.company_id}']||{},{idioma:this.value})"><option value="es" ${sel.idioma==='es'?'selected':''}>Español</option><option value="en" ${(!sel.idioma||sel.idioma==='en')?'selected':''}>English</option><option value="zh" ${sel.idioma==='zh'?'selected':''}>中文</option></select></div>`; }).join('')}
-  ${CALC_LISTA_CMP.length?'':'<div class="notice info">Todavía no hay cálculos guardados. Fabrica uno en 🧮 Cálculo de impuestos.</div>'}
-  <div class="notice info" style="margin-top:8px">La plantilla saluda a la empresa e incluye ventas, IVA, ISR, total y retenciones del mes; el documento va adjunto en el idioma elegido.</div>
-  <div class="btn-row"><button class="btn btn-primary" onclick="genPreviewsCalc()">Generar correo(s) con cálculo adjunto</button><button class="btn btn-ghost" onclick="cancelCompose()">Cancelar</button></div>
-  <div id="iaStatus"></div>`;
-}
-async function genPreviewsCalc(){
-  const reales=cmp.clients.filter(c=>!c.custom); cmp.previews=[]; cmp.cat=cmp.cat||'Seguimiento proceso'; cmp.tpl='CALC';
-  for(const c of reales){ const sel=(cmp.calcSel||{})[c.company_id]; if(!sel||!sel.calc_id){ toast('⚠️ '+c.cliente+': elige el período del cálculo'); continue; }
-    const r=await capi('calc_correo',{calc_id:sel.calc_id,idioma:sel.idioma||'en'}); if(!r.ok){ toast('❌ '+c.cliente+': '+(r.error||'error')); continue; }
-    cmp.previews.push({company_id:c.company_id,cliente:c.cliente,to:c.contacto_email||'',cc:c.cc_email||'',subject:r.asunto,body:r.cuerpo,adjuntos:[{calc_id:sel.calc_id,idioma:r.idioma,label:r.adjunto_nombre||'Cálculo de impuestos'}],idioma:r.idioma==='zh'?'zh':r.idioma,status:'',sent:false,faltantes:[]}); }
-  if(!cmp.previews.length) return; renderPreviews(); toast('✅ '+cmp.previews.length+' correo(s) con cálculo adjunto — revisa y envía');
-}
 </script>
 <style>
 /* ═══════════════════════════════════════════════════════════════════════════

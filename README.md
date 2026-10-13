@@ -25,10 +25,15 @@ Interfaz web para el triage y respuesta de correos del área contable + seguimie
 ```
 index.html            ← la interfaz completa (SPA, un solo archivo)
 netlify.toml          ← config Netlify (estático, sin build)
-scripts/apps-script.gs← endpoint de escritura (se pega en el Sheet)
+scripts/apps-script.gs← backend (Apps Script; se despliega con clasp vía scripts/auto-push.sh)
 agente/CLAUDE.md      ← SOP operativo del agente (filtros, categorías, flujo)
-docs/esquema-db.md    ← esquema de las 4 pestañas del Sheet
+docs/esquema-db.md    ← esquema de las pestañas del Sheet
+docs/clientes-marketplace.md ← Kanban «Clientes Marketplace»: fuentes, reglas y ciclo (13-oct-2026)
 ```
+
+## Secciones vigentes (13-oct-2026)
+Dashboard · Bandeja · **Clientes Marketplace** (nuevo) · Reportes · Bases correos (antes «Clientes», solo admin) · Configuración.
+Retiradas el 13-oct-2026 por orden de Juan, interfaz y backend: **Cálculo de impuestos** (el flujo pasó a Excel del owner → Drive → Tally 360), **Auditoría** (el veredicto vive en MoM › Auditoría del 360) y **Tareas**. Los SOPs de Notion quedaron actualizados ese día.
 
 ## Checklist de activación (pasos de Juan)
 
