@@ -1889,6 +1889,20 @@ function handle(body) {
     case 'init_schema':
       return initSchema(ss);
 
+    case 'sat_diag_slack': {
+      // Diagnóstico sin secretos: ¿hay bot?, ¿cómo se llama?, ¿está en el canal? (nunca devuelve el token)
+      const props = PropertiesService.getScriptProperties();
+      const tok = props.getProperty('SLACK_BOT_TOKEN');
+      const canal = (function () { try { const cfg = ss.getSheetByName('Config'); const r = findRow(cfg, 1, 'sat_slack_canal'); return (r && String(cfg.getRange(r, 2).getValue() || '').trim()) || SAT_SLACK_CANAL_DEFAULT; } catch (e) { return SAT_SLACK_CANAL_DEFAULT; } })();
+      const out = { ok: true, token_presente: !!tok, canal: canal };
+      if (!tok) return out;
+      const call = function (m, q) { const r = UrlFetchApp.fetch('https://slack.com/api/' + m + (q ? '?' + q : ''), { headers: { Authorization: 'Bearer ' + tok }, muteHttpExceptions: true }); try { return JSON.parse(r.getContentText()); } catch (e) { return { ok: false, error: 'HTTP ' + r.getResponseCode() }; } };
+      const a = call('auth.test');
+      out.bot = a.ok ? { nombre: a.user, equipo: a.team, user_id: a.user_id } : { error: a.error };
+      const c = call('conversations.info', 'channel=' + encodeURIComponent(canal));
+      out.canal_info = c.ok ? { nombre: c.channel && c.channel.name, es_miembro: !!(c.channel && c.channel.is_member) } : { error: c.error };
+      return out;
+    }
     case 'sat_probar_slack': {
       const uS = checkUser(body.auth); if (!uS.ok || !uS.admin) return { ok: false, error: 'solo admin' };
       return satAvisarSlack_({ email_id: 'prueba', asunto: 'Prueba de aviso del Buzón Tributario', remitente_email: 'noreply@sat.gob.mx', cuenta: 'accounting', fecha_recibido: new Date().toISOString().slice(0, 16).replace('T', ' '), resumen: 'Prueba pedida desde Tally Ops por ' + uS.email }, { autoridad: true });
