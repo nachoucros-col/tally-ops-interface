@@ -83,6 +83,7 @@ Para cada cuenta: leer correos recibidos desde la última corrida (Log.timestamp
 ### Filtros de EXCLUSIÓN (descartar sin registrar)
 Descarta todo correo que cumpla cualquiera:
 - Remitente contiene: `no-reply`, `noreply`, `no_reply`, `donotreply`, `notifications@`, `mailer-daemon`, `postmaster`, `calendar-notification`.
+  - **Excepción SAT (14-oct-2026):** si el dominio del remitente es de la autoridad fiscal (`sat.gob.mx`, `shcp.gob.mx`, `hacienda.gob.mx`, `buzontributario.gob.mx`), el correo se INCLUYE aunque venga de `noreply`/`no-reply`: va a la categoría `SAT` con prioridad `Alta`, y en `📌 Qué pide` se anota a qué cliente (RFC) se refiere.
 - Remitente de dominios de software/servicios: `stripe.com`, `google.com`, `googlemail`, `appsheet.com`, `anthropic.com`, `openai.com`, `netlify`, `github.com`, `notion.so`, `slack.com`, `intuit`, `docusign`, `zoom.us`, `payoneer` (notificaciones automáticas), `amazon.com` salvo invitaciones de Seller Central relevantes (esas van a la cola CX, no aquí).
 - Asunto/tipo: invitaciones de Calendar (`Invitación:`/`Invitation:`), recibos y facturas de suscripciones (`receipt`, `invoice #`, `payment received`, `renewal`, `license`), newsletters/marketing (`unsubscribe` en el cuerpo), OOO auto-replies puros.
 - La lista viva de exclusiones está en `Config` — léela en cada corrida; Juan puede ampliarla sin tocar código.
@@ -98,9 +99,11 @@ Descarta todo correo que cumpla cualquiera:
 | `Proceso` | Preguntas sobre su proceso, estatus de declaraciones, solicitudes específicas de contabilidad. |
 | `Queja y reclamo` | El contexto refleja inconformidad con el proceso (tono de molestia, reclamo por tiempos, errores, cobros). |
 | `Alerta` | Interno o cliente donde el contexto refleja un problema que requiere urgencia/inmediatez (bloqueos SAT, suspensiones, deadlines inminentes, escalaciones). |
+| `SAT` | **(14-oct-2026, orden de Juan)** Todo correo que venga de la autoridad fiscal (remitente con dominio `sat.gob.mx`, `shcp.gob.mx`, `hacienda.gob.mx`, `buzontributario.gob.mx`) y todo correo —de cliente, interno o externo— que mencione a la autoridad o a sus trámites: SAT, Servicio de Administración Tributaria, Buzón Tributario, opinión de cumplimiento / 32-D, carta invitación, crédito fiscal, e.firma / FIEL / CIEC, SAT ID, auditoría fiscal, Hacienda / SHCP, constancia de situación fiscal, RFC inactivo, "tax authority". Las siglas cuentan solo como palabra completa ("satisfied" no es SAT). La lista viva de términos está en `Config.sat_terminos`. |
 
-- Si aplica más de una, prioridad: `Alerta` > `Queja y reclamo` > `Documentación` > `Proceso`.
-- `prioridad`: `Alta` para Alerta y Queja y reclamo (y cualquier correo con deadline ≤48h); `Media` el resto.
+- Si aplica más de una, prioridad: `SAT` > `Alerta` > `Queja y reclamo` > `Documentación` > `Proceso`. Un correo que menciona al SAT va a `SAT` aunque además sea queja o alerta: anota la urgencia en `prioridad` y en `notas_agente`, no cambies la categoría.
+- **Red de seguridad:** el backend aplica la misma regla al insertar (`append_email`): si el remitente es de la autoridad o el texto menciona los términos, la fila entra como `SAT` aunque tú la hayas clasificado distinto, y con `prioridad=Alta` cuando viene de la autoridad. No la "corrijas" después con `update_email`.
+- `prioridad`: `Alta` para Alerta, Queja y reclamo y todo `SAT` que venga de la autoridad misma (y cualquier correo con deadline ≤48h); `Media` el resto.
 - `resumen`: 1-2 líneas, en español, con la **decisión concreta que se requiere de Juan** (no una descripción vaga).
 - `notas_agente`: **bloque de contexto estructurado para decidir** — regla dura de calidad: Juan debe poder responder sin abrir Gmail. Formato (con saltos de línea, la interfaz lo renderiza):
 

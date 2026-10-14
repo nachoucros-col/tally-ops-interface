@@ -91,6 +91,7 @@ h1{font-size:28px;font-weight:700;letter-spacing:-0.015em;margin-bottom:4px}
 .tag.cat-Proceso{background:var(--cyan-100);color:#0a6d8f}
 .tag.cat-Queja{background:var(--orange-100);color:#b34a17}
 .tag.cat-Alerta{background:var(--orange-500);color:#fff}
+.cat-SAT{background:#1f2937;color:#fff}
 .tag.cat-out{background:var(--gray-100);color:var(--ink);border:1px solid var(--gray-300)}
 .tag.st-Nuevo{background:var(--gray-100);color:var(--ink)}
 .tag.st-Prompt{background:var(--cyan-100);color:#0a6d8f}
@@ -840,7 +841,7 @@ async function loadAll(){
     document.getElementById('cfgReadStatus').textContent = '✅ conectado';
     renderCatChips();
     if(AUTH && AUTH.admin) renderClientes();
-    if(document.activeElement.id!=='cfgCats') document.getElementById('cfgCats').value = CONFIG.categorias_triage || 'Documentación, Proceso, Queja y reclamo, Alerta';
+    if(document.activeElement.id!=='cfgCats') document.getElementById('cfgCats').value = CONFIG.categorias_triage || 'Documentación, Proceso, Queja y reclamo, Alerta, SAT';
     if(document.activeElement.id!=='cfgCuentas') document.getElementById('cfgCuentas').value = CONFIG.cuentas_monitoreadas || '';
     // ⚠️ Regla anti-borrado (21-jul): el auto-refresh JAMÁS re-pinta el drawer si está abierto —
     // re-pintarlo borra lo que el usuario está escribiendo (instrucción, draft editado, compose).
@@ -961,7 +962,7 @@ async function requestRun(){
 }
 
 /* ═══════════════ BANDEJA ═══════════════ */
-const CAT_CLASS={'Documentación':'cat-Documentación','Proceso':'cat-Proceso','Queja y reclamo':'cat-Queja','Alerta':'cat-Alerta','Quejas y alertas':'cat-Queja'};
+const CAT_CLASS={'Documentación':'cat-Documentación','Proceso':'cat-Proceso','Queja y reclamo':'cat-Queja','Alerta':'cat-Alerta','Quejas y alertas':'cat-Queja','SAT':'cat-SAT'};
 /* Categorías fusionadas: los correos viejos conservan su valor original en el Sheet */
 const CAT_ALIAS={'Quejas y alertas':['Quejas y alertas','Queja y reclamo','Alerta']};
 function catMatch(cat,eCat){ const l=CAT_ALIAS[cat]; return l?l.includes(eCat):eCat===cat; }

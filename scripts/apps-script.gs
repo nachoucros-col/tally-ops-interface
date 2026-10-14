@@ -1091,11 +1091,16 @@ function handle(body) {
       const sh = ss.getSheetByName('Emails');
       ensureCcCol(sh);
       if (findRow(sh, 1, body.email_id)) return { ok: true, skipped: 'ya existe', email_id: body.email_id };
+      // Categoría SAT (14-oct-2026, orden de Juan): regla determinista que manda sobre lo que traiga el agente.
+      const satR = satRegla_(body);
+      const catFinal = satR.es ? 'SAT' : (body.categoria || '');
+      const prioFinal = satR.autoridad ? 'Alta' : (body.prioridad || 'Media');
+      const notasFinal = satR.es ? ('🏛️ SAT: ' + satR.motivo + '\n' + (body.notas_agente || '')) : (body.notas_agente || '');
       sh.appendRow([body.email_id||'', body.thread_id||'', body.cuenta||'', body.fecha_recibido||'', body.remitente_nombre||'',
                     body.remitente_email||'', body.company_id||'', body.cliente||'', body.asunto||'', body.resumen||'',
-                    body.categoria||'', body.prioridad||'Media', 'Nuevo', '', '', '', '', '', '', body.notas_agente||'', now,
+                    catFinal, prioFinal, 'Nuevo', '', '', '', '', '', '', notasFinal, now,
                     body.cc_originales||'', body.mensaje_original||'']);
-      return { ok: true, inserted: body.email_id };
+      return { ok: true, inserted: body.email_id, categoria: catFinal };
     }
     case 'update_email': {
       // Actualiza cualquier columna de una fila de Emails. Clave: email_id (el actual).
@@ -2017,6 +2022,38 @@ const PLANTILLAS_SEED = [
 /* ══════════════ HELPERS ══════════════ */
 
 const EMAIL_COL = { estado: 13, prompt_juan: 14, draft_final: 17, ultima_actualizacion: 21 };
+
+/* ── Categoría «SAT» (14-oct-2026) ──
+   Reconoce (a) cualquier correo que venga de la autoridad fiscal (dominio sat.gob.mx o cualquier gob.mx
+   fiscal) y (b) cualquier correo que mencione a la autoridad o a sus trámites, venga de quien venga.
+   Los términos se pueden ampliar sin tocar código en Config.sat_terminos (separados por coma). */
+const SAT_DOMINIOS = /@(?:[a-z0-9.-]+\.)?(sat|shcp|hacienda|buzontributario)\.gob\.mx$/i;
+const SAT_TERMINOS_BASE = ['SAT', 'Servicio de Administración Tributaria', 'Servicio de Administracion Tributaria', 'autoridad fiscal',
+  'Buzón Tributario', 'Buzon Tributario', 'opinión de cumplimiento', 'opinion de cumplimiento', '32-D', '32D', 'carta invitación', 'carta invitacion',
+  'crédito fiscal', 'credito fiscal', 'e.firma', 'efirma', 'FIEL', 'CIEC', 'SAT ID', 'auditoría fiscal', 'auditoria fiscal', 'Hacienda', 'SHCP',
+  'constancia de situación fiscal', 'constancia de situacion fiscal', 'RFC inactivo', 'cumplimiento fiscal',
+  'tax authority', 'Mexican tax authority', 'tax compliance opinion', 'tax office'];
+// Fuera a propósito (serían demasiado amplios y vaciarían «Proceso»): declaración, complementaria, multa, requerimiento, DIOT.
+// Si Juan los quiere, se agregan en Config.sat_terminos sin tocar código.
+function satTerminos_() {
+  let extra = [];
+  try { const cfg = SpreadsheetApp.openById(DB_ID).getSheetByName('Config'); const r = findRow(cfg, 1, 'sat_terminos'); if (r) extra = String(cfg.getRange(r, 2).getValue() || '').split(',').map(function (t) { return t.trim(); }).filter(Boolean); } catch (e) {}
+  return SAT_TERMINOS_BASE.concat(extra);
+}
+function satRegla_(f) {
+  const from = String(f.remitente_email || '').trim().toLowerCase();
+  if (SAT_DOMINIOS.test(from)) return { es: true, autoridad: true, motivo: 'remitente de la autoridad fiscal (' + from + ')' };
+  const texto = [f.asunto, f.resumen, f.mensaje_original, f.notas_agente].map(function (x) { return String(x || ''); }).join('\n');
+  const terms = satTerminos_();
+  for (let i = 0; i < terms.length; i++) {
+    const t = terms[i]; if (!t) continue;
+    // Siglas (SAT, FIEL, CIEC, DIOT, SHCP, 32-D…): palabra completa y sensibles a mayúsculas, para no atrapar "satisfecho" o "ciecla".
+    const esSigla = /^[A-Z0-9.\-]{2,6}$/.test(t);
+    const re = new RegExp('(^|[^A-Za-z0-9])' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=$|[^A-Za-z0-9])', esSigla ? '' : 'i');
+    if (re.test(texto)) return { es: true, autoridad: false, motivo: 'menciona «' + t + '»' };
+  }
+  return { es: false, autoridad: false, motivo: '' };
+}
 
 function setEmailFields(ss, emailId, fields, now) {
   const sh = ss.getSheetByName('Emails');
