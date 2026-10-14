@@ -1100,7 +1100,10 @@ function handle(body) {
                     body.remitente_email||'', body.company_id||'', body.cliente||'', body.asunto||'', body.resumen||'',
                     catFinal, prioFinal, 'Nuevo', '', '', '', '', '', '', notasFinal, now,
                     body.cc_originales||'', body.mensaje_original||'']);
-      return { ok: true, inserted: body.email_id, categoria: catFinal };
+      // Aviso al canal #buzon-tributario por cada correo de la autoridad (14-oct-2026, orden de Juan; excepción explícita al silencio de Slack).
+      let aviso = null;
+      if (satR.autoridad) { try { aviso = satAvisarSlack_(body, satR); } catch (e) { aviso = { ok: false, error: String(e).slice(0, 200) }; } }
+      return { ok: true, inserted: body.email_id, categoria: catFinal, aviso_slack: aviso };
     }
     case 'update_email': {
       // Actualiza cualquier columna de una fila de Emails. Clave: email_id (el actual).
@@ -1886,6 +1889,10 @@ function handle(body) {
     case 'init_schema':
       return initSchema(ss);
 
+    case 'sat_probar_slack': {
+      const uS = checkUser(body.auth); if (!uS.ok || !uS.admin) return { ok: false, error: 'solo admin' };
+      return satAvisarSlack_({ email_id: 'prueba', asunto: 'Prueba de aviso del Buzón Tributario', remitente_email: 'noreply@sat.gob.mx', cuenta: 'accounting', fecha_recibido: new Date().toISOString().slice(0, 16).replace('T', ' '), resumen: 'Prueba pedida desde Tally Ops por ' + uS.email }, { autoridad: true });
+    }
     /* 🗂️ Clientes Marketplace (13-oct-2026) */
     default:
       if (String(body.action || '').indexOf('cm_') === 0) return cmDispatch_(body);
@@ -2053,6 +2060,51 @@ function satRegla_(f) {
     if (re.test(texto)) return { es: true, autoridad: false, motivo: 'menciona «' + t + '»' };
   }
   return { es: false, autoridad: false, motivo: '' };
+}
+
+/* ── Aviso a Slack por correo del Buzón Tributario / autoridad fiscal (14-oct-2026) ──
+   Canal: Config.sat_slack_canal (default C0C8SDS6AQ7, #buzon-tributario). Bot: SLACK_BOT_TOKEN en Propiedades
+   del script (el bot debe estar invitado al canal). Sin bot: el mismo aviso llega por correo a Juan y queda
+   registrado en Log_Periodos para que no se pierda. Es código, no agente: el silencio de Slack del agente sigue. */
+const SAT_SLACK_CANAL_DEFAULT = 'C0C8SDS6AQ7';
+function satAvisarSlack_(f, satR) {
+  const props = PropertiesService.getScriptProperties();
+  let canal = SAT_SLACK_CANAL_DEFAULT;
+  try { const cfg = SpreadsheetApp.openById(DB_ID).getSheetByName('Config'); const r = findRow(cfg, 1, 'sat_slack_canal'); if (r && String(cfg.getRange(r, 2).getValue() || '').trim()) canal = String(cfg.getRange(r, 2).getValue()).trim(); } catch (e) {}
+  const txt = [f.asunto, f.resumen, f.mensaje_original].map(function (x) { return String(x || ''); }).join(' ');
+  const esBuzon = /buz[oó]n\s*tributario|buzontributario/i.test(txt + ' ' + String(f.remitente_email || ''));
+  const titulo = esBuzon ? '📬 Buzón Tributario — nuevo aviso del SAT' : '🏛️ Correo de la autoridad fiscal (SAT)';
+  const cliente = f.company_id ? (String(f.cliente || '') + ' (' + f.company_id + ')') : (f.cliente ? String(f.cliente) : 'cliente sin identificar — revisar RFC en el cuerpo');
+  const lineas = [
+    '*' + titulo + '*',
+    '• *Cliente:* ' + cliente,
+    '• *Asunto:* ' + String(f.asunto || '(sin asunto)'),
+    '• *Recibido:* ' + String(f.fecha_recibido || '') + ' en ' + String(f.cuenta || '') + '@tally.legal · de ' + String(f.remitente_email || ''),
+    (f.resumen ? '• *Resumen:* ' + String(f.resumen).slice(0, 400) : ''),
+    '• *Dónde atenderlo:* Tally Ops → Bandeja → filtro «SAT» (https://tally-accounting-ops.netlify.app/#bandeja) · prioridad Alta'
+  ].filter(Boolean);
+  const texto = lineas.join('\n');
+  const tok = props.getProperty('SLACK_BOT_TOKEN');
+  if (tok) {
+    const r = UrlFetchApp.fetch('https://slack.com/api/chat.postMessage', {
+      method: 'post', contentType: 'application/json; charset=utf-8', headers: { Authorization: 'Bearer ' + tok },
+      payload: JSON.stringify({ channel: canal, text: texto, unfurl_links: false }), muteHttpExceptions: true });
+    let j = {}; try { j = JSON.parse(r.getContentText()); } catch (e) {}
+    if (j.ok) return { ok: true, canal: 'slack', channel: canal, ts: j.ts };
+    const err = j.error || ('HTTP ' + r.getResponseCode());
+    try { SpreadsheetApp.openById(DB_ID).getSheetByName('Log_Periodos').appendRow([new Date().toISOString(), 'aviso SAT a Slack falló (' + err + ') · ' + String(f.email_id || '')]); } catch (e) {}
+    // not_in_channel / channel_not_found / invalid_auth: cae al correo para que el aviso no se pierda.
+    GmailApp.sendEmail('juan@tally.legal', titulo + ' · ' + String(f.asunto || ''), texto.replace(/\*/g, '') + '\n\n(No se pudo publicar en Slack: ' + err + '. Revisa SLACK_BOT_TOKEN y que el bot esté en el canal.)', { name: 'Tally Ops' });
+    return { ok: false, canal: 'correo', error: err };
+  }
+  GmailApp.sendEmail('juan@tally.legal', titulo + ' · ' + String(f.asunto || ''), texto.replace(/\*/g, '') + '\n\n(Sin SLACK_BOT_TOKEN en Propiedades del script: el aviso llegó por correo.)', { name: 'Tally Ops' });
+  try { SpreadsheetApp.openById(DB_ID).getSheetByName('Log_Periodos').appendRow([new Date().toISOString(), 'aviso SAT sin bot de Slack → correo · ' + String(f.email_id || '')]); } catch (e) {}
+  return { ok: false, canal: 'correo', error: 'sin SLACK_BOT_TOKEN' };
+}
+/** Prueba desde el editor: publica un aviso de ejemplo en el canal (no toca la Bandeja). */
+function satProbarSlack() {
+  const r = satAvisarSlack_({ email_id: 'prueba', asunto: 'Prueba de aviso del Buzón Tributario', remitente_email: 'noreply@sat.gob.mx', cuenta: 'accounting', fecha_recibido: new Date().toISOString().slice(0, 16).replace('T', ' '), resumen: 'Mensaje de prueba disparado desde el editor de Apps Script.' }, { autoridad: true });
+  console.log(JSON.stringify(r));
 }
 
 function setEmailFields(ss, emailId, fields, now) {
