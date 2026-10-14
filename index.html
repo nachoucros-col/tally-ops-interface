@@ -667,6 +667,9 @@ tr:hover td{background:rgba(96,71,255,.04)}
       <div class="cfg-card"><h3>Cuentas y remitentes</h3>
         <p>Triage profundo: <code>accounting@</code> <code>contabilidad@</code> <code>juan@</code> <code>cristian@</code> · el resto de cuentas de <b>Config → cuentas conectadas</b> se revisan con barrido ligero. Todas deben estar autorizadas en el Gmail MCP de Talia.</p>
         <p style="margin-top:8px">Respuestas y correos nuevos → <b>juan@tally.legal</b> (envío directo vía Apps Script). Escenarios SOP SC → <b>accounting@</b> CC <b>customersuccess@</b> (vía agente).</p></div>
+      <div class="cfg-card"><h3>Aviso del Buzón Tributario → Slack</h3>
+        <p style="font-size:13px;color:var(--gray-500);margin-bottom:8px">Cada correo que llega de la autoridad fiscal (dominio del SAT) entra a la Bandeja como <b>SAT · prioridad Alta</b> y se anuncia en el canal <code>#buzon-tributario</code>. Lo publica el backend al registrar el correo (sin agente). Si falta el bot de Slack o no está en el canal, el aviso llega por correo a juan@.</p>
+        <div class="btn-row"><button class="btn btn-ghost" onclick="satProbarSlack()">📬 Enviar aviso de prueba al canal</button> <span id="satSlackRes" style="font-size:12px;color:var(--gray-500)"></span></div></div>
       <div class="cfg-card"><h3>Categorías de triage — editable</h3>
         <p style="font-size:13px;color:var(--gray-500);margin-bottom:8px">Separadas por coma. Al guardar, los filtros de la Bandeja se actualizan al instante y el agente aplica la nueva clasificación en su siguiente corrida horaria.</p>
         <textarea id="cfgCats" rows="2"></textarea>
@@ -2416,6 +2419,11 @@ function cmAbrir(cid){
   document.getElementById('cmModalBack').classList.add('open');
 }
 function cmCerrar(){ document.getElementById('cmModalBack').classList.remove('open'); }
+async function satProbarSlack(){
+  const el=document.getElementById('satSlackRes'); el.textContent='⏳ enviando…';
+  const r=await api('sat_probar_slack',{auth:{email:AUTH.email,password:AUTH.password}},60000);
+  el.textContent=r&&r.ok?`✅ publicado en Slack (canal ${r.channel})`:`⚠️ ${(r&&r.error)||'sin respuesta'} — ${r&&r.canal==='correo'?'el aviso salió por correo a juan@':''}`;
+}
 async function cmRefrescar(modo){
   if(!AUTH){ toast('Inicia sesión para recalcular'); return; }
   if(!confirm(modo==='completo'?'¿Recalcular TODO el histórico (13 meses)? Tarda bastante y usa muchas llamadas al 360.':'¿Pedir de nuevo los datos al 360, Syntage y AppSheet? El ciclo avanza solo cada 15 minutos; puedes seguir trabajando.')) return;

@@ -7,6 +7,7 @@
 - **El proceso NO muere.** Haz todo tu trabajo normal: leer, calcular, detectar, clasificar, crear y actualizar tareas y registros en el sistema (AppSheet/backend), escribir en `logs/` y `outputs/`. Lo único que desaparece es el aviso por Slack.
 - **El resultado de cada corrida se registra donde siempre** (sistema y bitácora local). El equipo lo consumirá desde la interfaz de Tally Ops (módulo de auditoría y tablero), no desde Slack.
 - **Única excepción en toda la operación:** el piloto «Mi día» y sus subprocesos, que corren en la nube y NO en esta carpeta. Ningún agente de esta carpeta es parte del piloto.
+- **Aviso del Buzón Tributario (14-oct-2026, orden de Juan):** cada correo que llega de la autoridad fiscal se anuncia en el canal `#buzon-tributario` (C0C8SDS6AQ7). **Lo publica el backend (Apps Script, acción `append_email`) al insertar la fila, no tú.** Tú solo registras el correo con `append_email` como siempre; no dupliques el aviso ni uses Slack.
 - Si tu única función era avisar por Slack y no escribes en ningún sistema: registra tu resultado completo en tu bitácora local (`logs/` o el archivo de memoria de este agente) y termina. Ese registro es ahora tu entregable.
 <!-- ═══════════ FIN REGLA DURA ═══════════ -->
 
