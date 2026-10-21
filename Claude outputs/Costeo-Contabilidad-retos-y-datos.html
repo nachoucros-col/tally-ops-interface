@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Costeo Contabilidad</title>
+</head>
+<body>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: cream single-surface page (Tally brand §6.1 rule 1), Apple HIG navigation — large title,
+   translucent toolbar with a segmented control, inset-grouped lists, disclosure rows. Three layers
+   (la foto → los retos → el detalle), one visible at a time, like a navigation stack. */
+:root {
+  /* Tally brand tokens — bloque canónico §10 */
+  --violet-500:#6047ff; --violet-100:#dcdcff;
+  --orange-500:#ff8248; --orange-100:#fcddd6;
+  --green-500:#49d475;  --green-100:#c8e8ce;
+  --cyan-500:#5ed7ff;   --cyan-100:#dcf8ff;
+  --ink:#212121;        --cream:#fefcf8;
+  --brand-primary:var(--violet-500);
+  --brand-primary-soft:var(--violet-100);
+  --brand-warm:var(--orange-500);  --brand-warm-soft:var(--orange-100);
+  --brand-growth:var(--green-500); --brand-growth-soft:var(--green-100);
+  --text-primary:var(--ink); --text-secondary:#6B7280; --text-on-dark:var(--cream);
+  --text-warm:#b8431a; --text-growth:#1d6b38; --text-tech:#0b6a8a;
+  --border-light:#e8e8e8;
+  --bg:var(--cream); --fg:var(--ink);
+  --white:#ffffff;
+  --fill:rgba(33,33,33,.06); --fill-2:rgba(33,33,33,.10);
+  --ink-55:rgba(33,33,33,.55); --ink-25:rgba(33,33,33,.25); --ink-12:rgba(33,33,33,.12);
+  --radius-sm:8px; --radius-md:16px; --radius-lg:24px; --radius-pill:999px;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.06); --shadow-md:0 4px 12px rgba(0,0,0,.08); --shadow-lg:0 20px 40px -8px rgba(0,0,0,.1);
+  --font:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --ease:cubic-bezier(0.16,1,0.3,1);
+  --max:1120px;
+  --gutter-l:max(16px, env(safe-area-inset-left, 0px));
+  --gutter-r:max(16px, env(safe-area-inset-right, 0px));
+  color-scheme:light;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:rgba(254,252,248,.86)}
+h1,h2,h3,h4{margin:0;text-wrap:balance;hyphens:none}
+p{margin:0}
+a{color:var(--brand-primary)}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--brand-primary);outline-offset:3px}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:'tnum' 1}
+.num.dim{opacity:.7}
+.card{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius-md)}
+
+/* ---- Toolbar (HIG navigation bar, translucent) ---- */
+.nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:rgba(254,252,248,.78);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--border-light)}
+.nav-in{max-width:var(--max);margin:0 auto;padding-left:var(--gutter-l);padding-right:var(--gutter-r);padding-block:10px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.brand-mark{font-size:17px;font-weight:700;letter-spacing:-.01em;color:var(--brand-primary);white-space:nowrap}
+.brand-mark .suffix{font-weight:500;color:var(--text-secondary);margin-left:6px}
+.seg{display:inline-flex;position:relative;background:var(--fill);border-radius:10px;padding:3px}
+.seg button{position:relative;z-index:1;padding:7px 14px;min-height:36px;border-radius:8px;font-size:14px;font-weight:500;color:var(--text-secondary);transition:color 150ms ease-out;white-space:nowrap}
+.seg button[aria-selected="true"]{color:var(--ink)}
+.seg .thumb{position:absolute;top:3px;bottom:3px;left:3px;width:0;border-radius:8px;background:var(--white);box-shadow:var(--shadow-sm),0 0 0 .5px rgba(0,0,0,.04)}
+.seg.ready .thumb{transition:transform 300ms var(--ease),width 300ms var(--ease)}
+.seg small{display:block;font-size:11px;font-weight:400;color:var(--text-secondary);line-height:1.1}
+
+/* ---- Page frame ---- */
+main{max-width:var(--max);margin:0 auto;padding-left:var(--gutter-l);padding-right:var(--gutter-r);padding-block:32px 96px}
+.layer,.pane,.block,.stack{display:grid}
+.layer{gap:40px;scroll-margin-top:160px}
+.pane{gap:28px}
+.block,.stack{gap:14px}
+.layer[hidden],.pane[hidden]{display:none}
+.block>*,.two>*{min-width:0}
+.eyebrow{font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--brand-primary)}
+.display{font-size:clamp(34px,5vw,56px);line-height:1.02;letter-spacing:-.02em;font-weight:300;max-width:22ch;margin-top:12px}
+.display.sm{font-size:clamp(30px,4vw,44px)}
+.display b{font-weight:700}
+.lead{font-size:clamp(17px,1.4vw,20px);line-height:1.55;color:var(--text-secondary);max-width:60ch;margin-top:16px}
+.h2{font-size:clamp(26px,3vw,36px);line-height:1.1;letter-spacing:-.015em;font-weight:700;max-width:24ch}
+.h3{font-size:20px;line-height:1.25;font-weight:500}
+.sub{font-size:16px;color:var(--text-secondary);max-width:62ch;margin-top:8px}
+.sec-head{display:grid;gap:4px}
+.small{font-size:14px;line-height:1.5}
+.foot{font-size:13px;color:var(--text-secondary);line-height:1.5}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px;align-items:start}
+
+/* ---- Hero: onion navigator ---- */
+.hero{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:32px;align-items:center}
+.onion{max-width:360px;width:100%;margin:0 auto}
+.onion svg{width:100%;height:auto;display:block}
+.ring{fill:var(--white);stroke:var(--border-light);stroke-width:1;cursor:pointer;transition:fill 300ms var(--ease),stroke 300ms var(--ease)}
+.ring:hover{fill:var(--brand-primary-soft)}
+.ring.is-on{fill:var(--brand-primary-soft);stroke:var(--brand-primary)}
+.ring-label{font-family:var(--font);font-size:13px;font-weight:500;fill:var(--ink);pointer-events:none}
+.ring-sub{font-family:var(--font);font-size:11px;fill:var(--text-secondary);pointer-events:none}
+.core{fill:var(--brand-primary)}
+.core-text{font-family:var(--font);font-size:12px;font-weight:700;fill:var(--cream);pointer-events:none;letter-spacing:.04em}
+
+/* ---- Tiles ---- */
+.per100{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.per100 .cell{padding:16px 18px;display:grid;gap:2px}
+.per100 .n{font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1;color:var(--brand-primary)}
+.per100 .n.warm{color:var(--brand-warm)}
+.per100 .l{font-size:13px;color:var(--text-secondary);line-height:1.35}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.kpi{padding:20px 22px;display:grid;gap:6px;box-shadow:var(--shadow-sm)}
+.kpi .v{font-size:32px;font-weight:700;letter-spacing:-.02em;line-height:1.05}
+.kpi .t{font-size:15px;font-weight:500;line-height:1.3}
+.kpi .d{font-size:13px;color:var(--text-secondary);line-height:1.4}
+
+/* ---- Disclosure rows (HIG inset grouped list and accordion headers share one component) ---- */
+.group{overflow:hidden}
+.disc{display:grid;grid-template-columns:40px minmax(0,1fr) auto 20px;align-items:center;gap:14px;width:100%;text-align:left;padding:14px 18px;min-height:56px;transition:background 150ms ease-out}
+.group .disc{border-top:1px solid var(--border-light)}
+.group .disc:first-child{border-top:0}
+.disc:hover{background:rgba(33,33,33,.03)}
+.disc .idx{font-size:13px;font-weight:700;color:var(--brand-primary);background:var(--brand-primary-soft);border-radius:var(--radius-sm);width:32px;height:32px;display:grid;place-items:center}
+.disc .ttl{font-size:16px;font-weight:500;line-height:1.3}
+.disc .ttl small{display:block;font-size:13px;font-weight:400;color:var(--text-secondary);margin-top:2px}
+.disc .chip{font-size:12px;font-weight:500;color:var(--text-secondary);white-space:nowrap;background:var(--fill);border-radius:var(--radius-sm);padding:4px 10px}
+.disc .chip.crit{background:var(--brand-warm-soft);color:var(--text-warm)}
+.disc .chev{width:20px;height:20px;color:var(--ink-25);transition:transform 300ms var(--ease)}
+.chev svg{width:100%;height:100%;display:block}
+.disc.lg{padding:18px 20px;min-height:64px}
+.disc.lg .ttl{font-size:18px;line-height:1.25}
+.disc.lg .ttl small{margin-top:3px}
+
+/* ---- Accordions (retos) ---- */
+.acc{overflow:hidden;box-shadow:var(--shadow-sm);scroll-margin-top:calc(var(--nav-h,76px) + 20px)}
+.acc-h[aria-expanded="true"] .chev{transform:rotate(90deg)}
+.acc-b{display:grid;grid-template-rows:0fr;transition:grid-template-rows 400ms var(--ease)}
+.acc-b>div{overflow:hidden;min-width:0}
+.acc:has(.acc-h[aria-expanded="true"]) .acc-b{grid-template-rows:1fr}
+.acc-in{padding:20px 20px 24px;display:grid;gap:24px;border-top:1px solid var(--border-light)}
+.prose{max-width:66ch;display:grid;gap:10px}
+.prose p{line-height:1.6}
+.callout{border-left:3px solid var(--brand-primary);padding:4px 0 4px 16px;color:var(--ink)}
+.callout.warm{border-color:var(--brand-warm)}
+.tag{display:inline-block;font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;border-radius:var(--radius-sm);padding:4px 8px;background:var(--brand-primary-soft);color:var(--brand-primary)}
+.tag.deck{background:var(--cyan-100);color:var(--text-tech)}
+.tag.sheet{background:var(--green-100);color:var(--text-growth)}
+.src{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--text-secondary)}
+.link{font-weight:500;color:var(--brand-primary);text-decoration:underline;text-decoration-color:rgba(96,71,255,.3);text-underline-offset:4px}
+.link:hover{text-decoration-color:currentColor}
+
+/* ---- Tables ---- */
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:480px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--border-light);vertical-align:top;white-space:nowrap}
+th{font-size:12px;font-weight:500;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;background:rgba(33,33,33,.025);padding:0}
+th button{display:block;width:100%;text-align:inherit;padding:10px 14px;min-height:40px;text-transform:inherit;letter-spacing:inherit;color:inherit;font-weight:inherit;font-size:inherit}
+th button:hover{color:var(--ink)}
+th[aria-sort] button::after{content:" ↑";color:var(--brand-primary)}
+th[aria-sort="descending"] button::after{content:" ↓"}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+td.neg{color:var(--text-warm)}
+td.wrap{white-space:normal;min-width:220px;max-width:320px}
+td.hi{background:rgba(96,71,255,.06);font-weight:500}
+tr.total td{font-weight:700;border-top:2px solid var(--ink-12)}
+tr:last-child td{border-bottom:0}
+.pill{display:inline-block;font-size:12px;font-weight:500;padding:2px 8px;border-radius:var(--radius-pill);background:var(--fill)}
+.pill.ok{background:var(--green-100);color:var(--text-growth)}
+.pill.warn{background:var(--orange-100);color:var(--text-warm)}
+.pill.off{background:var(--fill-2);color:var(--ink)}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.filters .f{font-size:13px;font-weight:500;padding:6px 12px;min-height:32px;border-radius:var(--radius-pill);background:var(--fill);color:var(--ink);transition:background 150ms ease-out}
+.filters .f[aria-pressed="true"]{background:var(--ink);color:var(--cream)}
+.filters .lbl{font-size:13px;color:var(--text-secondary);margin-right:4px}
+.filters .lbl:not(:first-child){margin-left:8px}
+
+/* ---- Charts: HTML bars, labels keep their CSS size at any width ---- */
+.chart{padding:18px 20px 16px;display:grid;gap:12px;min-width:0;--bl:150px}
+.chart .ct{font-size:15px;font-weight:500;line-height:1.3}
+.chart .cs{font-size:13px;color:var(--text-secondary);line-height:1.4}
+.bars{display:grid;gap:8px}
+.br{display:grid;grid-template-columns:min(var(--bl),42%) minmax(0,1fr) auto;gap:10px;align-items:center;min-height:24px}
+.bl{font-size:12px;line-height:1.2;text-align:right;color:var(--ink)}
+.bt{display:flex;height:20px;border-radius:4px;background:rgba(220,220,255,.45);overflow:hidden;gap:2px}
+.bt.stack{background:none;border-radius:0;overflow:visible}
+.bf{display:block;height:100%;border-radius:4px;transition:opacity 150ms ease-out;font-size:11px;font-weight:500;line-height:20px;text-align:center;color:var(--cream);white-space:nowrap;overflow:hidden}
+.bf.dark{color:var(--ink)}
+.bf:hover{opacity:.78}
+.bv{font-size:12px;font-weight:500;white-space:nowrap}
+.bv.neg{color:var(--text-warm)}
+.s-violet{background:var(--brand-primary)} .s-green{background:var(--brand-growth)} .s-orange{background:var(--brand-warm)} .s-ink{background:var(--ink-55)} .s-ink25{background:var(--ink-25)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--text-secondary)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.tip{position:fixed;z-index:20;pointer-events:none;background:var(--ink);color:var(--cream);font-size:12px;line-height:1.4;padding:8px 10px;border-radius:var(--radius-sm);box-shadow:var(--shadow-md);max-width:260px;opacity:0;transition:opacity 150ms ease-out}
+.tip.on{opacity:1}
+
+/* ---- Matrix (riesgo × volumen) ---- */
+.matrix{display:grid;grid-template-columns:auto 1fr 1fr;grid-template-rows:auto 1fr 1fr;gap:10px;align-items:stretch}
+.matrix .ax{font-size:12px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary);display:grid;place-items:center;text-align:center}
+.matrix .ax.y{writing-mode:vertical-rl;transform:rotate(180deg)}
+.matrix .q{padding:16px 18px;display:grid;gap:6px;min-height:150px;align-content:start}
+.matrix .q.hot{background:var(--brand-warm-soft);border-color:transparent}
+.matrix .q.cool{background:var(--brand-primary-soft);border-color:transparent}
+.matrix .q b{font-size:15px;font-weight:700;line-height:1.3}
+.matrix .q p{font-size:13px;line-height:1.5}
+
+/* ---- Levels, team, steps, chain, notes, decisions ---- */
+.levels{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.lv{padding:16px 18px;display:grid;gap:6px;align-content:start}
+.lv .k{font-size:24px;font-weight:700;color:var(--brand-primary);letter-spacing:-.02em;line-height:1}
+.lv .t{font-size:14px;font-weight:500;line-height:1.3}
+.lv .d{font-size:13px;color:var(--text-secondary);line-height:1.45}
+.subtabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--border-light);padding-bottom:10px}
+.subtabs button{font-size:15px;font-weight:500;color:var(--text-secondary);padding:8px 14px;min-height:40px;border-radius:var(--radius-pill);transition:background 150ms ease-out,color 150ms ease-out}
+.subtabs button:hover{background:var(--fill)}
+.subtabs button[aria-selected="true"]{background:var(--ink);color:var(--cream)}
+.team{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.member{padding:16px 18px;display:grid;gap:4px}
+.member b{font-size:15px;font-weight:700}
+.member .r{font-size:14px;font-weight:500;color:var(--brand-primary)}
+.member .d{font-size:13px;color:var(--text-secondary);line-height:1.45}
+.steps{display:grid;gap:10px}
+.step{display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px;align-items:start;padding:14px 18px}
+.step .k{width:28px;height:28px;border-radius:var(--radius-sm);background:var(--brand-primary-soft);color:var(--brand-primary);font-size:13px;font-weight:700;display:grid;place-items:center}
+.step b{font-weight:500;font-size:15px}
+.step p{font-size:14px;color:var(--text-secondary);line-height:1.5;margin-top:2px}
+.chain{display:grid;gap:10px}
+.chain .c{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;align-items:stretch}
+.chain .c span{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;line-height:1.4;position:relative}
+.chain .c span:not(:last-child)::after{content:"→";position:absolute;right:-9px;top:50%;transform:translateY(-50%);color:var(--brand-primary);font-weight:700;background:var(--cream);padding:0 2px;font-size:13px}
+.chain .c span:last-child{background:var(--brand-warm-soft);border-color:transparent;font-weight:500}
+.notes,.decisions{display:grid;gap:8px}
+.note,.decisions .d{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:start;font-size:14px;line-height:1.5;padding:10px 14px;border-radius:var(--radius-sm)}
+.note i{font-style:normal;font-weight:700;color:var(--brand-warm)}
+.decisions .d i{font-style:normal;font-size:12px;font-weight:700;color:var(--brand-primary);background:var(--brand-primary-soft);border-radius:6px;padding:2px 7px;margin-top:2px}
+footer{max-width:var(--max);margin:0 auto;padding-left:var(--gutter-l);padding-right:var(--gutter-r);padding-block:24px 48px;border-top:1px solid var(--border-light);font-size:13px;color:var(--text-secondary);display:grid;gap:6px}
+.next{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between;padding:16px 20px}
+.btn{display:inline-flex;align-items:center;gap:8px;background:var(--brand-primary);color:var(--cream);font-weight:700;font-size:15px;padding:12px 22px;min-height:44px;border-radius:var(--radius-pill);transition:transform 300ms var(--ease),box-shadow 300ms var(--ease)}
+.btn:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
+@media (max-width:760px){
+  .hero{grid-template-columns:1fr}
+  .onion{max-width:280px}
+  .disc{grid-template-columns:36px minmax(0,1fr) 20px;padding:14px 16px}
+  .disc .chip{display:none}
+  .acc-in{padding-left:16px;padding-right:16px}
+  .matrix{grid-template-columns:1fr;grid-template-rows:auto}
+  .matrix .ax{display:none}
+  .seg button{padding:6px 10px;font-size:13px}
+  .chart{padding:16px 14px 14px}
+  td.wrap{min-width:180px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition:none!important;animation:none!important}
+}
+</style>
+
+<header class="nav">
+  <div class="nav-in">
+    <div class="brand-mark">Tally<span class="suffix">Contabilidad</span></div>
+    <nav class="seg" role="tablist" aria-label="Capas del reporte" id="seg">
+      <span class="thumb" aria-hidden="true"></span>
+      <button type="button" role="tab" data-layer="resumen" aria-selected="true" aria-controls="resumen">La foto<small>estratégico</small></button>
+      <button type="button" role="tab" data-layer="retos" aria-selected="false" aria-controls="retos">Los retos<small>táctico</small></button>
+      <button type="button" role="tab" data-layer="detalle" aria-selected="false" aria-controls="detalle">El detalle<small>operativo</small></button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- ===================== CAPA 1 · LA FOTO ===================== -->
+  <section class="layer" id="resumen" role="tabpanel" aria-label="La foto">
+    <div class="hero">
+      <div>
+        <div class="eyebrow">Diagnóstico Contabilidad · Costeo Contabilidad (Sheet25) · 20 oct 2026</div>
+        <h1 class="display">706 clientes en el 360. <b>259 cobran en Stripe.</b></h1>
+        <p class="lead">El equipo contable atiende más cuentas de las que factura. Siete retos explican la brecha. Cada capa de esta página baja un nivel: de la foto general a los retos y de ahí al segmento, al especialista y al cliente.</p>
+      </div>
+      <div class="onion" id="onion"></div>
+    </div>
+
+    <div class="sec-head">
+      <h2 class="h2">Si el 360 tuviera 100 clientes</h2>
+      <p class="sub">Proporciones calculadas sobre los 706 clientes del reporte. Sirven para leer el tamaño de cada problema sin perderse en los totales.</p>
+    </div>
+    <div class="per100" id="per100"></div>
+
+    <div class="sec-head">
+      <h2 class="h2">Las cifras que mueven la decisión</h2>
+    </div>
+    <div class="kpis" id="kpis"></div>
+
+    <div class="sec-head">
+      <h2 class="h2">Siete retos, del más caro al más estructural</h2>
+      <p class="sub">Toca un reto para abrir su capa táctica con el dato, su lectura y el camino hacia el detalle.</p>
+    </div>
+    <div class="group card" id="retos-list"></div>
+
+    <div class="sec-head">
+      <h2 class="h2">Cómo se encadena el daño</h2>
+      <p class="sub">Causa raíz, efecto visible e impacto en el negocio, tal como los documenta la matriz de riesgo del reporte.</p>
+    </div>
+    <div class="chain" id="chain"></div>
+
+    <div class="two">
+      <div class="block">
+        <div class="sec-head"><h3 class="h3">Decisiones que esta página no toma</h3><p class="sub small">Quedan en dirección. La página las deja a la vista para que la discusión parta del dato.</p></div>
+        <div class="decisions" id="decisions"></div>
+      </div>
+      <div class="block">
+        <div class="sec-head"><h3 class="h3">Notas de datos</h3><p class="sub small">Donde el reporte y el deck no cuadran, manda el reporte (Sheet25) y la diferencia queda anotada. Nada se promedió ni se corrigió.</p></div>
+        <div class="notes" id="notes"></div>
+      </div>
+    </div>
+
+    <div class="next card"><span>Siguiente capa: los siete retos con su dato y su lectura.</span><button type="button" class="btn" data-layer="retos">Abrir los retos</button></div>
+  </section>
+
+  <!-- ===================== CAPA 2 · LOS RETOS ===================== -->
+  <section class="layer" id="retos" role="tabpanel" aria-label="Los retos" hidden>
+    <div>
+      <div class="eyebrow">Capa táctica</div>
+      <h2 class="display sm">Siete retos. <b>Un dato por reto.</b></h2>
+      <p class="lead">Cada bloque abre el dato que lo sostiene, lo que el reporte concluye y el camino hacia la capa operativa.</p>
+    </div>
+    <div class="stack" id="retos-acc"></div>
+    <div class="next card"><span>Siguiente capa: segmento, especialista, cliente y modelo 2027.</span><button type="button" class="btn" data-layer="detalle">Abrir el detalle</button></div>
+  </section>
+
+  <!-- ===================== CAPA 3 · EL DETALLE ===================== -->
+  <section class="layer" id="detalle" role="tabpanel" aria-label="El detalle" hidden>
+    <div>
+      <div class="eyebrow">Capa operativa</div>
+      <h2 class="display sm">Del segmento <b>al cliente.</b></h2>
+      <p class="lead">Las tablas completas del reporte, ordenables, más el complemento del deck "Análisis estratégico y plan 2027 Contabilidad".</p>
+    </div>
+    <div class="subtabs" role="tablist" aria-label="Vistas del detalle" id="subtabs">
+      <button type="button" role="tab" data-pane="segmentos" aria-selected="true" aria-controls="pane-segmentos">Por segmento</button>
+      <button type="button" role="tab" data-pane="equipo" aria-selected="false" aria-controls="pane-equipo">Por especialista</button>
+      <button type="button" role="tab" data-pane="clientes" aria-selected="false" aria-controls="pane-clientes">Por cliente</button>
+      <button type="button" role="tab" data-pane="modelo" aria-selected="false" aria-controls="pane-modelo">Modelo 2027</button>
+    </div>
+    <div class="pane" id="pane-segmentos" role="tabpanel"></div>
+    <div class="pane" id="pane-equipo" role="tabpanel" hidden></div>
+    <div class="pane" id="pane-clientes" role="tabpanel" hidden></div>
+    <div class="pane" id="pane-modelo" role="tabpanel" hidden></div>
+    <div class="next card"><span>Volver al inicio de la cebolla.</span><button type="button" class="btn" data-layer="resumen">Ver la foto</button></div>
+  </section>
+</main>
+
+<footer>
+  <div><span class="tag">Reporte</span> Costeo Contabilidad · pestaña Sheet25 "Retos y sus datos" (PDF del 20 oct 2026). Fuente que manda en todas las cifras.</div>
+  <div><span class="tag deck">Deck</span> "Análisis estratégico y plan 2027 Contabilidad" (Google Slides). Solo aporta lo que el reporte no trae; sus cifras llevan su propia nota de universo.</div>
+  <div><span class="tag sheet">Hoja</span> Pestaña "Planes y Precios" de Costeo Contabilidad (lectura del 19 oct 2026), usada únicamente para la lista de planes nuevos.</div>
+  <div>Montos en MXN salvo indicación. Preparado por Talia para Juan Ignacio Vélez Ucrós, Dirección de Estrategia de Tally.</div>
+</footer>
+<div class="tip" id="tip" aria-hidden="true"></div>
+<script>
+/* ================= DATOS =================
+   Fuente de cada tabla: "rep" = PDF Costeo Contabilidad / Sheet25 (manda), "deck" = Slides plan 2027, "sheet" = pestaña Planes y Precios.
+   T(keys, filas, conTotal) convierte filas posicionales en objetos con nombre; la última fila se marca como total cuando conTotal es true. */
+const T = (keys, rows, withTotal = false) => rows.map((r, i) => {
+  const o = Object.fromEntries(keys.map((k, j) => [k, r[j]]));
+  if (withTotal && i === rows.length - 1) o.total = true;
+  return o;
+});
+const WRAP = {cls: 'wrap'};
+const PILL_STATUS = {Activa: 'ok', Vencida: 'warn', Positiva: 'ok', Negativa: 'warn'};
+const PILL_RIESGO = {'Crítico': 'warn', 'Alto': 'off', 'Medio': ''};
+
+const TABLES = {
+  cobertura: {src: 'rep', cols: [{h:'Segmento',k:'seg'},{h:'Totales',k:'tot',type:'n'},{h:'En Stripe',k:'stripe',type:'n'},{h:'Cobertura',k:'cob',type:'p',d:2}],
+    rows: T(['seg','tot','stripe','cob'], [['Legacy',391,282,72.12],['Amazon',223,219,98.21],['MELI',1,1,100],['China',91,0,0],['Totales',706,502,71.10]], true)},
+  status: {src: 'rep', cols: [{h:'Segmento',k:'seg'},{h:'Activa',k:'a',type:'n'},{h:'Cancelada',k:'c',type:'n'},{h:'Vencida',k:'v',type:'n'},{h:'Sin cliente en Stripe',k:'s',type:'n'},{h:'Cancelada en Stripe, 360 la marca Activa',k:'fc',type:'n'},{h:'Sin cliente, 360 la marca Activa',k:'fs',type:'n'},{h:'Sin suscripción, 360 la marca Activa',k:'fu',type:'n'},{h:'Totales',k:'tot',type:'n'}],
+    rows: T(['seg','a','c','v','s','fc','fs','fu','tot'], [['Legacy',119,41,75,2,31,2,3,273],['Amazon',139,70,10,4,0,0,0,223],['MELI',1,0,0,0,0,0,0,1],['China',0,0,0,30,0,0,0,30],['Totales',259,111,85,50,31,2,3,541]], true)},
+  syntage: {src: 'rep', cols: [{h:'Nivel',k:'nivel'},{h:'Segmento evaluado',k:'seg'},{h:'En Syntage',k:'en',type:'n'},{h:'Totales',k:'tot',type:'n'},{h:'Cobertura',k:'cob',type:'p'},{h:'Diagnóstico de prioridad',k:'dx',...WRAP}],
+    rows: T(['nivel','seg','en','tot','cob','dx'], [
+      ['Nivel 1 · Mayor riesgo','Clientes China',45,91,49.5,'Se conectan los que hoy están en proceso de facturación. Crítico: quedan 46 clientes por incluir en Syntage.'],
+      ['Nivel 2 · Mayor potencial','Clientes VIP en 360',19,21,90.5,'Excelente: cobertura casi total en cuentas estratégicas.'],
+      ['Nivel 3 · Auditoría','Cartera de Arturo',74,198,37.4,'Rezago: concentra el mayor volumen de trabajo manual sin descarga automatizada.'],
+      ['Nivel 4A · Validación','Amazon con First Shipment',61,117,52.1,'Moderado: operación en marcha pero a medio integrar.'],
+      ['Nivel 4B · Seguimiento','Amazon sin First Shipment',7,96,7.3,'Mínimo: cuentas inactivas o en fase temprana de venta.'],
+      ['Totales','',206,523,null,'']], true)},
+  specialists: {src: 'rep', cols: [{h:'Specialist',k:'nombre'},{h:'Costo total',k:'costo',type:'m'},{h:'Clientes',k:'clientes',type:'n'},{h:'Revenue',k:'revenue',type:'m'},{h:'Ticket promedio',k:'ticket',type:'m'},{h:'Neto',k:'neto',type:'m'}],
+    rows: T(['nombre','costo','clientes','revenue','ticket','neto'], [
+      ['Cristina Mendoza',28000,0,0,0,-28000],['Edgar Iván Martínez',34861.76,3,65891.79,21963.93,31030.03],['Eduardo Guido',337132.33,55,580799.17,6599.99,243666.84],
+      ['Cristian González',311649.98,51,612658.86,7471.45,301008.88],['Ivette Alcantara',168840.07,91,419737.50,4612.50,250897.43],['Arturo Proveedor',235372.00,136,822837.83,4385.00,587465.83],
+      ['Total',1115856.14,336,2501925.15,null,1386069.01]], true)},
+  owners: {src: 'rep', cols: [{h:'Owner',k:'owner'},{h:'Clientes',k:'clientes',type:'n'},{h:'Canales',k:'canales'},{h:'Valor Stripe total',k:'stripe',type:'m'},{h:'Valor Stripe promedio',k:'stripeProm',type:'m'},{h:'Ventas acumuladas',k:'ventas',type:'m'},{h:'Ventas promedio',k:'ventasProm',type:'m'}],
+    rows: T(['owner','clientes','canales','stripe','stripeProm','ventas','ventasProm'], [
+      ['Arturo',320,'Legacy (320)',1240315.21,3875.99,76943846.12,327420.62],['Cristian',81,'Amazon (77), Legacy (4)',606159.26,7483.45,34412999.42,424851.84],
+      ['Eduardo',88,'Amazon (88)',580799.37,6599.99,38352789.83,435827.16],['Ivette',90,'China (90)',414645.30,4607.17,258819.04,2875.77],
+      ['Edgar',6,'Legacy (5), China (1)',87524.17,14587.36,120708200.00,20118033.33],['Sin owner',121,'Legacy (62), Amazon (58), ML (1)',139497.27,1152.87,0,0],
+      ['Total',706,'—',3068940.58,4346.94,270676654.41,484215.84]], true)},
+  cruce: {src: 'rep', cols: [{h:'Owner',k:'owner'},{h:'Activa',k:'a',type:'n'},{h:'Vencida',k:'v',type:'n'},{h:'Cancelada',k:'c',type:'n'},{h:'Cancelada en Stripe, 360 Activa',k:'ca',type:'n'},{h:'Cancelada en Stripe, 360 Vencida',k:'cv',type:'n'},{h:'Sin suscripción',k:'su',type:'n'},{h:'Sin cliente',k:'sc',type:'n'},{h:'Otros (360 marcas activas/vencidas)',k:'o',type:'n'},{h:'Sin status',k:'ns',type:'n'},{h:'Total',k:'tot',type:'n'}],
+    rows: T(['owner','a','v','c','ca','cv','su','sc','o','ns','tot'], [['Arturo',116,69,41,31,16,26,16,5,0,320],['Eduardo',67,4,15,0,0,0,2,0,0,88],['Cristian',64,5,11,0,0,0,1,0,0,81],['Ivette',0,0,0,0,0,60,30,0,0,90],['Edgar',1,4,0,0,0,1,0,0,0,6],['Sin owner',11,3,44,0,0,0,1,0,62,121]])},
+  riesgos: {src: 'rep', cols: [{h:'Nivel',k:'nivel',type:'pill',map:PILL_RIESGO},{h:'Tipo de riesgo',k:'tipo'},{h:'Hallazgo',k:'hallazgo',...WRAP},{h:'Causa raíz',k:'causa',...WRAP},{h:'Impacto en el negocio',k:'impacto',...WRAP}],
+    rows: T(['nivel','tipo','hallazgo','causa','impacto'], [
+      ['Crítico','Fuga de ingresos','31 clientes cancelados en Stripe y 42 sin suscripción o sin cliente son atendidos como "Activos" en 360.','Falta de candados automáticos entre la pasarela de pagos y el sistema contable 360.','Costo directo en horas contador, timbres y software consumido con ingreso cero o cobranza manual perdida.'],
+      ['Crítico','Concentración de morosidad','69 suscripciones vencidas en Stripe (81.2% de toda la cartera vencida de la compañía).','Métodos de pago expirados, fondos insuficientes y ausencia de dunning comercial.','Cartera incobrable acumulada y desfase severo en el flujo de caja proyectado.'],
+      ['Alto','Cuello de botella operativo','Un solo proveedor externo gestiona 320 clientes, casi 4 veces más que cualquier contador interno (Eduardo 88, Cristian 81).','Centralización histórica del segmento Legacy sin redistribución de cuentas.','Saturación del equipo, demoras en cierres contables mensuales y errores por sobrecarga.'],
+      ['Alto','Rezago tecnológico y costo oculto','250 clientes fuera de Syntage (78.1%) y 112 fuera de Contalink (35%).','Resistencia o falta de gestión de credenciales CIEC/SAT para vincular APIs.','Cientos de horas-hombre desperdiciadas en descargas manuales de XML del portal del SAT.'],
+      ['Alto','Riesgo reputacional y retención','89 opiniones negativas (concentra el 75.4% de la insatisfacción de toda la empresa).','Mala experiencia de servicio derivada de la saturación y la falta de estados de cuenta.','Alta propensión al churn de cuentas consolidadas de alto valor acumulado.'],
+      ['Medio','Riesgo de cumplimiento fiscal','Clientes Legacy omiten la entrega recurrente de estados de cuenta bancarios.','Falta de integración bancaria directa y bajo seguimiento de requerimientos al cliente.','Declaraciones provisionales y anuales presentadas con inconsistencias ante el SAT.']])},
+  pricing: {src: 'rep', cols: [{h:'#',k:'n',type:'n'},{h:'Empresa',k:'empresa'},{h:'ID',k:'id'},{h:'Owner',k:'owner'},{h:'Ventas acumuladas',k:'ventas',type:'m'},{h:'Stripe actual (mes)',k:'actual',type:'m'},{h:'% anual vs ventas',k:'pct',type:'p',d:2},{h:'Status Stripe',k:'status',type:'pill',map:PILL_STATUS},{h:'Tarifa sugerida',k:'sugerida',type:'m',cls:'hi'},{h:'Incremento mensual',k:'inc',type:'m'}],
+    rows: T(['n','empresa','id','owner','ventas','actual','pct','status','sugerida','inc'], [
+      [1,'BLIND CREATOR','MX003124','Arturo',18462976.09,1274.00,0.08,'Activa',25000,23726.00],[2,'Growve Inc.','AZ006416','Cristian',14602291.52,0,0.00,'Cancelada',15000,15000.00],
+      [3,'TWIN VOICE','IN004759','Arturo',8168222.75,6500,0.95,'Activa',16000,9500.00],[4,'THING02 CONSULTING DIGITAL','IN004033','Arturo',4758071.00,6500,1.64,'Vencida',10500,4000.00],
+      [5,'11S TECNOLOGÍA MX','IN005064','Arturo',3373793.00,6500,2.31,'Activa',9845,3345.00],[6,'RETAIL LATAM BS','IN003904','Arturo',2051844.36,6500,3.80,'Activa',9845,3345.00],
+      [7,'MEX PHARMASIS DF','AZ007332','Eduardo',1079711.78,0,0.00,'Sin cliente',9845,9845.00],[8,'EMARKETING 1TO1','IN005116','Arturo',914599.00,5850,7.68,'Activa',9845,3995.00],
+      [9,'OPERADORA VIMU91','MX000873','Arturo',822324.18,1690.67,2.47,'Activa',9845,8154.33],[10,'SOLUCIONES CORP. AYCE','IN004228','Arturo',687909.06,6500,11.34,'Activa',9845,3345.00],
+      [11,'LB LUTHIER','IN004507','Arturo',633008.00,6500,12.32,'Activa',9845,3345.00],[12,'pruneDanish com Corp','AZ006870','Eduardo',404101.03,4475,13.29,'Activa',3000,-1475.00],
+      [13,'Trekology LLC','AZ007191','Eduardo',266679.37,3580,16.11,'Activa',3000,-580.00],[14,'Tiege Hanley Inc','AZ006754','Cristian',96712.86,1253,15.55,'Activa',3000,1747.00]])},
+  amazonUp: {src: 'rep', cols: [{h:'Cliente Amazon',k:'cliente'},{h:'ID',k:'id'},{h:'Owner',k:'owner'},{h:'Ventas acumuladas',k:'ventas',type:'m'},{h:'Tarifa Stripe actual',k:'actual',type:'m'},{h:'Status',k:'status',type:'pill',map:PILL_STATUS},{h:'Tarifa sugerida',k:'sugerida',type:'m',cls:'hi'},{h:'Incremento mensual',k:'inc',type:'m'}],
+    rows: T(['cliente','id','owner','ventas','actual','status','sugerida','inc'], [
+      ['Growve Inc.','AZ006416','Cristian',14602300,0,'Cancelada',15000,15000],['Loudcup MX','AZ006901','Eduardo',5180380,0,'Cancelada',15000,15000],
+      ['MEX PHARMASIS DF','AZ007332','Eduardo',1079710,0,'Sin cliente',9845,9845],['Tiege Hanley Inc','AZ006754','Cristian',96712.90,1253,'Activa',3000,1747],
+      ['pruneDanish com Corp','AZ006870','Eduardo',404101,4475,'Activa',3000,-1475],['Trekology LLC','AZ007191','Eduardo',266679,3580,'Activa',3000,-580],
+      ['Total Amazon','—','—',21629882.90,9308,'—',48845,39537]], true)},
+  unit: {src: 'deck', cols: [{h:'Segmento',k:'seg'},{h:'Clientes',k:'clientes',type:'n'},{h:'Revenue',k:'revenue',type:'m'},{h:'Costo',k:'costo',type:'m'},{h:'ARPU',k:'arpu',type:'m'},{h:'Costo unitario',k:'cu',type:'m'},{h:'Margen neto unit.',k:'mu',type:'m'},{h:'% margen',k:'pm',type:'p',d:2}],
+    rows: T(['seg','clientes','revenue','costo','arpu','cu','mu','pm'], [['Amazon (AZ)',107,1193458.00,649407.00,11153.81,6069.22,5084.59,45.59],['Legacy (IN+MX)',138,888729.80,270093.70,6393.74,1943.12,4450.62,69.61],['China (CH)',91,419738.00,168840.00,4612.51,1855.38,2757.12,59.77],['Total / promedio',337,2501925.80,1088340.70,7424.11,3229.50,4194.61,56.50]], true)},
+  opiniones: {src: 'deck', cols: [{h:'Segmento',k:'seg'},{h:'Positiva',k:'pos',type:'n'},{h:'% pos.',k:'posP',type:'p',d:2},{h:'Negativa',k:'neg',type:'n'},{h:'% neg.',k:'negP',type:'p',d:2},{h:'Sin opinión',k:'na',type:'n'},{h:'% sin op.',k:'naP',type:'p',d:2},{h:'Total',k:'tot',type:'n'}],
+    rows: T(['seg','pos','posP','neg','negP','na','naP','tot'], [['Amazon',129,57.85,20,8.97,74,33.18,223],['Legacy',118,52.21,89,39.38,19,8.41,226],['China',0,null,5,17.24,24,82.76,29],['MELI',0,null,0,null,1,100,1],['Total',247,55.03,114,21.86,118,null,479]], true)},
+  syntageCanal: {src: 'deck', cols: [{h:'Canal',k:'canal'},{h:'Con Syntage',k:'con',type:'n'},{h:'Sin Syntage',k:'sin',type:'n'},{h:'Totales',k:'tot',type:'n'}],
+    rows: T(['canal','con','sin','tot'], [['Legacy',70,66,138],['Amazon',80,75,155],['China',40,51,91],['Totales',190,192,382]], true)},
+  legacyPlan: {src: 'deck', cols: [{h:'Plan',k:'plan'},{h:'Activos',k:'activos',type:'n'},{h:'Pagan hoy',k:'pagan',type:'m'},{h:'Ticket',k:'ticket',type:'m'}],
+    rows: T(['plan','activos','pagan','ticket'], [['Starter',75,414775.52,6500.00],['Import/Export Plus',29,187867.49,8170.04],['Softlanding',17,166133.48,10525.20],['Representación Legal',7,34761.80,5012.00],['Suspensión de actividades',5,4895.00,1000.00],['Nómina + Representación Legal',1,9415.40,9415.40],['Import-Export + Softlanding',1,10566.00,10566.00],['Otros (Contabilidad, Comisario, N/A)',3,1499.00,1499.00],['Total',138,829913.69,3512.51]], true)},
+  traspaso: {src: 'deck', cols: [{h:'ID',k:'id'},{h:'Cliente',k:'cliente'},{h:'Plan Stripe',k:'plan'},{h:'Ventas',k:'ventas',type:'m'},{h:'Opinión',k:'op',type:'pill',map:PILL_STATUS},{h:'Cobro Stripe',k:'cobro',type:'m'}],
+    rows: T(['id','cliente','plan','ventas','op','cobro'], [
+      ['IN003208','INMOTIONCARE TECHNOLOGIES','Nómina, Representación Legal',3174192.51,'Positiva',9415.40],['IN003731','GREEN ROUTE TEK MX','Starter',10318896.53,'Positiva',8300],
+      ['IN004245','Patagonia CNC Machines','Import/Export Plus',21327627.26,'Positiva',8300],['IN005064','11S TECNOLOGÍA MX','Starter',4653793.00,'Negativa',6500],
+      ['IN004759','TWIN VOICE','Starter',5940669.41,'Positiva',6500],['IN005116','EMARKETING 1TO1','Starter',3677049.86,'Positiva',5850],
+      ['IN005452','Redcomercio','Starter',3002914.30,'Positiva',8750],['IN004374','4321 TREBOL','Starter',5877849.95,'Negativa',13999],
+      ['IN005890','TBHO','Starter',3578836.60,'Positiva',7499],['IN004691','Mxedge de Occidente','Import/Export Plus',5535736.63,'N/A',9475]])},
+  planes: {src: 'sheet', cols: [{h:'Familia',k:'fam'},{h:'Plan',k:'plan'},{h:'Precio mensual',k:'precio',type:'m',d:0}],
+    rows: T(['fam','plan','precio'], [['Legacy','Starter',9500],['Legacy','Import/Export Plus',14000],['Legacy','Full Compliance',24000],['Marketplaces','Zero Compliance',3000],['Marketplaces','Base Operations',6000],['Marketplaces','Strength',11760],['Marketplaces','Growth',30000]])}
+};
+const CARGA = T(['owner','z','b','l','n'], [['Cristian',24,22,5,0],['Eduardo',29,23,0,0],['Ivette',84,19,0,0],['Edgar Iván',0,0,5,0],['Sin owner',0,0,0,106]]);
+const ARTURO_STATUS = T(['label','n','pct'], [['Activa y cobrando al día',116,36.3],['Vencida (cartera morosa)',69,21.6],['Cancelada en Stripe',41,12.8],['Cancelada, 360 la mantiene Activa',31,9.7],['Cancelada, 360 la mantiene Vencida',16,5.0],['Sin suscripción asignada',26,8.1],['Sin cliente creado en Stripe',16,5.0],['Otros desfases',5,1.6]]);
+const EQUIPO = T(['nombre','rol','desc'], [['Ivette','Riesgo fiscal y legal','Protección normativa y gestión de riesgos fiscales. Cartera China.'],['Cristian','Optimización contable','Procesos contables y gestión del detalle contable. Cartera Amazon.'],['Eduardo','Marketplaces y bancos','Conciliaciones e integración contable e-commerce. Cartera Amazon.'],['Cristina','Supervisión contable','Auditoría fiscal y contable de los clientes.'],['Edgar','Casos complejos','Estructuras contables y fiscales complejas.'],['Juan','Líder interino','Analiza, estructura y crea estrategias.']]);
+const NIVELES = T(['k','t','d'], [['N0','Clientes en ceros','No hay operaciones. Se declara en ceros.'],['N1','Facturas Tally o servicios pequeños','IVA acreditado hasta $2,000. Se declara en ceros.'],['N2','Facturas operativas en marketplaces y servicios','IVA acreditado hasta $2,000, en ceros. Si supera el monto pasa a N3.'],['N3','Facturas operativas y probablemente pauta','Entre $2,001 y $10,000. Se declara manual.'],['N4','Retenciones y ventas gravables visibles','Operaciones mayores, declaración manual. MVE, reportes del marketplace y estado de cuenta.']]);
+const CHEV = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4l6 6-6 6"/></svg>';
+const SRC = {rep: '<span class="tag">Reporte</span>', deck: '<span class="tag deck">Deck</span>', sheet: '<span class="tag sheet">Hoja</span>'};
+
+/* ================= UTILIDADES ================= */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money = (v, d = 2) => v == null ? '—' : (v < 0 ? '-' : '') + '$' + Math.abs(v).toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d});
+const int = v => v == null ? '—' : v.toLocaleString('en-US');
+const pct = (v, d = 1) => v == null ? '—' : v.toFixed(d) + '%';
+const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const pill = (v, map) => v === '—' ? '—' : `<span class="pill ${map[v] ?? 'off'}">${esc(v)}</span>`;
+
+/* Tabla ordenable. Cada celda lleva data-v con el valor crudo; el orden se resuelve por delegación en sortTable(). */
+function cell(c, v) {
+  const num = c.type && c.type !== 'pill';
+  let out, cls = c.cls ? ' ' + c.cls : '';
+  if (c.type === 'm') { out = money(v, c.d ?? 2); if (v < 0) cls += ' neg'; }
+  else if (c.type === 'p') out = pct(v, c.d ?? 1);
+  else if (c.type === 'n') out = int(v);
+  else if (c.type === 'pill') out = pill(v, c.map);
+  else out = esc(v ?? '—');
+  const raw = num ? (v == null ? '' : v) : String(v ?? '').toLowerCase();
+  return `<td class="${num ? 'n' : ''}${cls}" data-v="${esc(raw)}">${out}</td>`;
+}
+function table({cols, rows, src}, note = '') {
+  const head = cols.map((c, i) => `<th class="${c.type && c.type !== 'pill' ? 'n' : ''}" data-col="${i}" data-num="${c.type && c.type !== 'pill' ? 1 : 0}" scope="col"><button type="button">${esc(c.h)}</button></th>`).join('');
+  const body = rows.map(r => `<tr${r.total ? ' class="total"' : ''}>${cols.map(c => cell(c, r[c.k])).join('')}</tr>`).join('');
+  const foot = note || src ? `<div class="src">${SRC[src] ?? ''} ${note}</div>` : '';
+  return `<div class="tw card"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${foot}`;
+}
+function sortTable(th) {
+  const i = +th.dataset.col, num = th.dataset.num === '1', tbody = th.closest('table').tBodies[0];
+  const first = num ? 'descending' : 'ascending';
+  const dir = th.getAttribute('aria-sort') === first ? (num ? 'ascending' : 'descending') : first;
+  const sign = dir === 'ascending' ? 1 : -1;
+  const rows = [...tbody.rows], totals = rows.filter(r => r.classList.contains('total'));
+  const val = r => r.cells[i].dataset.v;
+  rows.filter(r => !totals.includes(r)).sort((a, b) => {
+    const x = val(a), y = val(b);
+    if (x === '' || y === '') return x === y ? 0 : x === '' ? 1 : -1;
+    return (num ? +x - +y : x.localeCompare(y, 'es', {sensitivity: 'base'})) * sign;
+  }).concat(totals).forEach(r => tbody.appendChild(r));
+  th.parentElement.querySelectorAll('th').forEach(h => h.removeAttribute('aria-sort'));
+  th.setAttribute('aria-sort', dir);
+}
+
+/* Barras horizontales en HTML: las etiquetas conservan su tamaño en cualquier ancho.
+   rows: [{label, value, note?}]; scale = valor que llena la pista (por defecto el máximo). */
+function bars(title, sub, rows, {cls = 's-violet', fmt = int, scale} = {}) {
+  const m = scale ?? Math.max(...rows.map(r => r.value), 1);
+  const bl = Math.min(220, Math.max(90, Math.max(...rows.map(r => r.label.length)) * 6.6 + 12));
+  const body = rows.map(r => `<div class="br" data-tip="${esc(r.label)}: ${esc(fmt(r.value))}${r.note ? ' · ' + esc(r.note) : ''}"><span class="bl">${esc(r.label)}</span><span class="bt"><span class="bf ${cls}" style="width:${Math.max(0, r.value / m * 100)}%"></span></span><span class="bv num${r.value < 0 ? ' neg' : ''}">${esc(fmt(r.value))}</span></div>`).join('');
+  return `<div class="chart card" style="--bl:${bl}px"><div class="ct">${esc(title)}</div>${sub ? `<div class="cs">${sub}</div>` : ''}<div class="bars">${body}</div></div>`;
+}
+/* Barras apiladas. series: [{k, label, cls, dark?}]; rows: objetos con label y una clave por serie. */
+function stacked(title, sub, series, rows) {
+  const total = r => series.reduce((s, q) => s + (r[q.k] || 0), 0);
+  const m = Math.max(...rows.map(total), 1);
+  const bl = Math.min(220, Math.max(90, Math.max(...rows.map(r => r.label.length)) * 6.6 + 12));
+  const body = rows.map(r => {
+    const segs = series.filter(q => r[q.k]).map(q => { const w = r[q.k] / m * 100; return `<span class="bf ${q.cls}${q.dark ? ' dark' : ''}" style="width:${w}%" data-tip="${esc(r.label)} · ${esc(q.label)}: ${int(r[q.k])}">${w > 7 ? int(r[q.k]) : ''}</span>`; }).join('');
+    return `<div class="br"><span class="bl">${esc(r.label)}</span><span class="bt stack">${segs}</span><span class="bv num">${int(total(r))}</span></div>`;
+  }).join('');
+  const legend = `<div class="legend">${series.map(q => `<span><i class="${q.cls}"></i>${esc(q.label)}</span>`).join('')}</div>`;
+  return `<div class="chart card" style="--bl:${bl}px"><div class="ct">${esc(title)}</div>${sub ? `<div class="cs">${sub}</div>` : ''}<div class="bars">${body}</div>${legend}</div>`;
+}
+const drill = (pane, label) => `<button type="button" class="link" data-drill="${pane}">${esc(label)} →</button>`;
+const retoHead = r => `<span class="idx num">${r.n}</span><span class="ttl">${esc(r.t)}<small>${esc(r.s)}</small></span><span class="chip${r.crit ? ' crit' : ''}">${esc(r.chip)}</span><span class="chev">${CHEV}</span>`;
+
+/* ================= CAPA 1 · LA FOTO ================= */
+function renderOnion() {
+  const rings = [['resumen','La foto','estratégico',150],['retos','Los retos','táctico',106],['detalle','El detalle','operativo',62]];
+  $('#onion').innerHTML = `<svg viewBox="0 0 340 340" role="group" aria-label="Navegación por capas">
+    ${rings.map(([k, l, s, rad]) => `<circle class="ring" data-layer="${k}" cx="170" cy="170" r="${rad}" tabindex="0" role="button" aria-label="${l}, capa ${s}"></circle>`).join('')}
+    <circle class="core" cx="170" cy="170" r="26"/><text class="core-text" x="170" y="174" text-anchor="middle">DATO</text>
+    ${rings.map(([, l, s, rad]) => `<text class="ring-label" x="170" y="${170 - rad + 20}" text-anchor="middle">${l}</text><text class="ring-sub" x="170" y="${170 - rad + 34}" text-anchor="middle">${s}</text>`).join('')}
+  </svg>`;
+}
+function renderPer100() {
+  const cob = TABLES.cobertura.rows.at(-1), st = TABLES.status.rows.at(-1), china = TABLES.cobertura.rows[3];
+  const base = cob.tot;
+  const cells = [[cob.stripe, 'estarían en Stripe'], [st.a, 'cobrarían al día'], [st.v, 'tendrían la suscripción vencida', 'warm'], [st.fc + st.fs + st.fu, 'se atenderían como activos sin cobro vivo', 'warm'], [china.tot, 'serían China, fuera de Stripe', 'warm'], [st.c, 'estarían cancelados']];
+  $('#per100').innerHTML = cells.map(([v, l, w]) => `<div class="cell card"><div class="n num ${w || ''}">${Math.round(v / base * 100)}</div><div class="l">${l}<br><span class="num dim">${int(v)} de ${int(base)}</span></div></div>`).join('');
+}
+function renderKpis() {
+  const k = [
+    ['$2.50 M','Revenue mensual de Contabilidad','336 clientes en fase contable. Import y Regulatorio quedan fuera: tienen su propio flujo.'],
+    ['$1.39 M','Neto después del costo del equipo','Costo total de specialists $1,115,856. Margen 55% sobre revenue.'],
+    ['36','Clientes atendidos sin suscripción viva','360 los marca Activos; Stripe los tiene cancelados (31), sin suscripción (3) o sin cliente (2). Costo con ingreso cero.'],
+    ['85','Suscripciones vencidas','75 son Legacy (88.2%). Tarjetas expiradas, fondos insuficientes, sin dunning.'],
+    ['0%','China en Stripe','91 clientes facturan por esquemas externos. Sin MRR, retención ni dunning medibles.'],
+    ['172','Cuentas de Arturo activas sin cobro sano','288 activas en 360 contra 116 con suscripción activa cobrándose.']
+  ];
+  $('#kpis').innerHTML = k.map(([v, t, d]) => `<div class="kpi card"><div class="v num">${v}</div><div class="t">${t}</div><div class="d">${d}</div></div>`).join('');
+}
+function renderChain() {
+  const chains = [
+    ['Sin candados entre Stripe y el 360','36 cuentas atendidas como activas sin suscripción viva','Horas contador, timbres y software consumidos','Ingreso cero o cobranza manual perdida'],
+    ['Sin dunning ni actualización de tarjetas','85 suscripciones vencidas, 75 en Legacy','Cartera incobrable acumulada','Desfase severo en el flujo de caja proyectado'],
+    ['320 cuentas en un solo proveedor externo','Saturación y cierres mensuales tardíos','89 opiniones negativas, 75.4% de toda la empresa','Churn de cuentas consolidadas de alto valor'],
+    ['250 clientes fuera de Syntage, 112 fuera de Contalink','Credenciales CIEC/SAT sin gestionar para vincular APIs','Descargas manuales de XML del portal del SAT','Cientos de horas-hombre desperdiciadas']
+  ];
+  $('#chain').innerHTML = chains.map(c => `<div class="c">${c.map(s => `<span>${esc(s)}</span>`).join('')}</div>`).join('');
+}
+function renderDecisions() {
+  const d = [
+    ['Arturo','Internalizar las 320 cuentas Legacy, redistribuirlas o mantener el despacho externo con otro contrato.'],
+    ['Piso','Aplicar el piso de $8,500 MXN/mes a toda cuenta mercantil con actividad y timbrado recurrente.'],
+    ['Stripe','Congelar servicio y timbrado a los 36 clientes sin suscripción viva, o cobrarlos manualmente.'],
+    ['China','Definir el canal de cobro y de documentación para los 91 clientes fuera de Stripe.'],
+    ['Syntage','Meta de cobertura: 250 (licencia), 350 (deck) o 382 (todos los activos).'],
+    ['Equipo','Dos personas adicionales (handoffs Amazon y cartera China) y el rol de Cristina con cero clientes.']
+  ];
+  $('#decisions').innerHTML = d.map(([k, t]) => `<div class="d card"><i>${esc(k)}</i><span>${esc(t)}</span></div>`).join('');
+}
+function renderNotes() {
+  const n = [
+    ['Legacy','391 clientes en el reporte; 382 en el deck y en la hoja Empresas Arturo.'],
+    ['Base total','706 en el reporte; 559 en AccountantClient (19 oct) y 644 en el resumen del deck.'],
+    ['Arturo','320 clientes en el comparativo por owner; 136 en fase contable regular; 236 en la hoja del 19 oct.'],
+    ['Vencidas','75 de 85 (88.2%) en el reto 1; 69 (81.2%) en la matriz de riesgo. Dos cortes distintos de la misma cartera.'],
+    ['Status','La fila de totales del reporte trae 50 "sin cliente en Stripe" y 541 cuentas; las filas por segmento suman 36 y 527. Se respetó la fila tal como viene.'],
+    ['Stripe','502 en Stripe en la tabla de cobertura contra 541 filas en la tabla de status.'],
+    ['Margen Arturo','El reporte llama "71.4% sobre costo directo" a $587,466 / $822,838, que es margen sobre revenue.'],
+    ['China','24 con opinión negativa según el reporte; el deck registra 5 negativas y 24 sin opinión.'],
+    ['Deck Syntage','Legacy 70 + 66 suma 136 y el deck escribe 138; los canales suman 384 contra el total de 382.'],
+    ['Deck unit economics','Legacy muestra 138 clientes, pero su ARPU y costo unitario solo cuadran con 139 (107 + 139 + 91 = 337).'],
+    ['Cristina','Costo $28,000 en el reporte; $37,805 en Recursos Humanos.'],
+    ['Ivette','La gráfica de carga suma 103 (84 + 19); su cartera es de 91.']
+  ];
+  $('#notes').innerHTML = n.map(([k, t]) => `<div class="note card"><i>${esc(k)}</i><span>${esc(t)}</span></div>`).join('');
+}
+
+/* ================= CAPA 2 · LOS RETOS (título y cuerpo juntos) ================= */
+const RETOS = [
+  {n:1, t:'Stripe sigue siendo un cuello de botella como única fuente de verdad', s:'706 clientes en 360, 502 en Stripe, 259 activas cobrando', chip:'36 fuga · 85 vencidas', crit:true, body: () => `
+    <div class="two">
+      ${bars('Cobertura de Stripe por segmento', 'Clientes en Stripe sobre el total de cada segmento.', TABLES.cobertura.rows.filter(r => !r.total).map(r => ({label: r.seg, value: r.stripe, note: `${r.cob}% de ${r.tot}`})), {scale: 391})}
+      ${stacked('Status en Stripe por segmento', 'Lo que Stripe dice de cada cuenta que el 360 atiende.', [{k:'a',label:'Activa',cls:'s-green',dark:true},{k:'c',label:'Cancelada',cls:'s-ink'},{k:'v',label:'Vencida',cls:'s-orange',dark:true},{k:'s',label:'Sin cliente',cls:'s-ink25',dark:true},{k:'f',label:'360 Activa sin cobro',cls:'s-violet'}], TABLES.status.rows.filter(r => !r.total).map(r => ({label: r.seg, a: r.a, c: r.c, v: r.v, s: r.s, f: r.fc + r.fs + r.fu})))}
+    </div>
+    <div class="two"><div class="prose">
+      <p class="callout warm"><b>Fuga directa.</b> Al menos 36 clientes que el 360 atiende como activos están en Stripe cancelados (31), sin suscripción activa (3) o ni siquiera existen como clientes (2). Se les sigue prestando servicio con costo operativo directo (horas contador, software, timbres) y cobro nulo o manual desfasado.</p>
+      <p>De las 85 suscripciones vencidas, 75 pertenecen a Legacy (88.2%). Los métodos de pago de las cuentas antiguas no se actualizan: tarjetas expiradas, fondos insuficientes y ningún dunning ni seguimiento comercial detrás.</p>
+      <p>Los 91 clientes de China no existen en Stripe y Legacy mantiene 27.9% de sus clientes fuera. Como la facturación corre por esquemas externos, no hay métricas centralizadas de MRR, retención ni dunning automático.</p>
+      <p>Amazon es el canal con mejor cobro automático y aun así acumula 70 cancelados frente a 139 activos, una cancelación por cada dos activos. El reporte lo lee como rotación acelerada del vendedor o baja retención después del onboarding.</p>
+    </div><div class="block">${table(TABLES.cobertura, `Cobertura y status por segmento. ${drill('segmentos', 'Ver status completo por segmento')}`)}</div></div>`},
+  {n:2, t:'Los clientes no comparten sus documentos', s:'Legacy sin estados de cuenta, Amazon con miedo al compliance, China sin documentación', chip:'24 China con opinión negativa', crit:true, body: () => `
+    <div class="two"><div class="prose">
+      <p>La prestación del servicio contable está obstaculizada por la falta de insumos básicos del cliente. Cada segmento falla distinto.</p>
+      <p class="callout warm"><b>China, foco rojo crítico.</b> 24 clientes tienen opinión de cumplimiento negativa ante el SAT porque no hemos podido recibir la documentación para regularizar su situación. La barrera idiomática, bancaria y de comunicación impide obtener comprobantes fiscales y contratos, y expone al cliente y a Tally a contingencias fiscales.</p>
+      <p>Los clientes Legacy omiten sistemáticamente la entrega de sus estados de cuenta bancarios; sin ellos no hay conciliación fidedigna y el cierre mensual de impuestos se atrasa.</p>
+      <p>Amazon es el segmento más homogéneo en facturación, pero presenta alta fricción y reticencia al due diligence fiscal, lo que explica en parte por qué 70 clientes han cancelado el servicio.</p>
+    </div><div class="block">${table(TABLES.opiniones, `Opiniones de cumplimiento por segmento, 479 procesadas. Universo distinto al del reporte: Legacy 226, China 29. ${drill('segmentos', 'Ver segmentos')}`)}</div></div>`},
+  {n:3, t:'Syntage está sesgado por la capacidad actual de altas', s:'Y eso no significa que ya sea momento de ampliar la cuenta', chip:'206 de 523 conectados', body: () => `
+    <div class="two">
+      ${bars('Cobertura de Syntage por nivel de prioridad', 'Clientes conectados sobre el total de cada nivel.', TABLES.syntage.rows.filter(r => !r.total).map(r => ({label: r.seg, value: r.en, note: `${r.cob}% de ${r.tot}`})), {scale: 198})}
+      <div class="prose">
+        <p>La prioridad para conectar cuentas a Syntage sigue cuatro niveles: primero los clientes de mayor riesgo para Tally (China), después los de mayor potencial (VIP en 360), luego los que requieren auditoría (cartera de Arturo) y al final los que necesitan seguimiento para validar el inicio de operaciones (Amazon sin First Shipment).</p>
+        <p class="callout">Las altas de hoy reflejan la capacidad actual de conexión y sesgan la lectura. Que falten 46 cuentas de China y 124 de Arturo no significa, por sí solo, que ya sea momento de ampliar la cuenta.</p>
+      </div>
+    </div>
+    ${table(TABLES.syntage, `Priorización para Syntage. ${SRC.deck} El deck mide la cobertura sobre otro universo (382 activos: 190 conectados, 192 sin conectar) y fija 350 como meta Q1 2027. ${drill('segmentos', 'Ver cobertura por canal')}`)}`},
+  {n:4, t:'La carga del equipo está a tope', s:'336 clientes en fase contable repartidos en seis specialists', chip:'$2.50 M revenue · $1.12 M costo', body: () => `
+    <div class="two">
+      ${stacked('Carga por specialist según el plan propuesto', 'Clientes por plan nuevo (Zero Compliance, Base Operations, Legacy) y los que no tienen owner.', [{k:'z',label:'Zero Compliance',cls:'s-violet'},{k:'b',label:'Base Operations',cls:'s-green',dark:true},{k:'l',label:'Legacy',cls:'s-orange',dark:true},{k:'n',label:'Sin owner',cls:'s-ink25',dark:true}], CARGA.map(c => ({label: c.owner, z: c.z, b: c.b, l: c.l, n: c.n})))}
+      ${bars('Valor Stripe mensual por owner', 'Suma de las suscripciones de su cartera, con o sin cobro al día.', TABLES.owners.rows.filter(r => !r.total).map(r => ({label: r.owner, value: r.stripe})), {fmt: v => money(v, 0)})}
+    </div>
+    ${table(TABLES.specialists, `Revenue por specialist: empresas activas, con precio válido en Stripe y sin suspensión ni churn en 360. Import y Regulatorio fuera. ${drill('equipo', 'Ver comparativo por owner')}`)}
+    <div class="two"><div class="prose">
+      <p>Cada specialist está especializado por canal. Arturo gestiona toda la cartera Legacy (320 clientes); Eduardo y Cristian atienden Amazon (88 y 77); Ivette lleva China (90). Edgar tiene 6 clientes con el promedio de ventas acumuladas más alto de la empresa, $20.1 M por cliente.</p>
+      <p>Arturo concentra el mayor Valor Stripe ($1,240,315) por puro volumen. Cristian y Eduardo tienen el mejor balance en Amazon, con más de 80% de opiniones positivas y más de 75% de cuentas activas en Stripe. La cartera de Ivette aparece 100% en Stripe como Sin cliente o Sin suscripción, con ventas acumuladas promedio de $2,875.77.</p>
+    </div><div class="prose">
+      <p class="callout"><b>Lo que el deck agrega.</b> Hoy el equipo opera a tope y pide dos personas más: una para los nuevos handoffs de Amazon (7 confirmados con First Shipment, 31 en proceso, 65 sin iniciar) y otra para repartir la cartera de China entre dos especialistas.</p>
+      <p>Unit economics del deck: margen directo promedio 56.5%, con Amazon en 45.6%, Legacy en 69.6% y China en 59.8%. El costo que usa incluye administración, CX y domicilio fiscal, así que es costo cargado, no directo.</p>
+    </div></div>`},
+  {n:5, t:'El portafolio de Arturo debe reestructurarse por completo', s:'320 cuentas en un proveedor externo; 116 cobrando al día', chip:'172 activas sin cobro sano', crit:true, body: () => `
+    <div class="two">
+      ${bars('Status en Stripe de la cartera de Arturo', '320 cuentas. Solo 116 cobran al día.', ARTURO_STATUS.map(s => ({label: s.label, value: s.n, note: `${s.pct}%`})), {cls: 's-orange'})}
+      <div class="prose">
+        <p class="callout warm"><b>Brecha operación contra facturación.</b> El 360 considera 288 cuentas activas recibiendo atención contable (90%); solo 116 tienen una suscripción activa cobrándose en Stripe. Hay 172 cuentas activas en operación sin un cobro recurrente sano.</p>
+        <p>El Valor Stripe teórico de la cartera es $1,240,315, el 40.4% de lo registrado en Stripe para toda la compañía, con un promedio de $3,875.99 por cuenta; 273 cuentas están registradas en Stripe (85.3%) y 47 fuera (14.7%).</p>
+        <p>En herramientas, Contalink tiene 208 cuentas dadas de alta (65%) y 112 fuera; Syntage, 70 (21.9%) frente a 250 sin conexión (78.1%). Más de tres cuartas partes de la cartera requiere descargas manuales y conciliación tradicional.</p>
+        <p>En opinión de cumplimiento hay 113 positivas (35.3%), 89 negativas (27.8%) y 118 sin opinión (36.9%). De las 202 con opinión, 44.1% es negativa, y esas 89 negativas son el 75.4% de todas las quejas de la empresa.</p>
+        <p>Arturo Proveedor es un despacho externo con costo fijo mensual de $235,372 por 136 clientes en fase contable regular. El revenue reconocido es $822,837.83 y el margen neto $587,465.83, 71.4% del revenue (el reporte lo etiqueta como margen sobre costo directo).</p>
+      </div>
+    </div>
+    <div class="block"><h3 class="h3">Matriz de riesgo</h3>${table(TABLES.riesgos, `Matriz de riesgo del reto 5. ${SRC.deck} El deck reduce el portafolio Legacy de 382 a 138 activos ($822,837.83) y lista 10 clientes en traspaso. ${drill('clientes', 'Ver Legacy por plan y traspaso')}`)}</div>`},
+  {n:6, t:'El pricing tiene disparidades que deben corregirse', s:'14 clientes con ventas altas y tarifa deprimida o nula', chip:'+$87,292/mes si aplican los 14 upgrades', body: () => `
+    <div class="block">
+      ${bars('Incremento mensual estimado por cliente', 'Tarifa sugerida menos tarifa actual en Stripe. Los dos negativos son ajustes a la baja en Amazon.', TABLES.pricing.rows.map(p => ({label: p.empresa, value: p.inc})), {fmt: v => money(v, 0)})}
+      ${table(TABLES.pricing, `Tabla de disparidades de pricing. Suma de los 14 incrementos: $87,292.33/mes. ${drill('clientes', 'Ver por cliente')}`)}
+    </div>
+    <div class="block"><h3 class="h3">Plan de acción comercial para los upgrades</h3><div class="steps">
+      <div class="step card"><span class="k">1</span><div><b>Revisión de términos por umbral de facturación (cláusula de volumen)</b><p>Convocar a los clientes con ventas superiores a $2,000,000 MXN, encabezados por BLIND CREATOR y TWIN VOICE, para actualizar su plan según el volumen transaccional anual y la cantidad de pólizas y CFDI mensuales que procesa el equipo.</p></div></div>
+      <div class="step card"><span class="k">2</span><div><b>Campaña de nivelación en la cartera Legacy (Arturo)</b><p>La mayoría de los planes obsoletos, de $1,274 a $6,500, están en Arturo; por eso su cartera genera alto esfuerzo con tarifas deprimidas. Establecer un piso de $8,500 MXN/mes para toda cuenta mercantil con actividad operativa y timbrado recurrente.</p></div></div>
+      <div class="step card"><span class="k">3</span><div><b>Auditoría de cuentas canceladas con ventas reales (Amazon)</b><p>Revisar con Cristian y Eduardo las cuentas Growve Inc. y Loudcup MX. Si siguen operando en Seller Central y Tally sigue presentando sus declaraciones, congelar el timbrado hasta actualizar el método de pago en Stripe con la nueva tarifa Enterprise.</p></div></div>
+    </div></div>`},
+  {n:7, t:'Los planes de Marketplaces necesitan reestructurarse', s:'Retener y subir precio conforme avanza la expansión del cliente', chip:'4 cuadrantes riesgo × volumen', body: () => `
+    <div class="block">
+      <div class="matrix">
+        <div></div><div class="ax">Volumen bajo</div><div class="ax">Volumen alto</div>
+        <div class="ax y">Riesgo alto</div>
+        <div class="q card hot"><b>Legacy</b><p>Pagan tarde. Quieren todo gratis. Operaciones administrativas complejas. No comparten documentos.</p></div>
+        <div class="q card hot"><b>Amazon en expansión</b><p>Ventas mayores a $10 M al mes.</p></div>
+        <div class="ax y">Riesgo bajo</div>
+        <div class="q card"><b>Amazon sin operaciones o por debajo de $100 K al mes</b><p>Cuentas inactivas o en fase temprana de venta.</p></div>
+        <div class="q card cool"><b>Amazon en escala</b><p>Más de un marketplace, más de una cuenta bancaria, stock por IOR o T1C. Mayores a MXN $2.5 M al mes.</p></div>
+      </div>
+      ${table(TABLES.amazonUp, `Boceto de segmentación riesgo × volumen y upgrades Amazon. ${SRC.deck} El deck aporta el modelo de 5 niveles (N0 a N4) y los tres pilares. ${drill('modelo', 'Ver modelo 2027')}`)}
+    </div>`}
+];
+function renderRetos() {
+  $('#retos-list').innerHTML = RETOS.map(r => `<button type="button" class="disc" data-reto="${r.n}">${retoHead(r)}</button>`).join('');
+  $('#retos-acc').innerHTML = RETOS.map(r => `<article class="acc card" id="reto-${r.n}"><button type="button" class="disc lg acc-h" aria-expanded="false" aria-controls="reto-${r.n}-b">${retoHead(r)}</button><div class="acc-b" id="reto-${r.n}-b" inert><div><div class="acc-in">${r.body()}</div></div></div></article>`).join('');
+}
+function toggleAcc(a, force) {
+  const h = a.querySelector('.acc-h'), open = force ?? h.getAttribute('aria-expanded') !== 'true';
+  h.setAttribute('aria-expanded', open); a.querySelector('.acc-b').inert = !open;
+}
+function openReto(n) {
+  go('retos', false);
+  const a = document.getElementById('reto-' + n); toggleAcc(a, true);
+  requestAnimationFrame(() => a.scrollIntoView({behavior: reduced() ? 'auto' : 'smooth', block: 'start'}));
+}
+
+/* ================= CAPA 3 · EL DETALLE ================= */
+const section = (title, sub, inner) => `<div class="block"><div class="sec-head"><h3 class="h3">${title}</h3>${sub ? `<p class="sub small">${sub}</p>` : ''}</div>${inner}</div>`;
+function renderDetalle() {
+  $('#pane-segmentos').innerHTML =
+    section('Cobertura y status en Stripe', 'Qué dice Stripe de cada segmento que el 360 atiende.', table(TABLES.cobertura) + table(TABLES.status, 'Reto 1.')) +
+    section('Unit economics por segmento', 'Clientes en fase contable: 337. El costo incluye administración, CX, domicilio fiscal, Syntage, Contalink y operaciones.', table(TABLES.unit, 'Lámina de unit economics. El reporte trae el mismo revenue ($2,501,925) con un costo de specialists de $1,115,856.')) +
+    section('Opiniones de cumplimiento por segmento', '479 opiniones procesadas: 247 positivas (55.0%), 114 negativas (21.9%).', table(TABLES.opiniones, 'El reporte habla de 24 clientes de China con opinión negativa; el deck los registra como sin opinión.')) +
+    section('Syntage por canal', 'Universo del deck: 382 clientes activos en los tres canales. Meta de cobertura Q1 2027: 350.', table(TABLES.syntageCanal, 'Lámina de cobertura Syntage. El reporte mide 206 conectados sobre 523 por nivel de prioridad.'));
+
+  $('#pane-equipo').innerHTML =
+    section('Resumen comparativo por owner', '706 clientes. Valor Stripe suma suscripciones con o sin cobro al día; ventas acumuladas mezclan fuentes y no son comparables entre clientes.', table(TABLES.owners)) +
+    section('Status en Stripe por owner', '', table(TABLES.cruce, 'Cruzamiento de status Stripe por owner.')) +
+    section('Revenue y costo por specialist', '', table(TABLES.specialists, 'Reto 4.')) +
+    section('Equipo y especialización', 'Misión del equipo según el deck: promover la expansión de los clientes protegiendo su revenue y su cash flow.',
+      `<div class="team">${EQUIPO.map(m => `<div class="member card"><b>${esc(m.nombre)}</b><span class="r">${esc(m.rol)}</span><span class="d">${esc(m.desc)}</span></div>`).join('')}</div><div class="src">${SRC.deck} Estructura estratégica y especialización del equipo.</div>`);
+
+  const chips = (key, label) => `<span class="lbl">${label}</span>` + [...new Set(TABLES.pricing.rows.map(p => p[key]))].map(v => `<button type="button" class="f" data-filter="${key}" data-v="${esc(v)}" aria-pressed="false">${esc(v)}</button>`).join('');
+  $('#pane-clientes').innerHTML =
+    section('Disparidades de pricing', '14 clientes con ventas acumuladas altas y suscripción deprimida o nula. Filtra por owner o status.', `<div class="filters" id="pf">${chips('owner', 'Owner')}${chips('status', 'Status')}</div><div id="pt"></div>`) +
+    section('Upgrades Amazon', '', table(TABLES.amazonUp, 'Reto 7.')) +
+    section('Legacy por plan', '138 clientes activos del deck. Facturación hoy $829,913.69.', table(TABLES.legacyPlan, 'Distribución de cartera por plan. El ticket total del deck ($3,512.51) es un promedio aritmético que incluye ceros.')) +
+    section('Clientes Legacy en traspaso', 'Diez cuentas con ventas altas que el deck marca para traspaso.', table(TABLES.traspaso, 'Lámina de traspaso de clientes.'));
+  drawPricing();
+
+  $('#pane-modelo').innerHTML =
+    section('Cinco niveles para escalar y controlar el riesgo', 'Antes se medía con cinco procesos lineales (opinión, documentos, cálculo, QA, reporte). Hoy se mide la expansión del cliente y el riesgo para Tally en cada fase.',
+      `<div class="levels">${NIVELES.map(n => `<div class="lv card"><span class="k">${n.k}</span><span class="t">${esc(n.t)}</span><span class="d">${esc(n.d)}</span></div>`).join('')}</div>
+      <p class="foot">Hitos del año 1: alta en Syntage, constancia de situación fiscal, depósito electrónico, First Shipment, banca tradicional, T1C o IOR. En N4 se rectifican actividad y obligaciones en la constancia, listas 69B y GAFI, y se hace una verificación rápida de proveedores.</p>
+      <div class="src">${SRC.deck} Matriz de crecimiento y riesgo. N1 y N2 traen el mismo umbral en el deck; queda por corregir.</div>`) +
+    section('Tres pilares del modelo', '', `<div class="team">
+        <div class="member card"><b>Alineación de crecimiento</b><span class="d">El crecimiento en facturación del cliente se vincula con el proceso de la agencia de growth.</span></div>
+        <div class="member card"><b>Sistema de control de riesgo</b><span class="d">Antes era olfato; hoy hay un sistema completo que permite anticipar.</span></div>
+        <div class="member card"><b>Optimización de costos</b><span class="d">Se alivia el costo a los clientes que todavía están en su proceso de llegada.</span></div>
+      </div>`) +
+    section('Planes y precios nuevos', 'MXN al mes, contrato anual. Son los planes que ya usa la gráfica de carga del reporte.', table(TABLES.planes, 'Pestaña Planes y Precios. Queda abierto si Base Operations va en USD $200 o $300.'));
+}
+const pricingFilter = {owner: null, status: null};
+function drawPricing() {
+  const rows = TABLES.pricing.rows.filter(p => Object.entries(pricingFilter).every(([k, v]) => v == null || p[k] === v));
+  $('#pt').innerHTML = rows.length ? table({...TABLES.pricing, rows}) : '<p class="foot">Ningún cliente cumple ese filtro.</p>';
+}
+function toggleFilter(btn) {
+  const k = btn.dataset.filter; pricingFilter[k] = pricingFilter[k] === btn.dataset.v ? null : btn.dataset.v;
+  $('#pf').querySelectorAll(`[data-filter="${k}"]`).forEach(b => b.setAttribute('aria-pressed', b.dataset.v === pricingFilter[k]));
+  drawPricing();
+}
+
+/* ================= NAVEGACIÓN ================= */
+function moveThumb() {
+  const seg = $('#seg'), on = seg.querySelector('[aria-selected="true"]'), th = seg.querySelector('.thumb');
+  th.style.width = on.offsetWidth + 'px'; th.style.transform = `translateX(${on.offsetLeft - 3}px)`;
+  document.documentElement.style.setProperty('--nav-h', $('.nav').offsetHeight + 'px');
+}
+function go(layer, scroll = true) {
+  document.querySelectorAll('.layer').forEach(s => { s.hidden = s.id !== layer; });
+  $('#seg').querySelectorAll('[data-layer]').forEach(b => b.setAttribute('aria-selected', b.dataset.layer === layer));
+  $('#onion').querySelectorAll('.ring').forEach(r => r.classList.toggle('is-on', r.dataset.layer === layer));
+  moveThumb();
+  if (scroll) {
+    try { history.replaceState(null, '', '#' + layer); } catch (e) { /* el host puede bloquear el fragmento; la vista ya cambió */ }
+    window.scrollTo({top: 0, behavior: reduced() ? 'auto' : 'smooth'});
+  }
+}
+function showPane(p) {
+  document.querySelectorAll('.pane').forEach(el => { el.hidden = el.id !== 'pane-' + p; });
+  $('#subtabs').querySelectorAll('[data-pane]').forEach(b => b.setAttribute('aria-selected', b.dataset.pane === p));
+}
+const layerFromHash = () => { const h = location.hash.slice(1); return h && document.querySelector(`.layer#${CSS.escape(h)}`) ? h : 'resumen'; };
+function bindEvents() {
+  document.addEventListener('click', e => {
+    const t = e.target, hit = s => t.closest(s);
+    let el;
+    if ((el = hit('[data-layer]'))) return go(el.dataset.layer);
+    if ((el = hit('[data-pane]'))) return showPane(el.dataset.pane);
+    if ((el = hit('[data-reto]'))) return openReto(+el.dataset.reto);
+    if ((el = hit('[data-drill]'))) { go('detalle'); return showPane(el.dataset.drill); }
+    if ((el = hit('.acc-h'))) return toggleAcc(el.closest('.acc'));
+    if ((el = hit('th[data-col]'))) return sortTable(el);
+    if ((el = hit('[data-filter]'))) return toggleFilter(el);
+  });
+  document.addEventListener('keydown', e => {
+    const ring = e.target.closest && e.target.closest('.ring');
+    if (ring && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); go(ring.dataset.layer); }
+  });
+  const tip = $('#tip'); let last = '';
+  document.addEventListener('mousemove', e => {
+    const el = e.target.closest && e.target.closest('[data-tip]');
+    if (!el) { if (last) { tip.classList.remove('on'); last = ''; } return; }
+    if (el.dataset.tip !== last) { tip.textContent = last = el.dataset.tip; }
+    const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8), y = e.clientY + 18 + tip.offsetHeight > innerHeight ? e.clientY - tip.offsetHeight - 10 : e.clientY + 18;
+    tip.style.left = x + 'px'; tip.style.top = y + 'px'; tip.classList.add('on');
+  });
+  addEventListener('hashchange', () => go(layerFromHash(), false));
+  addEventListener('resize', moveThumb);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(moveThumb);
+}
+function init() {
+  renderOnion(); renderPer100(); renderKpis(); renderChain(); renderDecisions(); renderNotes(); renderRetos(); renderDetalle();
+  bindEvents();
+  go(layerFromHash(), false);
+  requestAnimationFrame(() => $('#seg').classList.add('ready'));
+}
+init();
+</script>
+
+</body>
+</html>
